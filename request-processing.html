@@ -70,7 +70,7 @@
             font-size: 0.95rem;
         }
 
-        .nav-link:hover { background: #f8fafc; color: var(--brand-green); }
+        .nav-link:hover { background: #f8fafc; color: var(--brand-green); transform: translateY(-2px); opacity: 0.9; }
         .nav-link.active { background: #f0fdf4; color: var(--brand-green); font-weight: 600; }
 
         .sidebar-footer { padding: 1.5rem; border-top: 1px solid #f1f5f9; margin-top: auto; }
@@ -183,6 +183,25 @@
         .btn-reject { background: #e11d48; color: white; }
         .btn-info { background: #f59e0b; color: white; }   
         .btn:hover { opacity: 0.9; }
+        .btn.selected { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25); transform: translateY(-1px); }
+        .action-note { margin-top: 0.8rem; font-size: 0.82rem; color: var(--text-muted); }
+        .revision-box { margin-top: 0.9rem; display: none; }
+        .revision-label { display: block; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 6px; }
+        .revision-input {
+            width: 100%;
+            min-height: 90px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            resize: vertical;
+            outline: none;
+        }
+        .revision-input:focus { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.25); }
+        .btn-send-revision { margin-top: 10px; width: 100%; background: #2563eb; color: white; }
+        .timeline-note { font-size: 0.82rem; color: var(--text-muted); margin-top: 6px; line-height: 1.45; }
 
         .status-badge { background: #fef9c3; color: #854d0e; padding: 4px 12px; border-radius: 12px; font-size: 0.8rem; font-weight: 700; }
     </style>
@@ -277,30 +296,39 @@
                     </div>
                 </div>
 
-            <div class="card">
+            <div class="card" id="reviewActionCard">
                 <div class="card-title">Review Action</div>
                 <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">Select an action to update the status of this request. This will notify the resident immediately.</p>
                 <div class="action-btns">
-                    <button class="btn btn-approve" onclick="handleAction('Approve', 'active')">
+                    <button class="btn btn-approve" data-action="Approved" data-dot="active">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
                         Approve
                     </button>
-                    <button class="btn btn-info" onclick="handleAction('Revision Requested', 'amber')">
+                    <button class="btn btn-info" data-action="Revision Requested" data-dot="amber">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                         Request Revisions
                     </button>
-                    <button class="btn btn-reject" onclick="handleAction('Rejected', 'danger')">
+                    <button class="btn btn-reject" data-action="Rejected" data-dot="danger">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                         Reject
                     </button>
                 </div>
+                <div id="revisionBox" class="revision-box">
+                    <label for="revisionMessage" class="revision-label">Revision details</label>
+                    <textarea id="revisionMessage" class="revision-input" placeholder="Describe what needs to be corrected or added before approval."></textarea>
+                    <button id="sendRevisionBtn" class="btn btn-send-revision">Send Revision Request</button>
+                </div>
+                <p id="actionFeedback" class="action-note">No review action selected yet.</p>
             </div>
         </div>
     </main>
 
     <script>
-        // 1. Core function to update both the Badge and the Timeline
-        function updateInterface(status, dotClass) {
+        let selectedAction = null;
+        let latestActionNode = null;
+
+        // Update badge, timeline, and feedback text for the latest action.
+        function updateInterface(status, dotClass, note = "") {
             const now = new Date().toLocaleString();
 
             // Update the top status badge text and colors
@@ -320,41 +348,108 @@
                 }
             }
             
-            // Add the new step to the Timeline container
+            // Keep exactly one latest review action node and update it in place
             const timelineList = document.getElementById('timelineList');
             if (timelineList) {
-                const newItem = document.createElement('div');
-                newItem.className = 'timeline-item';
-                newItem.innerHTML = `
+                if (!latestActionNode) {
+                    latestActionNode = document.createElement('div');
+                    latestActionNode.className = 'timeline-item';
+                    latestActionNode.id = 'latestActionItem';
+                    timelineList.appendChild(latestActionNode);
+                }
+
+                latestActionNode.innerHTML = `
                     <div class="timeline-dot ${dotClass}"></div>
                     <div class="timeline-label">${status}</div>
                     <div class="timeline-time">${now}</div>
+                    ${note ? `<div class="timeline-note">${note}</div>` : ""}
                 `;
-                timelineList.appendChild(newItem);
+            }
+
+            const actionFeedback = document.getElementById('actionFeedback');
+            if (actionFeedback) {
+                actionFeedback.innerText = note
+                    ? `Latest update: ${status} at ${now} - ${note}`
+                    : `Latest update: ${status} at ${now}`;
             }
         }
 
-        // 2. Attach Event Listeners to the buttons
-        
-        // Reject Button
-        document.querySelector('.btn-reject').onclick = function() {
-            updateInterface("Rejected", "danger");
-            alert("Request Rejected. Resident has been notified.");
-        };
+        // Handle quick actions and toggle revision input when needed.
+        function handleAction(button) {
+            const status = button.dataset.action;
+            const dotClass = button.dataset.dot;
+            const reviewActionCard = document.getElementById('reviewActionCard');
+            const revisionBox = document.getElementById('revisionBox');
+            const revisionMessage = document.getElementById('revisionMessage');
 
-        // Request Revisions Button
-        document.querySelector('.btn-info').onclick = function() {
-            updateInterface("Revision Requested", "amber");
-            alert("Revision request sent to the resident.");
-        };
+            if (selectedAction) {
+                selectedAction.classList.remove('selected');
+            }
+            selectedAction = button;
+            selectedAction.classList.add('selected');
 
-        // Approve Button
-        document.querySelector('.btn-approve').onclick = function() {
-            updateInterface("Approved", "active");
-            alert("Request Approved. Resident will be notified.");
-        };
+            if (status === 'Revision Requested') {
+                revisionBox.style.display = 'block';
+                return;
+            }
+
+            if (revisionBox) {
+                revisionBox.style.display = 'none';
+            }
+            if (revisionMessage) {
+                revisionMessage.value = '';
+            }
+
+            updateInterface(status, dotClass);
+
+            if (reviewActionCard) {
+                reviewActionCard.style.display = 'none';
+            }
+        }
+
+        // Wire action buttons and revision submission behavior.
+        function bindReviewActions() {
+            const actionButtons = document.querySelectorAll('.action-btns .btn');
+            actionButtons.forEach((btn) => {
+                btn.addEventListener('click', () => handleAction(btn));
+            });
+
+            const sendRevisionBtn = document.getElementById('sendRevisionBtn');
+            const revisionMessage = document.getElementById('revisionMessage');
+            const reviewActionCard = document.getElementById('reviewActionCard');
+            const revisionBox = document.getElementById('revisionBox');
+            const revisionButton = document.querySelector('.btn-info');
+
+            if (sendRevisionBtn && revisionMessage) {
+                sendRevisionBtn.addEventListener('click', () => {
+                    const message = revisionMessage.value.trim();
+                    if (!message) {
+                        revisionMessage.focus();
+                        return;
+                    }
+
+                    if (selectedAction) {
+                        selectedAction.classList.remove('selected');
+                    }
+                    selectedAction = revisionButton;
+                    if (selectedAction) {
+                        selectedAction.classList.add('selected');
+                    }
+
+                    updateInterface('Revision Requested', 'amber', `Revision message: ${message}`);
+
+                    if (revisionBox) {
+                        revisionBox.style.display = 'none';
+                    }
+                    if (reviewActionCard) {
+                        reviewActionCard.style.display = 'none';
+                    }
+                });
+            }
+        }
 
         // 3. Logout Functionality
+        // Clear session data and return to the landing page.
         function handleLogout(event) {
             event.preventDefault();
             localStorage.removeItem('isLoggedIn');
@@ -362,8 +457,9 @@
             window.location.href = 'landing.html'; 
         }
 
-        // 4. Initialize page (Optional: set starting time for the first timeline node)
+        // 4. Initialize page
         window.onload = function() {
+            bindReviewActions();
             const initialTime = document.querySelector('.timeline-time');
             if (initialTime && !initialTime.innerText) {
                 initialTime.innerText = new Date().toLocaleString();

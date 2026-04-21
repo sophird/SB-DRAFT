@@ -70,7 +70,7 @@
             font-size: 0.95rem;
         }
 
-        .nav-link:hover { background: #f8fafc; color: var(--brand-green); }
+        .nav-link:hover { background: #f8fafc; color: var(--brand-green); transform: translateY(-2px); opacity: 0.9; }
         .nav-link.active { background: #f0fdf4; color: var(--brand-green); font-weight: 600; }
 
         .sidebar-footer { padding: 1.5rem; border-top: 1px solid #f1f5f9; margin-top: auto; }
@@ -184,6 +184,37 @@
 
         .btn-review:hover {
             background-color: #15803d; /* Darker green on hover */
+        }
+
+        .pagination {
+            display: none;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .page-btn {
+            border: 1px solid #e2e8f0;
+            background: white;
+            color: var(--text-main);
+            border-radius: 8px;
+            padding: 0.45rem 0.8rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .page-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .page-indicator {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            margin: 0 0.25rem;
         }
 
     </style>
@@ -306,6 +337,12 @@
                 </div>
             </div>
         </div>
+
+        <div id="pagination" class="pagination">
+            <button id="prevPageBtn" class="page-btn">Previous</button>
+            <span id="pageIndicator" class="page-indicator">Page 1 of 1</span>
+            <button id="nextPageBtn" class="page-btn">Next</button>
+        </div>
     </main>
 
     <script>
@@ -313,51 +350,106 @@
         const searchInput = document.getElementById('adminSearch');
         const statusFilter = document.getElementById('statusFilter');
         const typeFilter = document.getElementById('typeFilter');
-        const cards = document.querySelectorAll('.request-card');
+        const cards = Array.from(document.querySelectorAll('.request-card'));
         const counter = document.getElementById('counter');
+        const pagination = document.getElementById('pagination');
+        const prevPageBtn = document.getElementById('prevPageBtn');
+        const nextPageBtn = document.getElementById('nextPageBtn');
+        const pageIndicator = document.getElementById('pageIndicator');
+        const ITEMS_PER_PAGE = 10;
+        let filteredCards = [...cards];
+        let currentPage = 1;
 
-        // 2. The Master Filter Function
-        function filterCards() {
-            const searchQuery = searchInput.value.toLowerCase();
-            const statusQuery = statusFilter.value.toLowerCase();
-            const typeQuery = typeFilter.value.toLowerCase();
-            
-            let visibleCount = 0;
+        // Render the filtered request cards for the active page.
+        function renderCards() {
+            const totalFiltered = filteredCards.length;
+            const totalPages = Math.max(1, Math.ceil(totalFiltered / ITEMS_PER_PAGE));
+            if (currentPage > totalPages) currentPage = totalPages;
 
-            cards.forEach(card => {
-                const title = card.getAttribute('data-title').toLowerCase();
-                
-                // Find the specific badges inside the card
-                const typeBadge = card.querySelector('.badge-type');
-                const cardType = typeBadge ? typeBadge.textContent.toLowerCase().trim() : "";
-                
-                // Find the status badge (it's the one that is NOT the type badge)
-                const statusBadge = card.querySelector('.badge:not(.badge-type)');
-                const cardStatus = statusBadge ? statusBadge.textContent.toLowerCase().trim() : "";
+            const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+            const endIndex = startIndex + ITEMS_PER_PAGE;
 
-                // Check if card matches ALL three filters
-                const matchesSearch = title.includes(searchQuery);
-                const matchesStatus = (statusQuery === 'all' || cardStatus === statusQuery);
-                const matchesType = (typeQuery === 'all' || cardType.includes(typeQuery));
-
-                // Only show if it passes all checks
-                if (matchesSearch && matchesStatus && matchesType) {
-                    card.style.display = 'block';
-                    visibleCount++;
+            cards.forEach((card) => {
+                if (filteredCards.includes(card)) {
+                    const cardIndex = filteredCards.indexOf(card);
+                    const isVisibleOnPage = cardIndex >= startIndex && cardIndex < endIndex;
+                    card.style.display = isVisibleOnPage ? 'block' : 'none';
                 } else {
                     card.style.display = 'none';
                 }
             });
+            
+            const shownCount = Math.max(0, Math.min(ITEMS_PER_PAGE, totalFiltered - startIndex));
+            counter.innerText = totalFiltered
+                ? `Showing ${shownCount} of ${totalFiltered} items`
+                : 'Showing 0 of 0 items';
 
-            counter.innerText = `Showing ${visibleCount} of ${cards.length} items`;
+            if (totalFiltered > ITEMS_PER_PAGE) {
+                pagination.style.display = 'flex';
+                prevPageBtn.disabled = currentPage === 1;
+                nextPageBtn.disabled = currentPage === totalPages;
+                pageIndicator.innerText = `Page ${currentPage} of ${totalPages}`;
+            } else {
+                pagination.style.display = 'none';
+            }
+        }
+
+        // 2. The Master Filter Function
+        // Filter cards by search, status, and type before rendering.
+        function filterCards(resetPage = true) {
+            const searchQuery = searchInput.value.toLowerCase();
+            const statusQuery = statusFilter.value.toLowerCase();
+            const typeQuery = typeFilter.value.toLowerCase();
+
+            filteredCards = cards.filter((card) => {
+                const title = card.getAttribute('data-title').toLowerCase();
+                const typeBadge = card.querySelector('.badge-type');
+                const cardType = typeBadge ? typeBadge.textContent.toLowerCase().trim() : '';
+                const statusBadge = card.querySelector('.badge:not(.badge-type)');
+                const cardStatus = statusBadge ? statusBadge.textContent.toLowerCase().trim() : '';
+
+                const matchesSearch = title.includes(searchQuery);
+                const matchesStatus = (statusQuery === 'all' || cardStatus === statusQuery);
+                const matchesType = (typeQuery === 'all' || cardType.includes(typeQuery));
+
+                return matchesSearch && matchesStatus && matchesType;
+            });
+
+            if (resetPage) {
+                currentPage = 1;
+            }
+            renderCards();
+        }
+
+        // Move pagination one page backward.
+        function goToPreviousPage() {
+            if (currentPage > 1) {
+                currentPage -= 1;
+                renderCards();
+            }
+        }
+
+        // Move pagination one page forward.
+        function goToNextPage() {
+            const totalPages = Math.max(1, Math.ceil(filteredCards.length / ITEMS_PER_PAGE));
+            if (currentPage < totalPages) {
+                currentPage += 1;
+                renderCards();
+            }
         }
 
         // 3. Listen for any change in the filters
-        searchInput.addEventListener('input', filterCards);
-        statusFilter.addEventListener('change', filterCards);
-        typeFilter.addEventListener('change', filterCards);
+        searchInput.addEventListener('input', () => filterCards(true));
+        statusFilter.addEventListener('change', () => filterCards(true));
+        typeFilter.addEventListener('change', () => filterCards(true));
+        prevPageBtn.addEventListener('click', goToPreviousPage);
+        nextPageBtn.addEventListener('click', goToNextPage);
+
+        // Initialize first render
+        filterCards(true);
 
         // 4. LOGOUT FUNCTIONALITY (Guided by your previous setup)
+        // Clear session data and return to the landing page.
         function handleLogout(event) {
             event.preventDefault();
             localStorage.removeItem('isLoggedIn');

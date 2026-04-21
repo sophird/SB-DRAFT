@@ -56,7 +56,7 @@
             font-size: 0.95rem;
         }
 
-        .nav-link:hover { background: #f8fafc; color: var(--brand-green); }
+        .nav-link:hover { background: #f8fafc; color: var(--brand-green); transform: translateY(-2px); opacity: 0.9; }
         .nav-link.active { background: #f0fdf4; color: var(--brand-green); font-weight: 600; }
 
         .sidebar-footer { padding: 1.5rem; border-top: 1px solid #f1f5f9; margin-top: auto; }
@@ -267,6 +267,7 @@
     </main>
 
     <script>
+        // Reflect current form values in the printable certificate preview.
         function updatePreview() {
             document.getElementById('previewTitle').innerText = document.getElementById('docType').value.toUpperCase();
             document.getElementById('previewName').innerText = document.getElementById('resName').value || "[RESIDENT NAME]";
@@ -279,6 +280,7 @@
             }
         }
 
+        // Clear session data and return to the landing page.
         function handleLogout(event) {
             event.preventDefault();
             localStorage.removeItem('isLoggedIn');
