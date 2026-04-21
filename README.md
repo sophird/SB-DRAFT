@@ -33,9 +33,11 @@ DASHBOARD
 Real time update for the overview (Requests, Appointments, Pending, Processing, Ready for Pickup, Completed)
 
 SERVICE REQUEST (Processing)
-New Request
-Make a green colored feature on the Supporting Documents when clicked.
-Submit Request box color the same to New Request button.
+- New Request
+Problem ko po dito is kapag nakapag-upload na po si user ng document hindi po nanonotify na nakapag-add na. It might confuse the users po na bakit walang lumabas na notif. For ex:
+Filename.png
+File uploaded successfully!
+(Remove file)
 
 APPOINTMENTS (Processing)
 
