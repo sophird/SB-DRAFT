@@ -176,6 +176,33 @@
         .upload-area { border: 2px dashed #cbd5e1; border-radius: 12px; padding: 2rem; text-align: center; background: #f8fafc; cursor: pointer; position: relative; }
         .upload-area input[type="file"] { position: absolute; width: 100%; height: 100%; top: 0; left: 0; opacity: 0; cursor: pointer; }
 
+        .upload-area:hover {
+            border-color: var(--brand-green); /* Changes dashed border to green */
+            background-color: #f0fdf4; /* Light green tint inside */
+            box-shadow: 0 0 15px rgba(22, 163, 74, 0.2); /* Soft green glow */
+            cursor: pointer;
+            transition: all 0.3s ease; /* Makes the transition smooth */
+        }
+
+        .upload-area:hover svg {
+            color: var(--brand-green);
+            transform: translateY(-2px);
+            transition: all 0.3s ease;
+        }
+
+        .upload-area.success {
+            border-color: var(--brand-green);
+            background-color: #f0fdf4;
+        }
+
+        .upload-success-msg {
+            color: #166534;
+            font-weight: 600;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
         /* AI CHATBOT STYLES */
         #chatToggle {
             position: fixed;
@@ -308,10 +335,6 @@
             <form id="serviceForm">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>Request Title *</label>
-                        <input type="text" id="reqTitle" placeholder="e.g. Streetlight Repair" required>
-                    </div>
-                    <div class="form-group">
                         <label>Service Type *</label>
                         <select id="reqType" required>
                             <option value="">Select Service...</option>
@@ -404,24 +427,21 @@
         function closeDeleteModal() { document.getElementById('deleteModal').style.display = 'none'; }
 
         function submitRequest() {
-            const type = document.getElementById('requestType').value;
-            const purpose = document.getElementById('purpose').value;
-            const date = new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).toUpperCase();
-            
+            // Removed reqTitle from here
+            const type = document.getElementById('reqType').value;
+            const purpose = document.getElementById('reqPurpose').value;
+
+            // Simple validation (removed title check)
             if (!purpose) {
-                alert("Please state your purpose.");
+                alert("Please state the purpose of your request.");
                 return;
             }
 
-            // 1. Create the Request Object
             const newRequest = {
-                id: Date.now(), // Unique ID
-                title: type + " Request",
-                type: "Request",
-                status: "Pending",
-                desc: purpose,
-                date: date,
-                resident: "Sophia Anderson" // Mock user
+                id: "REQ-" + Math.floor(1000 + Math.random() * 9000),
+                type: type.charAt(0).toUpperCase() + type.slice(1),
+                date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                status: "Pending"
             };
 
             // 2. Save to LocalStorage (The shared "Database")
