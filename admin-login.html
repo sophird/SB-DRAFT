@@ -164,6 +164,14 @@
             font-size: 0.75rem;
             color: var(--text-gray);
         }
+
+        .login-error {
+            margin-top: 0.9rem;
+            color: #b91c1c;
+            font-size: 0.85rem;
+            min-height: 1.1rem;
+            text-align: left;
+        }
     </style>
 </head>
 <body>
@@ -185,7 +193,7 @@
             <span class="input-icon">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
             </span>
-            <input type="email" placeholder="role@serbisyoburgos.com">
+            <input type="email" id="admin-email" placeholder="role@serbisyoburgos.com">
         </div>
     </div>
 
@@ -205,7 +213,8 @@
         </div>
     </div>
 
-    <button class="btn-submit" onclick="handleLogin()">Sign In</button>
+    <button id="signInBtn" class="btn-submit">Sign In</button>
+    <p id="loginError" class="login-error"></p>
 
     <div class="help-section">
         Need help? Contact Barangay Office: <b>09489454674</b><br>
@@ -214,14 +223,8 @@
 </div>
 
     <script>
-        // Simplified function: Redirects immediately regardless of input
-        function handleLogin() {
-            // We still set this so the dashboard's "Access Check" doesn't kick the user out
-            localStorage.setItem('isLoggedIn', 'true');
-            
-            // Redirect directly to the dashboard file
-            window.location.href = 'admin-dashboard.html';
-        }
+        const API_BASE_URL = "http://localhost:4000";
+
         function togglePassword(inputId, toggleElement) {
             const passwordInput = document.getElementById(inputId);
             const icon = toggleElement.querySelector('svg');
@@ -233,6 +236,58 @@
                 icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
             }
         }
+
+        async function handleLogin() {
+            const emailInput = document.getElementById("admin-email");
+            const passwordInput = document.getElementById("staff-pass");
+            const signInBtn = document.getElementById("signInBtn");
+            const loginError = document.getElementById("loginError");
+
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+            loginError.innerText = "";
+
+            if (!email || !password) {
+                loginError.innerText = "Please enter your email and password.";
+                return;
+            }
+
+            signInBtn.disabled = true;
+            signInBtn.innerText = "Signing in...";
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/admin/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result.ok) {
+                    loginError.innerText = result.message || "Login failed. Please try again.";
+                    return;
+                }
+
+                sessionStorage.setItem("adminAuth", JSON.stringify({
+                    user: result.user,
+                    session: result.session
+                }));
+                window.location.href = "admin-dashboard.html";
+            } catch (_error) {
+                loginError.innerText = "Cannot connect to backend. Make sure API server is running.";
+            } finally {
+                signInBtn.disabled = false;
+                signInBtn.innerText = "Sign In";
+            }
+        }
+
+        document.getElementById("signInBtn").addEventListener("click", handleLogin);
+        document.getElementById("staff-pass").addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                handleLogin();
+            }
+        });
     </script>
 </body>
 </html>
