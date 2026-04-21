@@ -115,6 +115,12 @@
             transition: border-color 0.2s;
         }
 
+        .input-icon {
+            position: absolute;
+            left: 12px;
+            color: var(--text-gray);
+        }
+
         input:focus {
             outline: none;
             border-color: var(--brand-green);
@@ -198,7 +204,7 @@
         }
 
         .help-section {
-            margin-top: 3rem;
+            margin-top: 2rem;
             font-size: 0.75rem;
             color: var(--text-gray);
         }
@@ -222,7 +228,7 @@
 
         <div class="input-group">
             <label>Email Address</label>
-            <input type="email" placeholder="name@example.com">
+            <input type="email" placeholder="user@gmail.com">
         </div>
 
         <div class="input-group">
@@ -236,8 +242,15 @@
             </span>
         </div>
 
-        <button class="btn-submit" onclick="window.location.href='dashboard.html'">Sign in</button>
-        <p class="footer-text">New to SerbisyoBurgos? <span onclick="toggleForm()">Create Account</span></p>
+        <div style="display: flex; flex-direction: column; align-items: center; margin-top: 1.5rem;">
+            <p style="color: var(--text-gray); font-size: 0.85rem; margin: 0 0 1rem 0;">or</p>
+            <a href="#" onclick="loginWithGoogle(event)" style="display: flex; justify-content: center; align-items: center;">
+                <img src="GOOGLE.png" alt="Google Login" style="width: 45px; height: 45px; border-radius: 50%; border: 1px solid #e2e8f0;">
+            </a>
+        </div>
+
+        <button class="btn-submit" onclick="window.location.href='dashboard.html'">Log in</button>
+        <p class="footer-text">New to SerbisyoBurgos? <span onclick="toggleForm()">Sign in</span></p>
     </div>
 
     <div id="register-form" class="hidden">
@@ -280,8 +293,8 @@
             </span>
         </div>
 
-        <button class="btn-submit">Create Account</button>
-        <p class="footer-text">Already have an account? <span onclick="toggleForm()">Sign In</span></p>
+        <button class="btn-submit">Sign in</button>
+        <p class="footer-text">Already have an account? <span onclick="toggleForm()">Log In</span></p>
     </div>
 
     <div class="help-section">
