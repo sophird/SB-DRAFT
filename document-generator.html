@@ -129,6 +129,39 @@
         .cert-footer { margin-top: auto; display: flex; justify-content: space-between; padding-top: 50px; }
         
         .seal { position: absolute; top: 50px; left: 50px; width: 100px; opacity: 0.2; }
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 1rem;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal-card {
+            width: 100%;
+            max-width: 420px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 20px 40px rgba(2, 6, 23, 0.2);
+        }
+        .modal-title { font-size: 1.1rem; font-weight: 700; color: var(--brand-dark); margin-bottom: 0.6rem; }
+        .modal-text { font-size: 0.92rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1.25rem; }
+        .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
+        .modal-btn {
+            border: none;
+            border-radius: 10px;
+            padding: 0.65rem 1rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .modal-btn-cancel { background: #f1f5f9; color: #334155; }
+        .modal-btn-confirm { background: #e11d48; color: white; }
 
         @media print {
             aside, .config-panel, .header-section { display: none !important; }
@@ -182,13 +215,13 @@
         </nav>
         <div class="sidebar-footer">
             <div class="user-profile">
-                <div class="user-avatar">AD</div>
+                <div class="user-avatar" id="sidebarUserAvatar">—</div>
                 <div class="user-info">
-                    <span class="user-name">Barangay Admin</span>
-                    <span class="user-role">Administrator</span>
+                    <span class="user-name" id="sidebarUserName">Admin</span>
+                    <span class="user-role" id="sidebarUserRole">Administrator</span>
                 </div>
             </div>
-            <a href="landing.html" class="logout-btn">
+            <a href="landing.html" class="logout-btn" id="adminLogoutBtn">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                     <polyline points="16 17 21 12 16 7"></polyline>
@@ -266,7 +299,73 @@
         </div>
     </main>
 
+    <div id="logoutModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
+        <div class="modal-card">
+            <h2 class="modal-title" id="logoutModalTitle">Confirm Logout</h2>
+            <p class="modal-text">Are you sure you want to logout from the admin portal?</p>
+            <div class="modal-actions">
+                <button type="button" class="modal-btn modal-btn-cancel" id="logoutCancelBtn">Cancel</button>
+                <button type="button" class="modal-btn modal-btn-confirm" id="logoutConfirmBtn">Logout</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        function initialsFromName(name) {
+            if (!name || typeof name !== "string") return "—";
+            const parts = name.trim().split(/\s+/).filter(Boolean);
+            if (!parts.length) return "—";
+            if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        }
+
+        function applySessionSidebar() {
+            try {
+                const raw = sessionStorage.getItem("adminAuth");
+                if (!raw) return;
+                const { user } = JSON.parse(raw);
+                if (!user) return;
+                const display = user.fullName || user.email || "Admin";
+                const nameEl = document.getElementById("sidebarUserName");
+                const avatarEl = document.getElementById("sidebarUserAvatar");
+                const roleEl = document.getElementById("sidebarUserRole");
+                if (nameEl) nameEl.textContent = display;
+                if (avatarEl) avatarEl.textContent = initialsFromName(user.fullName || user.email || "");
+                if (roleEl) roleEl.textContent = user.role === "admin" ? "Administrator" : (user.role || "Staff");
+            } catch (_e) { /* ignore */ }
+        }
+
+        const adminLogoutBtn = document.getElementById("adminLogoutBtn");
+        const logoutModal = document.getElementById("logoutModal");
+        const logoutCancelBtn = document.getElementById("logoutCancelBtn");
+        const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
+
+        function openLogoutModal() {
+            if (logoutModal) logoutModal.classList.add("show");
+        }
+
+        function closeLogoutModal() {
+            if (logoutModal) logoutModal.classList.remove("show");
+        }
+
+        adminLogoutBtn?.addEventListener("click", (event) => {
+            event.preventDefault();
+            openLogoutModal();
+        });
+
+        logoutCancelBtn?.addEventListener("click", closeLogoutModal);
+        logoutModal?.addEventListener("click", (event) => {
+            if (event.target === logoutModal) closeLogoutModal();
+        });
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") closeLogoutModal();
+        });
+        logoutConfirmBtn?.addEventListener("click", () => {
+            sessionStorage.removeItem("adminAuth");
+            window.location.href = "landing.html";
+        });
+        applySessionSidebar();
+
         // Reflect current form values in the printable certificate preview.
         function updatePreview() {
             document.getElementById('previewTitle').innerText = document.getElementById('docType').value.toUpperCase();
@@ -277,6 +376,8 @@
             if(dateVal) {
                 const dateObj = new Date(dateVal);
                 document.getElementById('previewDate').innerText = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+            } else {
+                document.getElementById('previewDate').innerText = "[DATE]";
             }
         }
 

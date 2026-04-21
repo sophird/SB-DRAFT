@@ -36,14 +36,6 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            transition: transform 0.45s ease, opacity 0.45s ease;
-            will-change: transform, opacity;
-        }
-
-        body.slide-up .page-content {
-            transform: translateY(-40px);
-            opacity: 0;
-            pointer-events: none;
         }
 
         /* White Header Navigation */
@@ -310,23 +302,6 @@
                 if(bar) bar.style.width = '75%';
             }, 500);
         });
-
-        // Add slide-up transition before redirecting from nav buttons.
-        function setupNavigationAnimation() {
-            const navButtons = document.querySelectorAll('.btn-nav');
-            navButtons.forEach((button) => {
-                button.addEventListener('click', (event) => {
-                    event.preventDefault();
-                    const destination = button.getAttribute('href');
-                    document.body.classList.add('slide-up');
-                    setTimeout(() => {
-                        window.location.href = destination;
-                    }, 450);
-                });
-            });
-        }
-
-        setupNavigationAnimation();
     </script>
 </body>
 </html>
