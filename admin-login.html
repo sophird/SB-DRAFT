@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Login | SerbisyoBurgos</title>
+    <link rel="icon" type="image/png" href="SB.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-green: #043d2e;
+            --brand-green: #16a34a;
+            --hover-green: #15803d; 
+            --bg-light: #f8fafc;
+            --text-gray: #64748b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-light);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        .admin-container {
+            background: white;
+            width: 100%;
+            max-width: 450px;
+            padding: 3.5rem 2.5rem 3rem;
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.05);
+            text-align: center;
+            border: 1px solid #e2e8f0;
+            position: relative;
+        }
+
+        /* Back Button - Top Left with Green Hover */
+        .btn-back {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            text-decoration: none;
+            color: var(--text-gray);
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.2s ease;
+        }
+
+        .btn-back:hover {
+            color: var(--brand-green);
+        }
+
+        .logo {
+            height: 50px;
+            margin-bottom: 1rem;
+        }
+
+        h2 {
+            font-size: 2rem;
+            margin: 0 0 0.5rem 0;
+            color: var(--primary-green);
+        }
+
+        p.subtitle {
+            color: var(--text-gray);
+            margin-bottom: 2rem;
+            font-size: 0.95rem;
+        }
+
+        .portal-header {
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 10px;
+        }
+
+        .portal-header span {
+            color: var(--brand-green);
+            font-weight: 700;
+            font-size: 1.1rem;
+            border-bottom: 3px solid var(--brand-green);
+            padding-bottom: 8px;
+        }
+
+        .input-group {
+            text-align: left;
+            margin-bottom: 1.25rem;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+            color: #334155;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 12px;
+            color: var(--text-gray);
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 45px 12px 40px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 1rem;
+            box-sizing: border-box;
+            background: #f8fafc;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--brand-green);
+            background: white;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 15px;
+            cursor: pointer;
+            color: var(--text-gray);
+            display: flex;
+            align-items: center;
+        }
+
+        .btn-submit {
+            width: 100%;
+            background: var(--brand-green);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: background 0.2s;
+        }
+
+        .btn-submit:hover {
+            background: var(--hover-green);
+        }
+
+        .help-section {
+            margin-top: 3rem;
+            font-size: 0.75rem;
+            color: var(--text-gray);
+        }
+    </style>
+</head>
+<body>
+
+<div class="admin-container">
+    <a href="landing.html" class="btn-back">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        Back
+    </a>
+
+    <img src="SB.png" alt="SerbisyoBurgos Logo" class="logo">
+    
+    <h2>Hello!</h2>
+    <p class="subtitle">Welcome back to the community.</p>
+    <div class="portal-header"><span>Barangay Staff Portal</span></div>
+
+    <div class="input-group">
+        <label>Email</label>
+        <div class="input-wrapper">
+            <span class="input-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+            </span>
+            <input type="email" placeholder="name@email.com">
+        </div>
+    </div>
+
+    <div class="input-group">
+        <div style="display: flex; justify-content: space-between;">
+            <label>Password</label>
+            <a href="#" style="font-size: 0.75rem; color: var(--brand-green); text-decoration: none; font-weight: 600;">Forgot Password?</a>
+        </div>
+        <div class="input-wrapper">
+            <span class="input-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            </span>
+            <input type="password" id="staff-pass" placeholder="••••••••">
+            <span class="password-toggle" onclick="togglePassword('staff-pass', this)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </span>
+        </div>
+    </div>
+
+    <button class="btn-submit" onclick="handleLogin()">Sign In as Staff</button>
+
+    <div class="help-section">
+        Need help? Contact Barangay Office: <b>09489454674</b><br>
+        © 2026 SerbisyoBurgos. All rights reserved.
+    </div>
+</div>
+
+    <script>
+        // Simplified function: Redirects immediately regardless of input
+        function handleLogin() {
+            // We still set this so the dashboard's "Access Check" doesn't kick the user out
+            localStorage.setItem('isLoggedIn', 'true');
+            
+            // Redirect directly to the dashboard file
+            window.location.href = 'admin-dashboard.html';
+        }
+        function togglePassword(inputId, toggleElement) {
+            const passwordInput = document.getElementById(inputId);
+            const icon = toggleElement.querySelector('svg');
+            if (passwordInput.type === "password") {
+                passwordInput.type = "text";
+                icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+            } else {
+                passwordInput.type = "password";
+                icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+            }
+        }
+    </script>
+</body>
+</html>

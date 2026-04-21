@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request History | SerbisyoBurgos</title>
+    <link rel="icon" type="image/png" href="SB.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --brand-green: #16a34a;
+            --brand-dark: #043d2e;
+            --bg-light: #f8fafc;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --sidebar-width: 260px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-light); color: var(--text-main); display: flex; min-height: 100vh; }
+
+        /* SIDEBAR NAVIGATION */
+        aside {
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            position: fixed;
+            display: flex;           /* Added */
+            flex-direction: column;  /* Added */
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            color: var(--brand-dark);
+            font-size: 1.25rem;
+        }
+
+        .sidebar-header img { width: 32px; }
+
+        nav {
+            flex-grow: 1;
+            padding: 1rem;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0.85rem 1rem;
+            text-decoration: none;
+            color: var(--text-muted);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            transition: all 0.2s ease;
+            font-size: 0.95rem;
+        }
+
+        .nav-link:hover {
+            background: #f8fafc;
+            color: var(--brand-green);
+        }
+
+        .nav-link.active {
+            background: #f0fdf4;
+            color: var(--brand-green);
+            font-weight: 600;
+        }
+
+        /* Sidebar Footer Layout */
+        .sidebar-footer {
+            padding: 1.5rem;
+            border-top: 1px solid #f1f5f9;
+            margin-top: auto; /* This pushes the footer to the bottom of the sidebar */
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0.5rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: #f0fdf4;
+            color: var(--brand-green);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
+
+        .user-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-name {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .user-role {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Logout Button Style */
+        .logout-btn {
+            width: 100%;
+            height: 45px; /* Added specific height */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #fff1f2;
+            color: #e11d48;
+            border-radius: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 0.95rem; /* Slightly larger text */
+            transition: all 0.2s ease;
+            border: none;
+            margin-top: 10px;
+        }
+
+        .logout-btn:hover {
+            background: #ffe4e6;
+        }
+
+        /* MAIN CONTENT */
+        main { margin-left: var(--sidebar-width); width: calc(100% - var(--sidebar-width)); padding: 2.5rem 3rem; display: flex; flex-direction: column; }
+        header { margin-bottom: 2.5rem; }
+        header h1 { font-size: 1.85rem; font-weight: 700; color: var(--brand-dark); margin-bottom: 0.5rem; }
+        header p { color: var(--text-muted); font-size: 1rem; }
+
+        /* HISTORY TABLE/LIST */
+        .history-card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; flex-grow: 0; }
+        .history-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid #f1f5f9; background: #fafafa; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; font-weight: 700; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        .history-item { padding: 1.25rem 1.5rem; border-bottom: 1px solid #f1f5f9; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; align-items: center; transition: background 0.2s; }
+        .history-item:hover { background: #f8fafc; }
+        .history-item:last-child { border-bottom: none; }
+
+        .service-info b { display: block; color: var(--brand-dark); margin-bottom: 4px; }
+        .service-info small { color: var(--text-muted); font-size: 0.8rem; }
+        
+        .action-btn { background: none; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; color: var(--text-main); transition: 0.2s; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
+        .action-btn:hover { border-color: var(--brand-green); color: var(--brand-green); }
+        .btn-repeat { background: var(--brand-green); color: white; border: none; }
+        .btn-repeat:hover { background: #15803d; color: white; }
+
+        /* AI CHATBOT STYLES */
+        #chatToggle {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            background: var(--brand-green);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 2000;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .chat-window {
+            position: fixed;
+            bottom: 100px;
+            right: 30px;
+            width: 350px;
+            height: 480px;
+            background: white;
+            border-radius: 20px;
+            display: none;
+            flex-direction: column;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.2);
+            z-index: 2001;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+
+        .chat-header { background: var(--brand-dark); color: white; padding: 1.2rem; display: flex; justify-content: space-between; align-items: center; }
+        .chat-body { flex-grow: 1; padding: 1rem; overflow-y: auto; background: #f1f5f9; display: flex; flex-direction: column; gap: 12px; }
+        .msg { max-width: 85%; padding: 10px 14px; border-radius: 15px; font-size: 0.88rem; line-height: 1.5; }
+        .msg-ai { background: white; align-self: flex-start; border: 1px solid #e2e8f0; }
+        .msg-user { background: var(--brand-green); color: white; align-self: flex-end; }
+        .chat-footer { padding: 1rem; display: flex; gap: 8px; border-top: 1px solid #e2e8f0; background: white; }
+        .chat-footer input { flex-grow: 1; padding: 0.7rem; border: 1.5px solid #e2e8f0; border-radius: 10px; outline: none; }
+        .chat-footer button { background: var(--brand-green); color: white; border: none; padding: 0 15px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+        .chat-footer button:hover { background: #15803d; }
+    </style>
+</head>
+<body>
+
+    <aside>
+        <div class="sidebar-header">
+            <img src="SB.png" alt="Logo">
+            <span>SerbisyoBurgos</span>
+        </div>
+        
+        <nav>
+            <a href="dashboard.html" class="nav-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                Dashboard
+            </a>
+            <a href="service-requests.html" class="nav-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                Service Requests
+            </a>
+            <a href="appointments.html" class="nav-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                Appointments
+            </a>
+            <a href="notifications.html" class="nav-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                Bulletin Board
+            </a>
+            <a href="request-history.html" class="nav-link active">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                Request History
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-profile">
+                <div class="user-avatar">SD</div>
+                <div class="user-info">
+                    <span class="user-name">Sophia Dumayas</span>
+                    <span class="user-role">Resident</span>
+                </div>
+            </div>
+            <a href="landing.html" class="logout-btn" onclick="handleLogout(event)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span>Logout</span>
+            </a>
+        </div>
+    </aside>
+
+    <main>
+        <header>
+            <h1>Request History</h1>
+            <p>Review your previous community service transactions and re-apply with ease.</p>
+        </header>
+
+        <div class="history-card">
+            <div class="history-header">
+                <span>Service Details</span>
+                <span>Completed Date</span>
+                <span>Documents</span>
+                <span>Actions</span>
+            </div>
+
+            <div id="historyList">
+                </div>
+        </div>
+
+    <div id="chatToggle" onclick="toggleChat()">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+    </div>
+
+    <div id="chatWindow" class="chat-window">
+        <div class="chat-header">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <div style="width:10px; height:10px; background:#22c55e; border-radius:50%;"></div>
+                <span>SB Assistant</span>
+            </div>
+            <button onclick="toggleChat()" style="background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">&times;</button>
+        </div>
+        <div id="chatBody" class="chat-body">
+            <div class="msg msg-ai">Hi Sophia! How can I help you navigate today?</div>
+        </div>
+        <div class="chat-footer">
+            <input type="text" id="chatInput" placeholder="Type here...">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        /* BUTTON ACTIONS */
+        function handleDownload(fileName) {
+            alert("Preparing download for: " + fileName + "\nYour document will start downloading shortly.");
+        }
+
+        function handleRepeat(serviceName) {
+            const confirmRepeat = confirm("Would you like to start a new request for " + serviceName + " using your previous details?");
+            if (confirmRepeat) {
+                window.location.href = "service-requests.html?service=" + encodeURIComponent(serviceName);
+            }
+        }
+
+        /* CHATBOT LOGIC */
+        function toggleChat() {
+            const win = document.getElementById('chatWindow');
+            win.style.display = win.style.display === 'flex' ? 'none' : 'flex';
+            if(win.style.display === 'flex') document.getElementById('chatInput').focus();
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const body = document.getElementById('chatBody');
+            const text = input.value.trim();
+
+            if (!text) return;
+
+            const userMsg = document.createElement('div');
+            userMsg.className = 'msg msg-user';
+            userMsg.textContent = text;
+            body.appendChild(userMsg);
+            input.value = "";
+            body.scrollTop = body.scrollHeight;
+
+            setTimeout(() => {
+                const aiMsg = document.createElement('div');
+                aiMsg.className = 'msg msg-ai';
+                
+                let response = "I'm searching your transaction history. Was this for a Clearance or a Permit?";
+                const lowText = text.toLowerCase();
+
+                if (lowText.includes("download") || lowText.includes("document")) {
+                    response = "You can download your documents by clicking the '📄 Download' button next to any completed transaction.";
+                } else if (lowText.includes("repeat") || lowText.includes("again")) {
+                    response = "To repeat a service, click the green 'Request Again' button. It will pre-fill the form with your previous details!";
+                } else if (lowText.includes("clearance")) {
+                    response = "I see your last Barangay Clearance was completed on March 15, 2024. You can download the PDF directly from the list.";
+                }
+
+                aiMsg.textContent = response;
+                body.appendChild(aiMsg);
+                body.scrollTop = body.scrollHeight;
+            }, 800);
+        }
+
+        function loadHistory() {
+        const container = document.getElementById('historyList');
+        // This line looks for the "serviceHistory" we saved in the other file
+        const history = JSON.parse(localStorage.getItem('serviceHistory')) || [];
+
+        if (history.length === 0) {
+            container.innerHTML = '<p style="text-align:center; padding: 2rem; color: #64748b;">No request history found.</p>';
+            return;
+        }
+
+        // This part builds the HTML for every request found in the system
+        container.innerHTML = history.map(req => `
+            <div class="history-item">
+                <div class="service-info">
+                    <b>${req.title}</b>
+                    <small>Ref: ${req.id}</small>
+                </div>
+                <div class="date-info">
+                    <span>${req.date}</span>
+                    <small style="display:block; color:#64748b;">${req.time}</small>
+                </div>
+                <div>
+                    <span class="status-badge" style="
+                        background: ${req.status === 'Completed' ? '#f0fdf4' : '#fef9c3'};
+                        color: ${req.status === 'Completed' ? '#16a34a' : '#854d0e'};
+                        padding: 4px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;
+                    ">${req.status}</span>
+                </div>
+                <div>
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        ${req.fileName !== "No Document" ? `<a href="#" style="font-size: 0.7rem; color: #16a34a; text-decoration: none;">📎 ${req.fileName}</a>` : '<span style="font-size: 0.7rem; color: #94a3b8;">No Uploads</span>'}
+                        <button class="action-btn" onclick="window.location.href='service-requests.html'" style="margin-top:5px;">Request Again</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    window.onload = loadHistory;
+
+        function handleLogout(event) {
+            event.preventDefault();
+            localStorage.removeItem('isLoggedIn');
+            sessionStorage.clear();
+            
+            window.location.href = 'landing.html'; 
+        }
+    </script>
+</body>
+</html>

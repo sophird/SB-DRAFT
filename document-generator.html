@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Generator | SerbisyoBurgos</title>
+    <link rel="icon" type="image/png" href="SB.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --brand-green: #16a34a;
+            --brand-dark: #043d2e;
+            --bg-light: #f8fafc;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --sidebar-width: 260px;
+            --white: #ffffff;
+            --border: #e2e8f0;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-light); color: var(--text-main); display: flex; min-height: 100vh; }
+
+        /* SIDEBAR NAVIGATION */
+        aside {
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: white;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            color: var(--brand-dark);
+            font-size: 1.25rem;
+        }
+
+        .sidebar-header img { width: 32px; }
+
+        nav { flex-grow: 1; padding: 1rem; }
+
+        .nav-link {
+            display: flex;
+            align-items: center; gap: 12px; padding: 0.85rem 1rem;
+            text-decoration: none; color: var(--text-muted);
+            border-radius: 8px; margin-bottom: 0.5rem; transition: all 0.2s ease;
+            font-size: 0.95rem;
+        }
+
+        .nav-link:hover { background: #f8fafc; color: var(--brand-green); }
+        .nav-link.active { background: #f0fdf4; color: var(--brand-green); font-weight: 600; }
+
+        .sidebar-footer { padding: 1.5rem; border-top: 1px solid #f1f5f9; margin-top: auto; }
+        .user-profile { display: flex; align-items: center; gap: 12px; padding: 0.5rem; border-radius: 8px; margin-bottom: 1rem; }
+        .user-avatar { width: 40px; height: 40px; background: #f0fdf4; color: var(--brand-green); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+        .user-info { display: flex; flex-direction: column; }
+        .user-name { font-size: 0.9rem; font-weight: 600; }
+        .user-role { font-size: 0.75rem; color: var(--text-muted); }
+
+        .logout-btn {
+            width: 100%;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #fff1f2;
+            color: #e11d48;
+            border-radius: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            border: none;
+            margin-top: 10px;
+        }
+
+        /* MAIN CONTENT */
+        main { margin-left: var(--sidebar-width); flex-grow: 1; padding: 2.5rem; display: flex; flex-direction: column; gap: 2rem; }
+        
+        .header-section h1 { font-size: 1.875rem; color: var(--brand-dark); font-weight: 700; }
+        
+        .generator-container { display: grid; grid-template-columns: 400px 1fr; gap: 2rem; align-items: start; }
+
+        /* FORM PANEL */
+        .config-panel { background: white; padding: 2rem; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .form-group { margin-bottom: 1.5rem; }
+        .form-group label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.5rem; }
+        .form-group input, .form-group select { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 10px; font-family: inherit; }
+        
+        .btn-generate {
+            width: 100%; background: var(--brand-green); color: white; border: none;
+            padding: 1rem; border-radius: 12px; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; margin-top: 1rem;
+        }
+        .btn-generate:hover { background: #15803d; }
+
+        /* PREVIEW PANEL */
+        .preview-panel { 
+            background: #cbd5e1; padding: 3rem; border-radius: 16px; 
+            display: flex; justify-content: center; min-height: 800px;
+        }
+
+        /* THE CERTIFICATE (Standardized Output) */
+        .certificate-page {
+            width: 210mm; /* A4 Width */
+            height: 297mm; /* A4 Height */
+            background: white;
+            padding: 50px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            text-align: center;
+            position: relative;
+            color: black;
+        }
+
+        .cert-header { border-bottom: 2px solid var(--brand-dark); padding-bottom: 20px; margin-bottom: 40px; }
+        .cert-body { text-align: justify; line-height: 1.8; font-size: 1.1rem; }
+        .cert-title { font-size: 2.5rem; font-weight: 700; margin-bottom: 30px; text-transform: uppercase; }
+        .cert-footer { margin-top: auto; display: flex; justify-content: space-between; padding-top: 50px; }
+        
+        .seal { position: absolute; top: 50px; left: 50px; width: 100px; opacity: 0.2; }
+
+        @media print {
+            aside, .config-panel, .header-section { display: none !important; }
+            main { margin-left: 0; padding: 0; }
+            .preview-panel { background: none; padding: 0; }
+            .certificate-page { box-shadow: none; border: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside>
+        <div class="sidebar-header">
+            <img src="SB.png" alt="Logo">
+            <span>SerbisyoBurgos</span>
+        </div>
+        <nav>
+            <a href="admin-dashboard.html" class="nav-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                Dashboard
+            </a>
+            
+            <a href="appointment-scheduling.html" class="nav-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                Appointment Scheduling
+            </a>
+
+            <a href="request-processing.html" class="nav-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                    <path d="M9 14l2 2 4-4"></path>
+                </svg>
+                Request Processing
+            </a>
+
+            <a href="document-generator.html" class="nav-link active">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="12" y1="18" x2="12" y2="12"></line>
+                    <line x1="9" y1="15" x2="15" y2="15"></line>
+                </svg>
+                Document Generator
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-profile">
+                <div class="user-avatar">AD</div>
+                <div class="user-info">
+                    <span class="user-name">Barangay Admin</span>
+                    <span class="user-role">Administrator</span>
+                </div>
+            </div>
+            <a href="landing.html" class="logout-btn" onclick="handleLogout(event)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span>Logout</span>
+            </a>
+        </div>
+    </aside>
+
+    <main>
+        <section class="header-section">
+            <h1>Document Generator</h1>
+            <p>Standardize and generate printable certificates instantly.</p>
+        </section>
+
+        <div class="generator-container">
+            <div class="config-panel">
+                <div class="form-group">
+                    <label>Document Type</label>
+                    <select id="docType">
+                        <option value="Barangay Clearance">Barangay Clearance</option>
+                        <option value="Certificate of Indigency">Certificate of Indigency</option>
+                        <option value="Barangay Residency">Barangay Residency</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Resident Full Name</label>
+                    <input type="text" id="resName" placeholder="Enter name..." onkeyup="updatePreview()">
+                </div>
+                <div class="form-group">
+                    <label>Purpose</label>
+                    <input type="text" id="docPurpose" placeholder="e.g. Employment" onkeyup="updatePreview()">
+                </div>
+                <div class="form-group">
+                    <label>Date of Issue</label>
+                    <input type="date" id="issueDate" onchange="updatePreview()">
+                </div>
+
+                <button class="btn-generate" onclick="window.print()">
+                    🖨️ Print Document
+                </button>
+            </div>
+
+            <div class="preview-panel">
+                <div class="certificate-page" id="printableCert">
+                    <div class="cert-header">
+                        <h3>REPUBLIC OF THE PHILIPPINES</h3>
+                        <h4>PROVINCE OF SAMPLE</h4>
+                        <h4>CITY OF BURGOS</h4>
+                        <h2 style="margin-top: 10px; color: var(--brand-dark);">BARANGAY BURGOS</h2>
+                    </div>
+
+                    <h1 class="cert-title" id="previewTitle">BARANGAY CLEARANCE</h1>
+
+                    <div class="cert-body">
+                        <p>TO WHOM IT MAY CONCERN:</p><br>
+                        <p>This is to certify that <strong id="previewName">[RESIDENT NAME]</strong>, of legal age, is a bona fide resident of Barangay Burgos.</p><br>
+                        <p>Based on our records, the above-named person has no derogatory records or criminal cases filed against him/her in this office as of this date.</p><br>
+                        <p>This certification is being issued upon the request of the interested party for <strong><span id="previewPurpose">[PURPOSE]</span></strong>.</p><br>
+                        <p>Issued this <span id="previewDate">[DATE]</span> at Barangay Burgos.</p>
+                    </div>
+
+                    <div class="cert-footer">
+                        <div style="text-align: center; border-top: 1px solid black; width: 200px;">
+                            <p>Resident Signature</p>
+                        </div>
+                        <div style="text-align: center;">
+                            <strong style="text-decoration: underline;">HON. JUAN DELA CRUZ</strong>
+                            <p>Punong Barangay</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function updatePreview() {
+            document.getElementById('previewTitle').innerText = document.getElementById('docType').value.toUpperCase();
+            document.getElementById('previewName').innerText = document.getElementById('resName').value || "[RESIDENT NAME]";
+            document.getElementById('previewPurpose').innerText = document.getElementById('docPurpose').value || "[PURPOSE]";
+            
+            const dateVal = document.getElementById('issueDate').value;
+            if(dateVal) {
+                const dateObj = new Date(dateVal);
+                document.getElementById('previewDate').innerText = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+            }
+        }
+
+        function handleLogout(event) {
+            event.preventDefault();
+            localStorage.removeItem('isLoggedIn');
+            sessionStorage.clear();
+            window.location.href = 'landing.html'; 
+        }
+
+        // Initialize preview
+        window.onload = updatePreview;
+    </script>
+</body>
+</html>

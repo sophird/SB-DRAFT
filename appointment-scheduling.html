@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appointment Scheduling | SerbisyoBurgos</title>
+    <link rel="icon" type="image/png" href="SB.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --brand-green: #16a34a;
+            --brand-dark: #043d2e;
+            --brand-blue: #2563eb;
+            --bg-light: #f8fafc;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --sidebar-width: 260px;
+            --white: #ffffff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-light); color: var(--text-main); display: flex; min-height: 100vh; }
+
+        /* SIDEBAR NAVIGATION (Maintained) */
+        aside {
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            position: fixed;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            color: var(--brand-dark);
+            font-size: 1.25rem;
+        }
+        .sidebar-header img { width: 32px; }
+        nav { flex-grow: 1; padding: 1rem; }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0.85rem 1rem;
+            text-decoration: none;
+            color: var(--text-muted);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            transition: all 0.2s ease;
+            font-size: 0.95rem;
+        }
+        
+        .nav-link:hover { background: #f8fafc; color: var(--brand-green); }
+        .nav-link.active { background: #f0fdf4; color: var(--brand-green); font-weight: 600; }
+
+        .sidebar-footer { padding: 1.5rem; border-top: 1px solid #f1f5f9; margin-top: auto; }
+        .user-profile { display: flex; align-items: center; gap: 12px; padding: 0.5rem; border-radius: 8px; margin-bottom: 1rem; }
+        .user-avatar { width: 40px; height: 40px; background: #f0fdf4; color: var(--brand-green); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+        .user-info { display: flex; flex-direction: column; }
+        .user-name { font-size: 0.9rem; font-weight: 600; }
+        .user-role { font-size: 0.75rem; color: var(--text-muted); }
+
+        .logout-btn {
+            width: 100%;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #fff1f2;
+            color: #e11d48;
+            border-radius: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            border: none;
+            margin-top: 10px;
+        }
+
+        /* MAIN CONTENT & SCHEDULING UI */
+        main { margin-left: var(--sidebar-width); flex-grow: 1; padding: 2.5rem; }
+        .welcome-section { margin-bottom: 2rem; }
+        .welcome-section h1 { font-size: 1.875rem; color: var(--brand-dark); font-weight: 700; }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 2rem 0 1rem 0;
+        }
+
+        .slot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .slot-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            transition: box-shadow 0.2s;
+        }
+
+        .slot-time { font-weight: 700; color: var(--brand-dark); margin-bottom: 0.5rem; display: block; }
+        .slot-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 1rem; display: block; }
+
+        .progress-container {
+            height: 8px;
+            background: #f1f5f9;
+            border-radius: 10px;
+            margin: 1rem 0;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--brand-green);
+            transition: width 0.4s ease, background-color 0.4s ease;
+        }
+
+        .capacity-controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        .cap-input {
+            width: 60px;
+            padding: 5px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .status-pill {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-open { background: #f0fdf4; color: #16a34a; }
+        .status-full { background: #fef2f2; color: #ef4444; }
+
+    </style>
+</head>
+<body>
+
+    <aside>
+        <div class="sidebar-header">
+            <img src="SB.png" alt="Logo">
+            <span>SerbisyoBurgos</span>
+        </div>
+        <nav>
+            <a href="admin-dashboard.html" class="nav-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                Dashboard
+            </a>
+
+            <a href="appointment-scheduling.html" class="nav-link active">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                Appointment Scheduling
+            </a>
+
+            <a href="request-processing.html" class="nav-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                    <path d="M9 14l2 2 4-4"></path>
+                </svg>
+                Request Processing
+            </a>
+
+            <a href="document-generator.html" class="nav-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="12" y1="18" x2="12" y2="12"></line>
+                    <line x1="9" y1="15" x2="15" y2="15"></line>
+                </svg>
+                Document Generator
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-profile">
+                <div class="user-avatar">AD</div>
+                <div class="user-info">
+                    <span class="user-name">Barangay Admin</span>
+                    <span class="user-role">Administrator</span>
+                </div>
+            </div>
+            <a href="landing.html" class="logout-btn" onclick="handleLogout(event)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span>Logout</span>
+            </a>
+        </div>
+    </aside>
+
+    <main>
+        <section class="welcome-section">
+            <h1>Appointment Scheduling</h1>
+            <p>Managing daily appointment slots and prevents overbooking</p>
+        </section>
+
+        <div class="section-header">
+            <h2 style="font-size: 1.1rem; color: var(--text-muted);">Morning Slots (Pickup Only)</h2>
+        </div>
+        <div class="slot-grid">
+            <div class="slot-card">
+                <span class="slot-time">09:00 AM - 10:00 AM</span>
+                <span class="slot-label">Phase 1 Pickup</span>
+                <div class="progress-container"><div id="bar-0900" class="progress-bar" style="width: 0%"></div></div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 10px;">
+                    <span id="text-0900">0 / 10 slots filled</span>
+                    <span id="pill-0900" class="status-pill status-open">Open</span>
+                </div>
+                <div class="capacity-controls">
+                    <span>Limit capacity to:</span>
+                    <input type="number" class="cap-input" value="10" onchange="updateLimit('0900', this.value)">
+                </div>
+            </div>
+
+            <div class="slot-card">
+                <span class="slot-time">10:00 AM - 11:00 AM</span>
+                <span class="slot-label">Phase 2 Pickup</span>
+                <div class="progress-container"><div id="bar-1000" class="progress-bar" style="width: 0%"></div></div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 10px;">
+                    <span id="text-1000">0 / 10 slots filled</span>
+                    <span id="pill-1000" class="status-pill status-open">Open</span>
+                </div>
+                <div class="capacity-controls">
+                    <span>Limit capacity to:</span>
+                    <input type="number" class="cap-input" value="10" onchange="updateLimit('1000', this.value)">
+                </div>
+            </div>
+
+            <div class="slot-card">
+                <span class="slot-time">11:00 AM - 12:00 PM</span>
+                <span class="slot-label">Phase 3 Pickup</span>
+                <div class="progress-container"><div id="bar-1100" class="progress-bar" style="width: 0%"></div></div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 10px;">
+                    <span id="text-1100">0 / 10 slots filled</span>
+                    <span id="pill-1100" class="status-pill status-open">Open</span>
+                </div>
+                <div class="capacity-controls">
+                    <span>Limit capacity to:</span>
+                    <input type="number" class="cap-input" value="10" onchange="updateLimit('1100', this.value)">
+                </div>
+            </div>
+        </div>
+
+        <div class="section-header">
+            <h2 style="font-size: 1.1rem; color: var(--text-muted);">Afternoon Slots</h2>
+        </div>
+        <div class="slot-grid">
+            <div class="slot-card">
+                <span class="slot-time">01:00 PM - 02:00 PM</span>
+                <span class="slot-label">Phase 4</span>
+                <div class="progress-container"><div id="bar-0100" class="progress-bar" style="width: 0%"></div></div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 10px;">
+                    <span id="text-0100">0 / 15 slots filled</span>
+                    <span id="pill-0100" class="status-pill status-open">Open</span>
+                </div>
+                <div class="capacity-controls">
+                    <span>Limit capacity to:</span>
+                    <input type="number" class="cap-input" value="15" onchange="updateLimit('0100', this.value)">
+                </div>
+            </div>
+
+            <div class="slot-card">
+                <span class="slot-time">03:00 PM - 04:00 PM</span>
+                <span class="slot-label">Phase 5</span>
+                <div class="progress-container"><div id="bar-0300" class="progress-bar" style="width: 0%"></div></div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 10px;">
+                    <span id="text-0300">0 / 15 slots filled</span>
+                    <span id="pill-0300" class="status-pill status-open">Open</span>
+                </div>
+                <div class="capacity-controls">
+                    <span>Limit capacity to:</span>
+                    <input type="number" class="cap-input" value="15" onchange="updateLimit('0300', this.value)">
+                </div>
+            </div>
+
+            <div class="slot-card">
+                <span class="slot-time">04:00 PM - 05:00 PM</span>
+                <span class="slot-label">Phase 6</span>
+                <div class="progress-container"><div id="bar-0400" class="progress-bar" style="width: 0%"></div></div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 10px;">
+                    <span id="text-0400">0 / 15 slots filled</span>
+                    <span id="pill-0400" class="status-pill status-open">Open</span>
+                </div>
+                <div class="capacity-controls">
+                    <span>Limit capacity to:</span>
+                    <input type="number" class="cap-input" value="15" onchange="updateLimit('0400', this.value)">
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Mock data for booked residents (In a real app, this comes from your DB/Localstorage)
+        const bookedResidents = {
+            "0900": 8,
+            "1000": 3,
+            "1100": 10,
+            "0100": 5,
+            "0300": 12,
+            "0400": 2
+        };
+
+        // Load or Set Initial Capacity Limits
+        let capacityLimits = JSON.parse(localStorage.getItem('sb_capacity_limits')) || {
+            "0900": 10, "1000": 10, "1100": 10,
+            "0100": 15, "0300": 15, "0400": 15
+        };
+
+        function syncUI() {
+            Object.keys(capacityLimits).forEach(slot => {
+                const limit = capacityLimits[slot];
+                const booked = bookedResidents[slot] || 0;
+                const percent = Math.min((booked / limit) * 100, 100);
+
+                // Update Progress Bar
+                const bar = document.getElementById(`bar-${slot}`);
+                bar.style.width = percent + "%";
+                
+                // Color change based on fullness
+                if (percent >= 100) bar.style.backgroundColor = "#ef4444";
+                else if (percent >= 80) bar.style.backgroundColor = "#f59e0b";
+                else bar.style.backgroundColor = "#16a34a";
+
+                // Update Text & Pill
+                document.getElementById(`text-${slot}`).innerText = `${booked} / ${limit} slots filled`;
+                const pill = document.getElementById(`pill-${slot}`);
+                if (booked >= limit) {
+                    pill.innerText = "Full";
+                    pill.className = "status-pill status-full";
+                } else {
+                    pill.innerText = "Open";
+                    pill.className = "status-pill status-open";
+                }
+            });
+        }
+
+        function updateLimit(slot, newValue) {
+            capacityLimits[slot] = parseInt(newValue);
+            localStorage.setItem('sb_capacity_limits', JSON.stringify(capacityLimits));
+            syncUI();
+        }
+
+        function handleLogout(event) {
+            event.preventDefault();
+            localStorage.removeItem('isLoggedIn');
+            sessionStorage.clear();
+            window.location.href = 'landing.html'; 
+        }
+
+        // Initialize UI on load
+        window.onload = syncUI;
+    </script>
+</body>
+</html>
