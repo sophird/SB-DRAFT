@@ -8,7 +8,8 @@
     "dev": "nodemon src/server.js",
     "check:env": "node scripts/check-env.js",
     "check:supabase": "node scripts/test-supabase.js",
-    "seed:sample": "node scripts/seed-sample.js"
+    "seed:sample": "node scripts/seed-sample.js",
+    "smoke:health": "node scripts/smoke-health.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.0",
