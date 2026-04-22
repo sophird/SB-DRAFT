@@ -7,6 +7,8 @@ async function main() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const adminPassword = process.env.SEED_ADMIN_PASSWORD || "ADserbisyoburgos1";
+  const staffPassword = process.env.SEED_STAFF_PASSWORD || "STserbisyoburgos1";
+  const systemAdminPassword = process.env.SEED_SYSTEM_ADMIN_PASSWORD || "SYSserbisyoburgos1";
 
   if (!url || !key) {
     throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for seeding.");
@@ -19,11 +21,23 @@ async function main() {
       email: "admin@serbisyoburgos.com",
       full_name: "Admin Burgos",
       role: "admin"
+    },
+    {
+      email: "staff@serbisyoburgos.com",
+      full_name: "Barangay Staff",
+      role: "staff"
+    },
+    {
+      email: "systemadmin@serbisyoburgos.com",
+      full_name: "System Administrator",
+      role: "system-admin"
     }
   ];
 
   const credentials = [
-    { email: "admin@serbisyoburgos.com", password: adminPassword }
+    { email: "admin@serbisyoburgos.com", password: adminPassword },
+    { email: "staff@serbisyoburgos.com", password: staffPassword },
+    { email: "systemadmin@serbisyoburgos.com", password: systemAdminPassword }
   ];
 
   // Ensure auth users exist and keep seed passwords deterministic for testing.
@@ -63,6 +77,8 @@ async function main() {
 
   console.log("Seed complete: sample auth users + profiles inserted/updated.");
   console.log(`Admin login: admin@serbisyoburgos.com / ${adminPassword}`);
+  console.log(`Staff login: staff@serbisyoburgos.com / ${staffPassword}`);
+  console.log(`System admin login: systemadmin@serbisyoburgos.com / ${systemAdminPassword}`);
 }
 
 // Report seed failure and exit with a non-zero status code.
