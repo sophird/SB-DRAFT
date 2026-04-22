@@ -152,7 +152,13 @@
         .requests-table td { padding: 1.2rem 1rem; border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; }
         
         .status-badge { padding: 6px 14px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
-        .status-processing { background: #fef9c3; color: #854d0e; }
+        .status-pending { background: #fef9c3; color: #854d0e; }
+        .status-processing { background: #dbeafe; color: #1d4ed8; }
+        .status-pickup { background: #f0fdf4; color: #16a34a; }
+        .status-completed { background: #f1f5f9; color: #475569; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+        .status-revision { background: #fef3c7; color: #92400e; }
+        .status-rejected { background: #fee2e2; color: #991b1b; }
         
         /* Gmail-style Delete Icon */
         .btn-delete {
@@ -415,91 +421,73 @@
     </div>
 
     <script>
+        const API_BASE_URL = "http://localhost:4000";
         let requestIdToDelete = null;
+        let requestEventStream = null;
 
         function openModal() { document.getElementById('requestModal').style.display = 'flex'; }
         function closeModal() { document.getElementById('requestModal').style.display = 'none'; }
-        
+
         function openDeleteModal(id) {
             requestIdToDelete = id;
             document.getElementById('deleteModal').style.display = 'flex';
         }
-        function closeDeleteModal() { document.getElementById('deleteModal').style.display = 'none'; }
-
-        function submitRequest() {
-            // Removed reqTitle from here
-            const type = document.getElementById('reqType').value;
-            const purpose = document.getElementById('reqPurpose').value;
-
-            // Simple validation (removed title check)
-            if (!purpose) {
-                alert("Please state the purpose of your request.");
-                return;
-            }
-
-            const newRequest = {
-                id: "REQ-" + Math.floor(1000 + Math.random() * 9000),
-                type: type.charAt(0).toUpperCase() + type.slice(1),
-                date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                status: "Pending"
-            };
-
-            // 2. Save to LocalStorage (The shared "Database")
-            const existingRequests = JSON.parse(localStorage.getItem('allRequests')) || [];
-            existingRequests.push(newRequest);
-            localStorage.setItem('allRequests', JSON.stringify(existingRequests));
-
-            alert("Request submitted successfully!");
-            window.location.href = 'request-history.html'; // Redirect to history
+        function closeDeleteModal() {
+            requestIdToDelete = null;
+            document.getElementById('deleteModal').style.display = 'none';
         }
-        
-        // FORM SUBMISSION LOGIC
-        document.getElementById('serviceForm').onsubmit = function(e) {
-            e.preventDefault();
 
-            const newRequest = {
-                id: "SB-" + Math.floor(1000 + Math.random() * 9000),
-                title: document.getElementById('reqTitle').value,
-                date: document.getElementById('reqDate').value,
-                status: "Processing"
-            };
+        function formatDate(dateValue) {
+            if (!dateValue) return "—";
+            const dateObj = new Date(dateValue);
+            if (Number.isNaN(dateObj.getTime())) return String(dateValue);
+            return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
 
-            let history = JSON.parse(localStorage.getItem('serviceHistory')) || [];
-            history.unshift(newRequest);
-            localStorage.setItem('serviceHistory', JSON.stringify(history));
+        function statusClass(status) {
+            const normalized = String(status || "").toLowerCase();
+            if (normalized === "pending") return "status-pending";
+            if (normalized === "processing" || normalized === "in progress") return "status-processing";
+            if (normalized === "approved") return "status-approved";
+            if (normalized === "revision requested") return "status-revision";
+            if (normalized === "rejected") return "status-rejected";
+            if (normalized === "ready for pickup") return "status-pickup";
+            if (normalized === "completed") return "status-completed";
+            return "status-pending";
+        }
 
-            renderTable();
-            alert("Request Submitted Successfully!");
-            closeModal();
-            this.reset();
-        };
-
-        // DELETE CONFIRMATION LOGIC
-        document.getElementById('confirmDeleteBtn').onclick = function() {
-            let history = JSON.parse(localStorage.getItem('serviceHistory')) || [];
-            history = history.filter(req => req.id !== requestIdToDelete);
-            localStorage.setItem('serviceHistory', JSON.stringify(history));
-            renderTable();
-            closeDeleteModal();
-        };
-
-        function renderTable() {
+        async function loadRequests() {
             const tableBody = document.getElementById('requestTableBody');
-            const history = JSON.parse(localStorage.getItem('serviceHistory')) || [];
+            tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:2rem;">Loading requests...</td></tr>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/requests`);
+                const result = await response.json();
+                if (!response.ok || !result.ok) {
+                    throw new Error(result.message || 'Unable to load requests.');
+                }
+                renderTable(result.requests || []);
+            } catch (_error) {
+                tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#b91c1c; padding:2rem;">Failed to load requests. Make sure backend is running.</td></tr>';
+            }
+        }
+
+        function renderTable(requests) {
+            const tableBody = document.getElementById('requestTableBody');
             tableBody.innerHTML = "";
 
-            if (history.length === 0) {
+            if (!requests.length) {
                 tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:2rem;">No active requests found.</td></tr>';
                 return;
             }
 
-            history.forEach(req => {
+            requests.forEach(req => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td><b>#${req.id}</b></td>
-                    <td>${req.title}</td>
-                    <td>${req.date}</td>
-                    <td><span class="status-badge status-processing">Processing</span></td>
+                    <td><b>#${req.referenceNo}</b></td>
+                    <td>${req.title || req.serviceType}</td>
+                    <td>${formatDate(req.createdAt || req.preferredDate)}</td>
+                    <td><span class="status-badge ${statusClass(req.status)}">${req.status || "Pending"}</span></td>
                     <td style="text-align: right;">
                         <button class="btn-action">View</button>
                         <button class="btn-delete" onclick="openDeleteModal('${req.id}')" title="Delete Request">
@@ -509,6 +497,65 @@
                 `;
                 tableBody.appendChild(row);
             });
+        }
+
+        document.getElementById('serviceForm').onsubmit = async function(e) {
+            e.preventDefault();
+
+            const serviceType = document.getElementById('reqType').value;
+            const preferredDate = document.getElementById('reqDate').value;
+            const preferredTimeSlot = document.getElementById('reqTime').value;
+            const payload = {
+                title: serviceType,
+                serviceType,
+                preferredDate,
+                preferredTimeSlot
+            };
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/requests`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (!response.ok || !result.ok) {
+                    throw new Error(result.message || 'Unable to submit request.');
+                }
+
+                await loadRequests();
+                alert("Request Submitted Successfully!");
+                closeModal();
+                this.reset();
+            } catch (error) {
+                alert(error.message || "Failed to submit request. Make sure backend is running.");
+            }
+        };
+
+        document.getElementById('confirmDeleteBtn').onclick = async function() {
+            if (!requestIdToDelete) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/requests/${requestIdToDelete}`, { method: 'DELETE' });
+                const result = await response.json();
+                if (!response.ok || !result.ok) {
+                    throw new Error(result.message || 'Unable to delete request.');
+                }
+                closeDeleteModal();
+                await loadRequests();
+            } catch (error) {
+                alert(error.message || "Failed to delete request.");
+            }
+        };
+
+        function connectRealtimeRequests() {
+            if (requestEventStream) requestEventStream.close();
+            requestEventStream = new EventSource(`${API_BASE_URL}/requests/events`);
+            requestEventStream.addEventListener('request-updated', () => {
+                loadRequests();
+            });
+            requestEventStream.onerror = () => {
+                // Keep existing data on screen; browser auto-retries EventSource.
+            };
         }
 
         // CHATBOT LOGIC
@@ -554,7 +601,10 @@
             }
         });
 
-        window.onload = renderTable;
+        window.onload = function() {
+            loadRequests();
+            connectRealtimeRequests();
+        };
 
         // Close modal when clicking background
         window.onclick = function(e) {
@@ -566,8 +616,6 @@
 
         function handleLogout(event) {
             event.preventDefault();
-            localStorage.removeItem('isLoggedIn');
-            sessionStorage.clear();
             
             window.location.href = 'landing.html'; 
         }

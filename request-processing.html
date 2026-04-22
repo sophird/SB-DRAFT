@@ -246,7 +246,7 @@
     <aside>
         <div class="sidebar-header"><img src="SB.png" width="32"> SerbisyoBurgos</div>
         <nav>
-            <a href="admin-dashboard.html" class="nav-link">
+            <a href="admin-dashboard.html" class="nav-link" id="dashboardHomeLink">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
                 Dashboard
             </a>
@@ -301,7 +301,7 @@
 
     <main>
         <div class="header-section">
-            <a href="admin-dashboard.html" class="back-link">←</a>
+            <a href="admin-dashboard.html" class="back-link" id="requestBackLink">←</a>
             <div>
                 <h1 style="font-size: 1.75rem; color: var(--brand-dark);">Request Details</h1>
                 <p id="requestMetaLine" style="color: var(--text-muted); font-size: 0.9rem;">Open a request from the dashboard when records are connected.</p>
@@ -367,6 +367,8 @@
     </div>
 
     <script>
+        const API_BASE_URL = "http://localhost:4000";
+
         function initialsFromName(name) {
             if (!name || typeof name !== "string") return "—";
             const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -375,20 +377,59 @@
             return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
         }
 
-        function applySessionSidebar() {
+        function roleLabel(role) {
+            if (role === "system-admin") return "System Admin";
+            if (role === "admin") return "Barangay Admin";
+            if (role === "staff") return "Barangay Staff";
+            return role || "Staff";
+        }
+
+        function roleHomeRoute(role) {
+            if (role === "staff") return "staff-dashboard.html";
+            if (role === "system-admin") return "system-admin-dashboard.html";
+            return "admin-dashboard.html";
+        }
+
+        async function verifyBackendRole(requiredRole, accessToken) {
+            const response = await fetch(`${API_BASE_URL}/auth/admin/authorize/${encodeURIComponent(requiredRole)}`, {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${accessToken}`
+                }
+            });
+            if (!response.ok) throw new Error("Role authorization failed");
+        }
+
+        async function applySessionSidebar() {
             try {
                 const raw = sessionStorage.getItem("adminAuth");
-                if (!raw) return;
-                const { user } = JSON.parse(raw);
-                if (!user) return;
+                if (!raw) {
+                    window.location.href = "admin-login.html";
+                    return;
+                }
+                const { user, session } = JSON.parse(raw);
+                if (!user || user.role !== "admin") {
+                    window.location.href = "admin-login.html";
+                    return;
+                }
+                const accessToken = session?.accessToken;
+                if (!accessToken) {
+                    window.location.href = "admin-login.html";
+                    return;
+                }
+                await verifyBackendRole("admin", accessToken);
                 const display = user.fullName || user.email || "Admin";
                 const nameEl = document.getElementById("sidebarUserName");
                 const avatarEl = document.getElementById("sidebarUserAvatar");
                 const roleEl = document.getElementById("sidebarUserRole");
+                const homeLink = document.getElementById("dashboardHomeLink");
+                const backLink = document.getElementById("requestBackLink");
                 if (nameEl) nameEl.textContent = display;
                 if (avatarEl) avatarEl.textContent = initialsFromName(user.fullName || user.email || "");
-                if (roleEl) roleEl.textContent = user.role === "admin" ? "Administrator" : (user.role || "Staff");
-            } catch (_e) { /* ignore */ }
+                if (roleEl) roleEl.textContent = roleLabel(user.role);
+                if (homeLink) homeLink.href = "admin-dashboard.html";
+                if (backLink) backLink.href = "admin-dashboard.html";
+            } catch (_e) { window.location.href = "admin-login.html"; }
         }
 
         const adminLogoutBtn = document.getElementById("adminLogoutBtn");
@@ -424,6 +465,185 @@
 
         let selectedAction = null;
         let latestActionNode = null;
+        let activeRequestId = null;
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+        }
+
+        function formatDateTime(value) {
+            if (!value) return "—";
+            const dateObj = new Date(value);
+            if (Number.isNaN(dateObj.getTime())) return String(value);
+            return dateObj.toLocaleString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+                hour: "numeric",
+                minute: "2-digit"
+            });
+        }
+
+        function statusColorByValue(status) {
+            const normalized = String(status || "").toLowerCase();
+            if (normalized.includes("approved") || normalized.includes("ready")) return { bg: "#dcfce7", fg: "#166534" };
+            if (normalized.includes("revision")) return { bg: "#fef3c7", fg: "#92400e" };
+            if (normalized.includes("reject")) return { bg: "#fee2e2", fg: "#991b1b" };
+            if (normalized.includes("process")) return { bg: "#dbeafe", fg: "#1d4ed8" };
+            return { bg: "#fef9c3", fg: "#854d0e" };
+        }
+
+        function applyRequestToUI(request) {
+            if (!request) return;
+            const subject = request.title || request.serviceType || "Service Request";
+            const currentStatus = request.status || "Pending";
+            const filedAt = request.createdAt || request.preferredDate;
+            const referenceNo = request.referenceNo || "—";
+            const normalizedStatus = String(currentStatus).toLowerCase();
+            const hasReviewActionSelected = ["approved", "revision requested", "rejected"].includes(normalizedStatus);
+
+            document.getElementById("fieldSubject").textContent = subject;
+            document.getElementById("fieldResident").textContent = "Resident User";
+            document.getElementById("fieldDateFiled").textContent = formatDateTime(filedAt);
+
+            const metaLine = document.getElementById("requestMetaLine");
+            if (metaLine) {
+                metaLine.textContent = `Reference #${referenceNo} • Preferred: ${request.preferredDate || "—"} ${request.preferredTimeSlot || ""}`.trim();
+            }
+
+            const badge = document.getElementById("statusBadge");
+            const statusColors = statusColorByValue(currentStatus);
+            badge.textContent = currentStatus;
+            badge.style.background = statusColors.bg;
+            badge.style.color = statusColors.fg;
+
+            const timelineEmpty = document.getElementById("timelineEmpty");
+            if (timelineEmpty) timelineEmpty.style.display = "none";
+            const timelineList = document.getElementById("timelineList");
+            if (timelineList) {
+                const existing = document.getElementById("latestActionItem");
+                if (existing) existing.remove();
+                latestActionNode = document.createElement("div");
+                latestActionNode.className = "timeline-item";
+                latestActionNode.id = "latestActionItem";
+                latestActionNode.innerHTML = `
+                    <div class="timeline-dot active"></div>
+                    <div class="timeline-label">${escapeHtml(currentStatus)}</div>
+                    <div class="timeline-time">${escapeHtml(formatDateTime(filedAt))}</div>
+                `;
+                timelineList.appendChild(latestActionNode);
+            }
+
+            const reviewActionCard = document.getElementById("reviewActionCard");
+            if (reviewActionCard) {
+                reviewActionCard.style.display = hasReviewActionSelected ? "none" : "block";
+            }
+        }
+
+        async function loadRequestFromQuery() {
+            const params = new URLSearchParams(window.location.search);
+            const requestId = params.get("requestId");
+            const referenceNo = params.get("referenceNo");
+            let targetRequestId = requestId ? String(requestId) : "";
+            let targetReferenceNo = referenceNo ? String(referenceNo) : "";
+
+            const metaLine = document.getElementById("requestMetaLine");
+            if (metaLine) metaLine.textContent = `Loading request details...`;
+
+            try {
+                const cached = sessionStorage.getItem("selectedRequest");
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    const parsedId = parsed.id != null ? String(parsed.id) : "";
+                    const parsedRef = String(parsed.referenceNo || "");
+
+                    // If URL has no identifier, use the last selected request as fallback.
+                    if (!targetRequestId && !targetReferenceNo) {
+                        targetRequestId = parsedId;
+                        targetReferenceNo = parsedRef;
+                        if (metaLine) metaLine.textContent = "Loading last selected request details...";
+                    }
+
+                    const sameId = targetRequestId && parsedId && parsedId === targetRequestId;
+                    const sameRef = targetReferenceNo && parsedRef && parsedRef === targetReferenceNo;
+                    if (sameId || sameRef || (!requestId && !referenceNo)) {
+                        applyRequestToUI(parsed);
+                    }
+                }
+            } catch (_error) {
+                // Ignore cache parse issues and continue with API fetch.
+            }
+
+            if (!targetRequestId && !targetReferenceNo) {
+                if (metaLine) metaLine.textContent = "No request selected. Open a request from the dashboard.";
+                return;
+            }
+
+            activeRequestId = targetRequestId ? Number(targetRequestId) || targetRequestId : null;
+
+            try {
+                let result = null;
+                let response = null;
+
+                if (targetRequestId) {
+                    response = await fetch(`${API_BASE_URL}/requests/${encodeURIComponent(targetRequestId)}`);
+                    result = await response.json();
+                }
+
+                if ((!response || !response.ok || !result?.ok || !result?.request) && targetReferenceNo) {
+                    response = await fetch(`${API_BASE_URL}/requests/by-reference/${encodeURIComponent(targetReferenceNo)}`);
+                    result = await response.json();
+                }
+
+                // Last fallback: load full list and resolve by id/reference client-side.
+                if ((!response || !response.ok || !result?.ok || !result?.request)) {
+                    response = await fetch(`${API_BASE_URL}/requests`);
+                    result = await response.json();
+                    if (response.ok && result?.ok && Array.isArray(result.requests)) {
+                        const found = result.requests.find((item) => {
+                            const itemId = item?.id != null ? String(item.id) : "";
+                            const itemRef = String(item?.referenceNo || "");
+                            return (targetRequestId && itemId === targetRequestId) || (targetReferenceNo && itemRef === targetReferenceNo);
+                        });
+                        if (found) {
+                            result = { ok: true, request: found };
+                        }
+                    }
+                }
+
+                if (!response || !response.ok || !result?.ok || !result?.request) {
+                    throw new Error(result?.message || "Unable to load request details.");
+                }
+
+                const request = result.request;
+                activeRequestId = request.id ?? activeRequestId;
+                applyRequestToUI(request);
+                sessionStorage.setItem("selectedRequest", JSON.stringify(request));
+            } catch (error) {
+                if (metaLine) metaLine.textContent = error.message || "Unable to load request details.";
+            }
+        }
+
+        async function saveRequestStatus(status, note = "") {
+            if (!activeRequestId) {
+                throw new Error("Request ID is missing.");
+            }
+            const response = await fetch(`${API_BASE_URL}/requests/${encodeURIComponent(activeRequestId)}/status`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status, note })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.ok || !result.request) {
+                throw new Error(result.message || "Unable to update request status.");
+            }
+            return result.request;
+        }
 
         // Update badge, timeline, and feedback text for the latest action.
         function updateInterface(status, dotClass, note = "") {
@@ -475,7 +695,7 @@
         }
 
         // Handle quick actions and toggle revision input when needed.
-        function handleAction(button) {
+        async function handleAction(button) {
             const status = button.dataset.action;
             const dotClass = button.dataset.dot;
             const reviewActionCard = document.getElementById('reviewActionCard');
@@ -500,7 +720,14 @@
                 revisionMessage.value = '';
             }
 
-            updateInterface(status, dotClass);
+            try {
+                await saveRequestStatus(status, "");
+                updateInterface(status, dotClass);
+            } catch (error) {
+                const actionFeedback = document.getElementById('actionFeedback');
+                if (actionFeedback) actionFeedback.innerText = error.message || "Failed to update status.";
+                return;
+            }
 
             if (reviewActionCard) {
                 reviewActionCard.style.display = 'none';
@@ -511,7 +738,7 @@
         function bindReviewActions() {
             const actionButtons = document.querySelectorAll('.action-btns .btn');
             actionButtons.forEach((btn) => {
-                btn.addEventListener('click', () => handleAction(btn));
+                btn.addEventListener('click', () => { handleAction(btn); });
             });
 
             const sendRevisionBtn = document.getElementById('sendRevisionBtn');
@@ -521,7 +748,7 @@
             const revisionButton = document.querySelector('.btn-info');
 
             if (sendRevisionBtn && revisionMessage) {
-                sendRevisionBtn.addEventListener('click', () => {
+                sendRevisionBtn.addEventListener('click', async () => {
                     const message = revisionMessage.value.trim();
                     if (!message) {
                         revisionMessage.focus();
@@ -536,7 +763,14 @@
                         selectedAction.classList.add('selected');
                     }
 
-                    updateInterface('Revision Requested', 'amber', `Revision message: ${message}`);
+                    try {
+                        await saveRequestStatus('Revision Requested', message);
+                        updateInterface('Revision Requested', 'amber', `Revision message: ${message}`);
+                    } catch (error) {
+                        const actionFeedback = document.getElementById('actionFeedback');
+                        if (actionFeedback) actionFeedback.innerText = error.message || "Failed to update status.";
+                        return;
+                    }
 
                     if (revisionBox) {
                         revisionBox.style.display = 'none';
@@ -551,6 +785,7 @@
         // 3. Initialize page
         window.onload = function() {
             bindReviewActions();
+            loadRequestFromQuery();
         };
     </script>
 </body>
