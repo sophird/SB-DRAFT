@@ -201,7 +201,7 @@
             <span>SerbisyoBurgos</span>
         </div>
         <nav>
-            <a href="admin-dashboard.html" class="nav-link">
+            <a href="admin-dashboard.html" class="nav-link" id="dashboardHomeLink">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
                 Dashboard
             </a>
@@ -367,6 +367,8 @@
     </div>
 
     <script>
+        const API_BASE_URL = "http://localhost:4000";
+
         function initialsFromName(name) {
             if (!name || typeof name !== "string") return "—";
             const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -375,20 +377,57 @@
             return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
         }
 
-        function applySessionSidebar() {
+        function roleLabel(role) {
+            if (role === "system-admin") return "System Admin";
+            if (role === "admin") return "Barangay Admin";
+            if (role === "staff") return "Barangay Staff";
+            return role || "Staff";
+        }
+
+        function roleHomeRoute(role) {
+            if (role === "staff") return "staff-dashboard.html";
+            if (role === "system-admin") return "system-admin-dashboard.html";
+            return "admin-dashboard.html";
+        }
+
+        async function verifyBackendRole(requiredRole, accessToken) {
+            const response = await fetch(`${API_BASE_URL}/auth/admin/authorize/${encodeURIComponent(requiredRole)}`, {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${accessToken}`
+                }
+            });
+            if (!response.ok) throw new Error("Role authorization failed");
+        }
+
+        async function applySessionSidebar() {
             try {
                 const raw = sessionStorage.getItem("adminAuth");
-                if (!raw) return;
-                const { user } = JSON.parse(raw);
-                if (!user) return;
+                if (!raw) {
+                    window.location.href = "admin-login.html";
+                    return;
+                }
+                const { user, session } = JSON.parse(raw);
+                if (!user || user.role !== "admin") {
+                    window.location.href = "admin-login.html";
+                    return;
+                }
+                const accessToken = session?.accessToken;
+                if (!accessToken) {
+                    window.location.href = "admin-login.html";
+                    return;
+                }
+                await verifyBackendRole("admin", accessToken);
                 const display = user.fullName || user.email || "Admin";
                 const nameEl = document.getElementById("sidebarUserName");
                 const avatarEl = document.getElementById("sidebarUserAvatar");
                 const roleEl = document.getElementById("sidebarUserRole");
+                const homeLink = document.getElementById("dashboardHomeLink");
                 if (nameEl) nameEl.textContent = display;
                 if (avatarEl) avatarEl.textContent = initialsFromName(user.fullName || user.email || "");
-                if (roleEl) roleEl.textContent = user.role === "admin" ? "Administrator" : (user.role || "Staff");
-            } catch (_e) { /* ignore */ }
+                if (roleEl) roleEl.textContent = roleLabel(user.role);
+                if (homeLink) homeLink.href = "admin-dashboard.html";
+            } catch (_e) { window.location.href = "admin-login.html"; }
         }
 
         const adminLogoutBtn = document.getElementById("adminLogoutBtn");
@@ -423,12 +462,67 @@
         applySessionSidebar();
 
         const bookedResidents = {};
+        let requestEventStream = null;
 
         // Default capacity limits (frontend-only until backed by records).
         let capacityLimits = {
             "0900": 10, "1000": 10, "1100": 10,
             "0100": 15, "0300": 15, "0400": 15
         };
+
+        function slotCodeFromTimeRange(timeRange) {
+            const normalized = String(timeRange || "")
+                .toLowerCase()
+                .replace(/\s+/g, " ")
+                .trim();
+
+            if (!normalized) return null;
+            if (normalized.includes("09:00 am - 10:00 am")) return "0900";
+            if (normalized.includes("10:00 am - 11:00 am")) return "1000";
+            if (normalized.includes("11:00 am - 12:00")) return "1100";
+            if (normalized.includes("01:00 pm - 02:00 pm")) return "0100";
+            if (normalized.includes("03:00 pm - 04:00 pm")) return "0300";
+            if (normalized.includes("04:00 pm - 05:00 pm")) return "0400";
+
+            // Handle existing resident form option typo/variant.
+            if (normalized.includes("2:00 pm - 3:00 pm")) return "0300";
+            return null;
+        }
+
+        async function loadSlotCountsFromRequests() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/requests`);
+                const result = await response.json();
+                if (!response.ok || !result.ok || !Array.isArray(result.requests)) {
+                    throw new Error(result.message || "Unable to load request data.");
+                }
+
+                Object.keys(bookedResidents).forEach((slot) => {
+                    bookedResidents[slot] = 0;
+                });
+
+                result.requests.forEach((request) => {
+                    const status = String(request?.status || "").toLowerCase();
+                    if (status === "rejected") return;
+                    const slotCode = slotCodeFromTimeRange(request?.preferredTimeSlot);
+                    if (!slotCode || !(slotCode in capacityLimits)) return;
+                    bookedResidents[slotCode] = (bookedResidents[slotCode] || 0) + 1;
+                });
+
+                syncUI();
+            } catch (_error) {
+                // Keep UI stable with current values when backend is unavailable.
+                syncUI();
+            }
+        }
+
+        function connectRealtimeSlotCounts() {
+            if (requestEventStream) requestEventStream.close();
+            requestEventStream = new EventSource(`${API_BASE_URL}/requests/events`);
+            requestEventStream.addEventListener("request-updated", () => {
+                loadSlotCountsFromRequests();
+            });
+        }
 
         // Synchronize slot progress bars, labels, and status pills.
         function syncUI() {
@@ -466,7 +560,10 @@
         }
 
         // Initialize UI on load
-        window.onload = syncUI;
+        window.onload = function() {
+            loadSlotCountsFromRequests();
+            connectRealtimeSlotCounts();
+        };
     </script>
 </body>
 </html>

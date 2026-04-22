@@ -163,6 +163,9 @@
         .badge-processing { background: var(--status-processing-bg); color: var(--status-processing-text); }
         .badge-pickup { background: var(--status-pickup-bg); color: var(--status-pickup-text); }
         .badge-completed { background: var(--status-completed-bg); color: var(--status-completed-text); }
+        .badge-approved { background: #d1fae5; color: #065f46; }
+        .badge-revision { background: #fef3c7; color: #92400e; }
+        .badge-rejected { background: #fee2e2; color: #991b1b; }
 
         .desc-text { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px; }
         .meta-row { display: flex; align-items: center; gap: 1rem; font-size: 0.8rem; color: var(--text-muted); }
@@ -374,6 +377,8 @@
     </div>
 
     <script>
+        const API_BASE_URL = "http://localhost:4000";
+
         function initialsFromName(name) {
             if (!name || typeof name !== "string") return "—";
             const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -382,12 +387,41 @@
             return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
         }
 
-        function applySessionSidebar() {
+        function roleLabel(role) {
+            if (role === "system-admin") return "System Admin";
+            if (role === "admin") return "Barangay Admin";
+            if (role === "staff") return "Barangay Staff";
+            return role || "Staff";
+        }
+
+        async function verifyBackendRole(requiredRole, accessToken) {
+            const response = await fetch(`${API_BASE_URL}/auth/admin/authorize/${encodeURIComponent(requiredRole)}`, {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${accessToken}`
+                }
+            });
+            if (!response.ok) throw new Error("Role authorization failed");
+        }
+
+        async function applySessionSidebar() {
             try {
                 const raw = sessionStorage.getItem("adminAuth");
-                if (!raw) return;
-                const { user } = JSON.parse(raw);
-                if (!user) return;
+                if (!raw) {
+                    window.location.href = "admin-login.html";
+                    return;
+                }
+                const { user, session } = JSON.parse(raw);
+                if (!user || user.role !== "admin") {
+                    window.location.href = "admin-login.html";
+                    return;
+                }
+                const accessToken = session?.accessToken;
+                if (!accessToken) {
+                    window.location.href = "admin-login.html";
+                    return;
+                }
+                await verifyBackendRole("admin", accessToken);
                 const nameEl = document.getElementById("sidebarUserName");
                 const avatarEl = document.getElementById("sidebarUserAvatar");
                 const roleEl = document.getElementById("sidebarUserRole");
@@ -395,10 +429,10 @@
                 const display = user.fullName || user.email || "Admin";
                 if (nameEl) nameEl.textContent = display;
                 if (avatarEl) avatarEl.textContent = initialsFromName(user.fullName || user.email || "");
-                if (roleEl) roleEl.textContent = user.role === "admin" ? "Administrator" : (user.role || "Staff");
+                if (roleEl) roleEl.textContent = roleLabel(user.role);
                 if (welcomeEl) welcomeEl.textContent = user.fullName ? `Welcome, ${user.fullName.split(" ")[0]}!` : "Welcome!";
             } catch (_e) {
-                /* ignore */
+                window.location.href = "admin-login.html";
             }
         }
 
@@ -434,6 +468,133 @@
 
         applySessionSidebar();
 
+        let requestEventStream = null;
+        let latestRequests = [];
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+        }
+
+        function formatRequestDate(value) {
+            if (!value) return "—";
+            const dateObj = new Date(value);
+            if (Number.isNaN(dateObj.getTime())) return escapeHtml(value);
+            return dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        }
+
+        function statusBadgeClass(status) {
+            const normalized = String(status || "").toLowerCase();
+            if (normalized === "pending") return "badge-pending";
+            if (normalized === "processing" || normalized === "in progress") return "badge-processing";
+            if (normalized === "approved") return "badge-approved";
+            if (normalized === "revision requested") return "badge-revision";
+            if (normalized === "rejected") return "badge-rejected";
+            if (normalized === "ready for pickup") return "badge-pickup";
+            if (normalized === "completed") return "badge-completed";
+            return "badge-pending";
+        }
+
+        function openRequestDetails(request) {
+            const payload = {
+                id: request?.id ?? null,
+                referenceNo: request?.referenceNo || "",
+                title: request?.title || "",
+                serviceType: request?.serviceType || "",
+                status: request?.status || "Pending",
+                createdAt: request?.createdAt || null,
+                preferredDate: request?.preferredDate || null,
+                preferredTimeSlot: request?.preferredTimeSlot || ""
+            };
+            sessionStorage.setItem("selectedRequest", JSON.stringify(payload));
+
+            const idParam = encodeURIComponent(String(payload.id ?? ""));
+            const refParam = encodeURIComponent(payload.referenceNo || "");
+            window.location.href = `request-processing.html?requestId=${idParam}&referenceNo=${refParam}`;
+        }
+
+        function renderRequestCards(requests) {
+            requestContainer.innerHTML = requests.map((req) => {
+                const safeTitle = escapeHtml(req.title || req.serviceType || "Service Request");
+                const safeStatus = escapeHtml(req.status || "Pending");
+                const safeType = "Request";
+                const safeReference = escapeHtml(req.referenceNo || "—");
+                const safeDate = formatRequestDate(req.createdAt || req.preferredDate);
+                const badgeClass = statusBadgeClass(req.status);
+                const requestId = req.id ?? "";
+                const referenceParam = encodeURIComponent(req.referenceNo || "");
+
+                return `
+                    <div class="request-card" data-title="${safeTitle}">
+                        <div class="title-row">
+                            <h2>${safeTitle}</h2>
+                            <span class="badge badge-type">${safeType}</span>
+                            <span class="badge ${badgeClass}">${safeStatus}</span>
+                        </div>
+                        <p class="desc-text">Reference: #${safeReference}</p>
+                        <div class="meta-row">
+                            <span>Date Submitted: ${safeDate}</span>
+                            <span>Preferred Slot: ${escapeHtml(req.preferredTimeSlot || "—")}</span>
+                        </div>
+                        <div style="margin-top: 12px;">
+                            <a class="btn-review js-view-request" href="request-processing.html?requestId=${requestId}&referenceNo=${referenceParam}" data-request-id="${requestId}">
+                                View Request
+                            </a>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function handleViewRequestClick(event) {
+            const viewLink = event.target.closest(".js-view-request");
+            if (!viewLink) return;
+            event.preventDefault();
+            const requestId = String(viewLink.dataset.requestId || "");
+            const selected = latestRequests.find((item) => String(item?.id ?? "") === requestId);
+            if (selected) {
+                openRequestDetails(selected);
+                return;
+            }
+            window.location.href = viewLink.getAttribute("href") || "request-processing.html";
+        }
+
+        async function loadAdminRequests() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/requests`);
+                const result = await response.json();
+                if (!response.ok || !result.ok) {
+                    throw new Error(result.message || "Unable to load requests.");
+                }
+                const requests = (result.requests || []).slice().sort((a, b) => {
+                    const aApproved = String(a.status || "").toLowerCase() === "approved";
+                    const bApproved = String(b.status || "").toLowerCase() === "approved";
+                    if (aApproved !== bApproved) return aApproved ? 1 : -1;
+                    const aTime = new Date(a.createdAt || 0).getTime();
+                    const bTime = new Date(b.createdAt || 0).getTime();
+                    return bTime - aTime;
+                });
+                latestRequests = requests;
+                renderRequestCards(requests);
+            } catch (_error) {
+                latestRequests = [];
+                requestContainer.innerHTML = "";
+            }
+            filterCards(true);
+        }
+
+        function connectRealtimeRequests() {
+            if (requestEventStream) requestEventStream.close();
+            requestEventStream = new EventSource(`${API_BASE_URL}/requests/events`);
+            requestEventStream.addEventListener("request-updated", () => {
+                loadAdminRequests();
+            });
+        }
+
         // 1. Get references to all filter elements
         const searchInput = document.getElementById('adminSearch');
         const statusFilter = document.getElementById('statusFilter');
@@ -449,6 +610,7 @@
         let cards = [];
         let filteredCards = [];
         let currentPage = 1;
+        requestContainer.addEventListener('click', handleViewRequestClick);
 
         function refreshCardList() {
             cards = Array.from(requestContainer.querySelectorAll('.request-card'));
@@ -545,7 +707,8 @@
         nextPageBtn.addEventListener('click', goToNextPage);
 
         // Initialize first render
-        filterCards(true);
+        loadAdminRequests();
+        connectRealtimeRequests();
 
     </script>
 </body>

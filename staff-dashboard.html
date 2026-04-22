@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Dashboard | SerbisyoBurgos</title>
+    <link rel="icon" type="image/png" href="SB.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --brand-green: #16a34a;
+            --brand-dark: #043d2e;
+            --bg-light: #f8fafc;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --card-border: #e2e8f0;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-light); color: var(--text-main); }
+        main { max-width: 980px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .topbar h1 { color: var(--brand-dark); }
+        .meta { color: var(--text-muted); font-size: 0.92rem; margin-top: 0.35rem; }
+        .logout-btn {
+            border: none; border-radius: 10px; background: #fff1f2; color: #e11d48;
+            padding: 0.65rem 1rem; font-weight: 600; cursor: pointer;
+        }
+        .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
+        .card {
+            background: white; border: 1px solid var(--card-border); border-radius: 14px; padding: 1.2rem;
+        }
+        .card h2 { font-size: 1rem; color: var(--brand-dark); margin-bottom: 0.45rem; }
+        .card p { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.8rem; line-height: 1.45; }
+        .card a {
+            display: inline-block; text-decoration: none; background: var(--brand-green); color: white;
+            padding: 0.55rem 0.9rem; border-radius: 9px; font-size: 0.86rem; font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="topbar">
+            <div>
+                <h1 id="welcomeHeading">Staff Workspace</h1>
+                <p class="meta">
+                    Signed in as <strong id="staffName">Staff</strong> -
+                    <span id="staffRole">Barangay Staff</span>
+                </p>
+            </div>
+            <button id="logoutBtn" class="logout-btn">Logout</button>
+        </div>
+
+        <div class="cards">
+            <section class="card">
+                <h2>Staff Workspace</h2>
+                <p>This staff account is restricted to the staff dashboard only.</p>
+                <a href="staff-dashboard.html">Refresh Workspace</a>
+            </section>
+
+            <section class="card">
+                <h2>Security Policy</h2>
+                <p>Direct access to admin and system-admin pages is blocked by role checks.</p>
+                <a href="staff-dashboard.html">Stay Here</a>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        const API_BASE_URL = "http://localhost:4000";
+
+        function roleLabel(role) {
+            if (role === "system-admin") return "System Admin";
+            if (role === "admin") return "Barangay Admin";
+            if (role === "staff") return "Barangay Staff";
+            return role || "Staff";
+        }
+
+        function loadSession() {
+            try {
+                const raw = sessionStorage.getItem("adminAuth");
+                if (!raw) return null;
+                return JSON.parse(raw);
+            } catch (_e) {
+                return null;
+            }
+        }
+
+        async function verifyBackendRole(requiredRole, accessToken) {
+            const response = await fetch(`${API_BASE_URL}/auth/admin/authorize/${encodeURIComponent(requiredRole)}`, {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${accessToken}`
+                }
+            });
+            if (!response.ok) throw new Error("Role authorization failed");
+        }
+
+        async function bootstrap() {
+            const auth = loadSession();
+            const user = auth?.user;
+            const accessToken = auth?.session?.accessToken;
+            if (!user || user.role !== "staff" || !accessToken) {
+                window.location.href = "admin-login.html";
+                return;
+            }
+
+            try {
+                await verifyBackendRole("staff", accessToken);
+            } catch (_e) {
+                window.location.href = "admin-login.html";
+                return;
+            }
+
+            document.getElementById("staffName").textContent = user.fullName || user.email || "Staff";
+            document.getElementById("staffRole").textContent = roleLabel(user.role);
+            const first = (user.fullName || "").trim().split(/\s+/)[0];
+            if (first) {
+                document.getElementById("welcomeHeading").textContent = `Welcome, ${first}!`;
+            }
+        }
+        bootstrap();
+
+        document.getElementById("logoutBtn").addEventListener("click", () => {
+            sessionStorage.removeItem("adminAuth");
+            window.location.href = "landing.html";
+        });
+    </script>
+</body>
+</html>
