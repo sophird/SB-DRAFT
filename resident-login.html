@@ -191,6 +191,36 @@
             background: var(--hover-green);
         }
 
+        .btn-google {
+            width: 100%;
+            background: white;
+            color: #0f172a;
+            border: 1.5px solid #e2e8f0;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-decoration: none;
+            box-sizing: border-box;
+        }
+
+        .btn-google:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+
+        .btn-google img {
+            width: 20px;
+            height: 20px;
+        }
+
         .footer-text {
             margin-top: 2rem;
             font-size: 0.9rem;
@@ -244,8 +274,9 @@
 
         <div style="display: flex; flex-direction: column; align-items: center; margin-top: 1.5rem;">
             <p style="color: var(--text-gray); font-size: 0.85rem; margin: 0 0 1rem 0;">or</p>
-            <a href="#" onclick="loginWithGoogle(event)" style="display: flex; justify-content: center; align-items: center;">
-                <img src="GOOGLE.png" alt="Google Login" style="width: 45px; height: 45px; border-radius: 50%; border: 1px solid #e2e8f0;">
+            <a href="#" onclick="loginWithGoogle(event)" class="btn-google">
+                <img src="GOOGLE.png" alt="Google logo">
+                Continue with Google
             </a>
         </div>
 

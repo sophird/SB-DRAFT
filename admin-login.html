@@ -224,6 +224,11 @@
 
     <script>
         const API_BASE_URL = "http://localhost:4000";
+        const ROLE_REDIRECTS = {
+            staff: "staff-dashboard.html",
+            admin: "admin-dashboard.html",
+            "system-admin": "system-admin-dashboard.html"
+        };
 
         function togglePassword(inputId, toggleElement) {
             const passwordInput = document.getElementById(inputId);
@@ -272,7 +277,14 @@
                     user: result.user,
                     session: result.session
                 }));
-                window.location.href = "admin-dashboard.html";
+
+                const redirectTarget = ROLE_REDIRECTS[result.user?.role];
+                if (!redirectTarget) {
+                    loginError.innerText = "Account role is not allowed for this portal.";
+                    return;
+                }
+
+                window.location.href = redirectTarget;
             } catch (_error) {
                 loginError.innerText = "Cannot connect to backend. Make sure API server is running.";
             } finally {
