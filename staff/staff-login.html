@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Login | SerbisyoBurgos</title>
-    <link rel="icon" type="image/png" href="SB.png">
+    <link rel="icon" type="image/png" href="../asset/SB.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     
     <style>
@@ -182,7 +182,7 @@
         Back
     </a>
 
-    <img src="SB.png" alt="SerbisyoBurgos Logo" class="logo">
+    <img src="../asset/SB.png" alt="SerbisyoBurgos Logo" class="logo">
     
     <h2>Hello!</h2>
     <p class="subtitle">Welcome back to the community.</p>
@@ -222,12 +222,14 @@
     </div>
 </div>
 
-    <script>
+<script src="../shared/routes.js"></script>
+<script>
         const API_BASE_URL = "http://localhost:4000";
+        const STAFF_ROUTES = window.APP_ROUTES?.staff || { dashboard: "staff-dashboard.html" };
         const ROLE_REDIRECTS = {
-            staff: "staff-dashboard.html",
-            admin: "admin-dashboard.html",
-            "system-admin": "system-admin-dashboard.html"
+            staff: STAFF_ROUTES.dashboard,
+            admin: STAFF_ROUTES.dashboard,
+            "system-admin": STAFF_ROUTES.dashboard
         };
 
         function togglePassword(inputId, toggleElement) {

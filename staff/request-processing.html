@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Request Processing | SerbisyoBurgos</title>
-    <link rel="icon" type="image/png" href="SB.png">
+    <link rel="icon" type="image/png" href="../asset/SB.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -244,9 +244,9 @@
 <body>
 
     <aside>
-        <div class="sidebar-header"><img src="SB.png" width="32"> SerbisyoBurgos</div>
+        <div class="sidebar-header"><img src="../asset/SB.png" width="32"> SerbisyoBurgos</div>
         <nav>
-            <a href="admin-dashboard.html" class="nav-link" id="dashboardHomeLink">
+            <a href="staff-dashboard.html" class="nav-link" id="dashboardHomeLink">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
                 Dashboard
             </a>
@@ -301,7 +301,7 @@
 
     <main>
         <div class="header-section">
-            <a href="admin-dashboard.html" class="back-link" id="requestBackLink">←</a>
+            <a href="staff-dashboard.html" class="back-link" id="requestBackLink">←</a>
             <div>
                 <h1 style="font-size: 1.75rem; color: var(--brand-dark);">Request Details</h1>
                 <p id="requestMetaLine" style="color: var(--text-muted); font-size: 0.9rem;">Open a request from the dashboard when records are connected.</p>
@@ -366,8 +366,20 @@
         </div>
     </div>
 
+    <script src="../shared/routes.js"></script>
     <script>
         const API_BASE_URL = "http://localhost:4000";
+        const STAFF_ROUTES = window.APP_ROUTES?.staff || { login: "staff-login.html", dashboard: "staff-dashboard.html" };
+        const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "landing.html" };
+        function applyStaffRouteLinks() {
+            document.querySelectorAll('a[href="staff-dashboard.html"]').forEach((link) => {
+                link.href = STAFF_ROUTES.dashboard;
+            });
+            document.querySelectorAll('a[href="landing.html"]').forEach((link) => {
+                link.href = COMMON_ROUTES.landing;
+            });
+        }
+        applyStaffRouteLinks();
 
         function initialsFromName(name) {
             if (!name || typeof name !== "string") return "—";
@@ -385,9 +397,9 @@
         }
 
         function roleHomeRoute(role) {
-            if (role === "staff") return "staff-dashboard.html";
-            if (role === "system-admin") return "system-admin-dashboard.html";
-            return "admin-dashboard.html";
+            if (role === "staff") return STAFF_ROUTES.dashboard;
+            if (role === "system-admin") return STAFF_ROUTES.dashboard;
+            return STAFF_ROUTES.dashboard;
         }
 
         async function verifyBackendRole(requiredRole, accessToken) {
@@ -404,17 +416,17 @@
             try {
                 const raw = sessionStorage.getItem("adminAuth");
                 if (!raw) {
-                    window.location.href = "admin-login.html";
+                    window.location.href = STAFF_ROUTES.login;
                     return;
                 }
                 const { user, session } = JSON.parse(raw);
                 if (!user || user.role !== "admin") {
-                    window.location.href = "admin-login.html";
+                    window.location.href = STAFF_ROUTES.login;
                     return;
                 }
                 const accessToken = session?.accessToken;
                 if (!accessToken) {
-                    window.location.href = "admin-login.html";
+                    window.location.href = STAFF_ROUTES.login;
                     return;
                 }
                 await verifyBackendRole("admin", accessToken);
@@ -427,9 +439,9 @@
                 if (nameEl) nameEl.textContent = display;
                 if (avatarEl) avatarEl.textContent = initialsFromName(user.fullName || user.email || "");
                 if (roleEl) roleEl.textContent = roleLabel(user.role);
-                if (homeLink) homeLink.href = "admin-dashboard.html";
-                if (backLink) backLink.href = "admin-dashboard.html";
-            } catch (_e) { window.location.href = "admin-login.html"; }
+                if (homeLink) homeLink.href = STAFF_ROUTES.dashboard;
+                if (backLink) backLink.href = STAFF_ROUTES.dashboard;
+            } catch (_e) { window.location.href = STAFF_ROUTES.login; }
         }
 
         const adminLogoutBtn = document.getElementById("adminLogoutBtn");
@@ -458,8 +470,12 @@
             if (event.key === "Escape") closeLogoutModal();
         });
         logoutConfirmBtn?.addEventListener("click", () => {
+            if (window.APP_NAV?.logout) {
+                window.APP_NAV.logout();
+                return;
+            }
             sessionStorage.removeItem("adminAuth");
-            window.location.href = "landing.html";
+            window.location.href = COMMON_ROUTES.landing;
         });
         applySessionSidebar();
 

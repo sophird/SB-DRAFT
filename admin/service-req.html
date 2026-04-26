@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Service Management | SerbisyoBurgos</title>
-    <link rel="icon" type="image/png" href="SB.png">
+    <link rel="icon" type="image/png" href="../asset/SB.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
@@ -141,7 +141,7 @@
 
     <aside>
         <div class="sidebar-header">
-            <img src="SB.png" alt="Logo">
+            <img src="../asset/SB.png" alt="Logo">
             <span>SerbisyoBurgos</span>
         </div>
 
@@ -229,18 +229,24 @@
         </footer>
     </main>
 
+    <script src="../shared/routes.js"></script>
     <script>
+        const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "../landing.html" };
         function handleLogout(event) {
             event.preventDefault();
+            if (window.APP_NAV?.logout) {
+                window.APP_NAV.logout();
+                return;
+            }
             localStorage.removeItem('isLoggedIn');
             sessionStorage.clear();
-            window.location.href = 'landing.html'; 
+            window.location.href = COMMON_ROUTES.landing;
         }
 
         // Standard Access Check from Admin Dashboard
         window.onload = function() {
             if (localStorage.getItem('isLoggedIn') !== 'true') {
-                window.location.href = 'landing.html';
+                window.location.href = COMMON_ROUTES.landing;
             }
         }
     </script>
