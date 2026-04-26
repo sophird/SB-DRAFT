@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SerbisyoBurgos | Official Web Portal</title>
-    <link rel="icon" type="image/png" href="SB.png">
+    <link rel="icon" type="image/png" href="asset/SB.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     
     <style>
@@ -230,11 +230,11 @@
 <body>
 
     <nav class="navbar">
-        <img src="SB.png" alt="SB Logo" class="logo-nav">
+        <img src="asset/SB.png" alt="SB Logo" class="logo-nav">
         
         <div class="nav-buttons">
-            <a href="resident-login.html" class="btn-nav btn-residents">Users</a>
-            <a href="admin-login.html" class="btn-nav btn-admins">Admins</a>
+            <a href="resident/resident-login.html" class="btn-nav btn-residents" id="residentLoginLink">Users</a>
+            <a href="staff/staff-login.html" class="btn-nav btn-admins" id="staffLoginLink">Admins</a>
         </div>
     </nav>
 
@@ -295,7 +295,18 @@
     </footer>
     </div>
 
+    <script src="shared/routes.js"></script>
     <script>
+        const ENTRY_ROUTES = window.APP_ROUTES?.entry || {
+            residentLogin: "resident/resident-login.html",
+            staffLogin: "staff/staff-login.html"
+        };
+
+        const residentLoginLink = document.getElementById("residentLoginLink");
+        const staffLoginLink = document.getElementById("staffLoginLink");
+        if (residentLoginLink) residentLoginLink.href = ENTRY_ROUTES.residentLogin;
+        if (staffLoginLink) staffLoginLink.href = ENTRY_ROUTES.staffLogin;
+
         window.addEventListener('load', () => {
             setTimeout(() => {
                 const bar = document.getElementById('fill');
