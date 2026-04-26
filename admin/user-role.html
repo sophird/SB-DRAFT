@@ -1,26 +1,413 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><title>User Management | SerbisyoBurgos</title></head>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User & Role Management | SerbisyoBurgos</title>
+    <link rel="icon" type="image/png" href="SB.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --brand-green: #16a34a;
+            --brand-dark: #043d2e;
+            --bg-light: #f8fafc;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --sidebar-width: 260px;
+            --white: #ffffff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-light); color: var(--text-main); display: flex; min-height: 100vh; }
+
+        /* SIDEBAR NAVIGATION */
+        aside {
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            position: fixed;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            color: var(--brand-dark);
+            font-size: 1.25rem;
+        }
+
+        .sidebar-header img { width: 32px; }
+        nav { flex-grow: 1; padding: 1rem; }
+
+        .nav-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 2.5rem; text-decoration: none; }
+        .nav-logo img { height: 35px; }
+        .nav-logo span { font-weight: 700; color: var(--brand-dark); font-size: 1.25rem; }
+
+        nav { flex: 1; }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0.75rem 1rem;
+            text-decoration: none;
+            color: var(--text-muted);
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: #f0fdf4;
+            color: var(--brand-green);
+        }
+
+        .nav-item svg { width: 20px; height: 20px; }
+
+        .btn-logout {
+            margin-top: auto;
+            color: #ef4444;
+        }
+
+        /* MAIN CONTENT AREA */
+        main {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            padding: 2.5rem;
+        }
+
+        /* HEADER & USER PROFILE */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--white);
+            padding: 6px 16px 6px 6px;
+            border-radius: 30px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .user-avatar {
+            width: 35px;
+            height: 35px;
+            background: var(--brand-green);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
+
+        /* WHITE CONTAINER (CARD) */
+        .card {
+            background: var(--white);
+            padding: 2rem;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .search-bar {
+            width: 100%;
+            max-width: 400px;
+            padding: 10px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .search-bar:focus {
+            border-color: var(--brand-green);
+        }
+
+        /* TABLE STYLING */
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th {
+            padding: 12px;
+            border-bottom: 2px solid #f1f5f9;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        td {
+            padding: 16px 12px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.95rem;
+        }
+
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background: #f0fdf4;
+            color: var(--brand-green);
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        /* Modal Content Box */
+        .user-modal {
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 450px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .modal-header {
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .form-group { margin-bottom: 1.2rem; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; }
+
+        .permission-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            background: #f8fafc;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .permission-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+    </style>
+</head>
 <body>
+
     <aside>
+        <div class="sidebar-header">
+            <img src="SB.png" alt="Logo">
+            <span>SerbisyoBurgos</span>
+        </div>
         <nav>
-            <a href="service-management.html" class="nav-item">Service Management</a>
-            <a href="user-management.html" class="nav-item active">User & Roles</a>
-            <a href="analytics.html" class="nav-item">Analytics</a>
-            <a href="announcements.html" class="nav-item">Announcements</a>
+            <a href="service-req.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                Service Management
+            </a>
+            <a href="user-role.html" class="nav-item active">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                User & Roles
+            </a>
+            <a href="reports-analytics.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                Analytics
+            </a>
+            <a href="announcements.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                Announcements
+            </a>
         </nav>
+        </nav>
+
+        <a href="#" class="nav-item btn-logout">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+            Logout
+        </a>
     </aside>
 
     <main>
-        <h1>User and Role Management</h1>
+        <div class="top-bar">
+            <div>
+                <h1 style="color: var(--brand-dark); font-weight: 800; font-size: 1.75rem;">User and Role Management</h1>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Manage accounts of residents and staff, assign roles and permissions.</p>
+            </div>
+
+            <div class="user-profile">
+                <div class="user-avatar">AD</div>
+                <div style="line-height: 1.2;">
+                    <p style="font-weight: 700; font-size: 0.85rem;">Administrator</p>
+                    <p style="font-size: 0.75rem; color: var(--text-muted);">Kagawad/Secretary</p>
+                </div>
+            </div>
+        </div>
+
         <div class="card">
-            <h3>Staff & Resident Directory</h3>
-            <div class="filter-bar"><input type="text" placeholder="Search user..."></div>
-            <table>
-                <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr>
-                <tr><td>Jane Doe</td><td>jane@gmail.com</td><td>Staff</td><td>Active</td></tr>
-            </table>
+            <div class="card-header">
+                <h3 style="color: var(--brand-dark);">Staff & Resident Directory</h3>
+                <input type="text" class="search-bar" placeholder="Search by name or email...">
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>User Name</th>
+                            <th>Email Address</th>
+                            <th>Assigned Role</th>
+                            <th>Permissions</th>
+                            <th>Account Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="font-weight: 600;">Jane Doe</td>
+                            <td>jane@serbisyoburgos.com</td>
+                            <td><span style="font-weight: 600; color: var(--brand-dark);">Staff</span></td>
+                            <td><small>Edit Services, Post Announcements</small></td>
+                            <td><span class="status-badge" style="background: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Active</span></td>
+                            <td>
+                                <button class="btn-config" onclick="openUserManage('Jane Doe', 'Staff', 'Active')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
+                                <button class="btn-archive" onclick="archiveUser('row-1')" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Archive</button>
+                            </td>
+                        </tr>
+                        <tr id="row-2">
+                            <td style="font-weight: 600;">John Smith</td>
+                            <td>john.s@gmail.com</td>
+                            <td><span style="font-weight: 600; color: var(--text-muted);">Resident</span></td>
+                            <td><small>Request Services, View News</small></td>
+                            <td><span class="status-badge" style="background: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Active</span></td>
+                            <td>
+                                <button class="btn-config" onclick="openUserManage('John Smith', 'Resident', 'Active')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
+                                <button class="btn-archive" onclick="archiveUser('row-2')" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Archive</button>
+                            </td>
+                        </tr>
+                        <tr id="row-3">
+                            <td style="font-weight: 600;">Mark Wilson</td>
+                            <td>mark.w@serbisyoburgos.com</td>
+                            <td><span style="font-weight: 600; color: var(--brand-dark);">Staff</span></td>
+                            <td><small>Analytics View Only</small></td>
+                            <td><span class="status-badge" style="background: #fff7ed; color: #ea580c; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Suspended</span></td>
+                            <td>
+                                <button class="btn-config" onclick="openUserManage('Mark Wilson', 'Staff', 'Suspended')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
+                                <button class="btn-archive" onclick="archiveUser('row-3')" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Archive</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="modal-overlay" id="userManageModal">
+            <div class="user-modal">
+                <div class="modal-header">
+                    <h2 id="manageUserTitle" style="color: var(--brand-dark);">Manage User</h2>
+                    <button onclick="closeUserModal()" style="background:none; border:none; font-size: 1.5rem; cursor:pointer;">&times;</button>
+                </div>
+
+                <div class="form-group">
+                    <label>Assigned Role</label>
+                    <select id="userRoleSelect" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px;">
+                        <option value="Resident">Resident</option>
+                        <option value="Staff">Staff</option>
+                        <option value="Admin">Admin</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Account Status</label>
+                    <select id="userStatusSelect" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px;">
+                        <option value="Active">Active</option>
+                        <option value="Suspended">Suspended</option>
+                        <option value="Deactivated">Deactivated</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Permissions</label>
+                    <div class="permission-grid">
+                        <div class="permission-item"><input type="checkbox" checked> View Reports</div>
+                        <div class="permission-item"><input type="checkbox"> Edit Services</div>
+                        <div class="permission-item"><input type="checkbox" checked> Announcements</div>
+                        <div class="permission-item"><input type="checkbox"> Manage Users</div>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 2rem;">
+                    <button onclick="closeUserModal()" style="padding:10px 20px; border:none; background:#e2e8f0; border-radius:8px; cursor:pointer;">Cancel</button>
+                    <button onclick="saveUserChanges()" style="padding:10px 20px; border:none; background:var(--brand-green); color:white; border-radius:8px; font-weight:600; cursor:pointer;">Update Account</button>
+                </div>
+            </div>
         </div>
     </main>
+    <script>    
+        let targetUserRow = null;
+
+        function openUserManage(userName, currentRole, currentStatus, rowId) {
+            targetUserRow = rowId;
+            document.getElementById('manageUserTitle').innerText = "Manage: " + userName;
+            document.getElementById('userRoleSelect').value = currentRole;
+            document.getElementById('userStatusSelect').value = currentStatus;
+            
+            document.getElementById('userManageModal').style.display = 'flex';
+        }
+
+        function closeUserModal() {
+            document.getElementById('userManageModal').style.display = 'none';
+        }
+
+        function saveUserChanges() {
+            // Logic to update the UI table row instantly
+            const newRole = document.getElementById('userRoleSelect').value;
+            const newStatus = document.getElementById('userStatusSelect').value;
+
+            alert("User account for " + targetUserRow + " has been updated to " + newRole);
+            
+            closeUserModal();
+        }
+
+        // Function for Archive User (destructive action)
+        function archiveUser(userName) {
+            if(confirm("Are you sure you want to archive " + userName + "? This will revoke all system access immediately.")) {
+                alert(userName + " has been moved to archives.");
+                // Code to remove row from table would go here
+            }
+        }
+    </script>
 </body>
 </html>

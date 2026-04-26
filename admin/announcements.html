@@ -1,25 +1,310 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><title>Announcements | SerbisyoBurgos</title></head>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Announcements | SerbisyoBurgos</title>
+    <link rel="icon" type="image/png" href="SB.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --brand-green: #16a34a;
+            --brand-dark: #043d2e;
+            --bg-light: #f8fafc;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --sidebar-width: 260px;
+            --white: #ffffff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-light); color: var(--text-main); display: flex; min-height: 100vh; }
+
+        /* SIDEBAR NAVIGATION */
+        aside {
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            position: fixed;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            color: var(--brand-dark);
+            font-size: 1.25rem;
+        }
+
+        .sidebar-header img { width: 32px; }
+        nav { flex-grow: 1; padding: 1rem; }
+
+        .nav-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 2.5rem; text-decoration: none; }
+        .nav-logo img { height: 35px; }
+        .nav-logo span { font-weight: 700; color: var(--brand-dark); font-size: 1.25rem; }
+
+        nav { flex: 1; }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0.75rem 1rem;
+            text-decoration: none;
+            color: var(--text-muted);
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: #f0fdf4;
+            color: var(--brand-green);
+        }
+
+        .nav-item svg { width: 20px; height: 20px; }
+
+        .btn-logout {
+            margin-top: auto;
+            color: #ef4444;
+            cursor: pointer;
+        }
+
+        /* MAIN CONTENT AREA */
+        main {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            padding: 2.5rem;
+            width: calc(100% - var(--sidebar-width)); /* Ensures it fills to the right edge */
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* HEADER & USER PROFILE */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--white);
+            padding: 6px 16px 6px 6px;
+            border-radius: 30px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .user-avatar {
+            width: 35px;
+            height: 35px;
+            background: var(--brand-green);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
+
+        /* FORM CONTAINER (CARD) */
+        .card {
+            background: var(--white);
+            padding: 2rem;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            width: 100%; 
+            box-sizing: border-box;
+        }
+
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--brand-dark); }
+
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        input:focus, textarea:focus { border-color: var(--brand-green); }
+
+        textarea { min-height: 150px; resize: vertical; }
+
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .btn-post {
+            background: var(--brand-green);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-post:hover { background: #15803d; }
+    </style>
+</head>
 <body>
+
     <aside>
+        <div class="sidebar-header">
+            <img src="SB.png" alt="Logo">
+            <span>SerbisyoBurgos</span>
+        </div>
         <nav>
-            <a href="service-management.html" class="nav-item">Service Management</a>
-            <a href="user-management.html" class="nav-item">User & Roles</a>
-            <a href="analytics.html" class="nav-item">Analytics</a>
-            <a href="announcements.html" class="nav-item active">Announcements</a>
+            <a href="service-req.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                Service Management
+            </a>
+            <a href="user-role.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                User & Roles
+            </a>
+            <a href="reports-analytics.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                Analytics
+            </a>
+            <a href="announcements.html" class="nav-item active">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                Announcements
+            </a>
         </nav>
+
+        <div onclick="handleLogout()" class="nav-item btn-logout">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+            Logout
+        </div>
     </aside>
 
     <main>
-        <h1>Announcement and Advisory Posting</h1>
-        <div class="form-card">
-            <h3>Create New Advisory</h3>
-            <input type="text" placeholder="Advisory Title (e.g., Holiday Schedule)">
-            <textarea placeholder="Write announcement details here..."></textarea>
-            <select><option>Public (Residents)</option><option>Internal (Staff Only)</option></select>
-            <button class="btn-submit">Post Announcement</button>
+        <div class="top-bar">
+            <div>
+                <h1 style="color: var(--brand-dark); font-weight: 800; font-size: 1.75rem;">Announcement Posting</h1>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Broadcast news and advisories to the community.</p>
+            </div>
+
+            <div class="user-profile">
+                <div class="user-avatar">AD</div>
+                <div style="line-height: 1.2;">
+                    <p style="font-weight: 700; font-size: 0.85rem;">Administrator</p>
+                    <p style="font-size: 0.75rem; color: var(--text-muted);">Kagawad/Secretary</p>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 2rem; align-items: flex-start;">
+            <div class="card" style="flex: 1;">
+                <h3 style="margin-bottom: 1.5rem; color: var(--brand-dark); display: flex; align-items: center; gap: 10px;">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"></path></svg>
+                    Draft New Advisory
+                </h3>
+                
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="advCategory" style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                        <option value="Holiday Schedule">📅 Holiday Schedule</option>
+                        <option value="Service Interruption">⚠️ Service Interruption</option>
+                        <option value="Community News">📰 Community News</option>
+                        <option value="Emergency">🚨 Emergency Alert</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Advisory Title</label>
+                    <input type="text" id="advTitle" placeholder="e.g., Scheduled Water Interruption - April 28">
+                </div>
+
+                <div class="form-group">
+                    <label>Announcement Details</label>
+                    <textarea id="advContent" placeholder="Describe the interruption or holiday details..."></textarea>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-post" style="flex: 2;" onclick="publishAdvisory()">Publish to Community</button>
+                    <button style="flex: 1; background: #e2e8f0; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Save Draft</button>
+                </div>
+            </div>
+
+            <div class="card" style="flex: 0.8; background: #f8fafc; border-style: dashed;">
+                <h3 style="margin-bottom: 1rem; color: var(--text-muted); font-size: 0.9rem; text-transform: uppercase;">Community Portal Preview</h3>
+                <div id="previewBox" style="background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <span id="previewTag" style="background: #fee2e2; color: #ef4444; font-size: 0.7rem; font-weight: 700; padding: 4px 8px; border-radius: 4px; text-transform: uppercase;">Service Interruption</span>
+                    <h2 id="previewTitle" style="margin-top: 10px; font-size: 1.25rem; color: var(--brand-dark);">Title Preview</h2>
+                    <p id="previewText" style="margin-top: 10px; font-size: 0.9rem; color: var(--text-muted); line-height: 1.5;">Details will appear here as you type...</p>
+                    <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid #f1f5f9;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between;">
+                        <span>Posted by: Admin</span>
+                        <span>Just now</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
+
+    <script>
+        // Real-time preview logic to enhance communication accuracy
+        const titleInput = document.getElementById('advTitle');
+        const contentInput = document.getElementById('advContent');
+        const categoryInput = document.getElementById('advCategory');
+
+        function updatePreview() {
+            document.getElementById('previewTitle').innerText = titleInput.value || "Title Preview";
+            document.getElementById('previewText').innerText = contentInput.value || "Details will appear here as you type...";
+            document.getElementById('previewTag').innerText = categoryInput.value;
+            
+            // Dynamic colors for the preview tag
+            const tag = document.getElementById('previewTag');
+            if(categoryInput.value.includes('Emergency')) {
+                tag.style.background = '#fee2e2'; tag.style.color = '#ef4444';
+            } else if(categoryInput.value.includes('Holiday')) {
+                tag.style.background = '#dcfce7'; tag.style.color = '#16a34a';
+            } else {
+                tag.style.background = '#e0f2fe'; tag.style.color = '#0284c7';
+            }
+        }
+
+        titleInput.addEventListener('input', updatePreview);
+        contentInput.addEventListener('input', updatePreview);
+        categoryInput.addEventListener('change', updatePreview);
+
+        function publishAdvisory() {
+            if(!titleInput.value) {
+                alert("Please enter a title before publishing.");
+                return;
+            }
+            alert("Announcement Published Successfully to the Community Portal!");
+        }
+        function handleLogout() {
+            if(confirm("Are you sure you want to logout?")) {
+                localStorage.removeItem('isLoggedIn');
+                window.location.href = 'admin-login.html';
+            }
+        }
+    </script>
 </body>
 </html>
