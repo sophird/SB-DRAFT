@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bulletin Board | SerbisyoBurgos</title>
-    <link rel="icon" type="image/png" href="SB.png">
+    <link rel="icon" type="image/png" href="../asset/SB.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
@@ -236,7 +236,7 @@
 
     <aside>
         <div class="sidebar-header">
-            <img src="SB.png" alt="Logo">
+            <img src="../asset/SB.png" alt="Logo">
             <span>SerbisyoBurgos</span>
         </div>
         
@@ -365,7 +365,40 @@
         </div>
     </div>
 
+    <div id="logoutModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
+        <div class="modal-content">
+            <h2 id="logoutModalTitle" style="font-size:1.1rem; color:var(--brand-dark); margin-bottom:0.75rem;">Confirm Logout</h2>
+            <p style="color: var(--text-muted); margin-bottom: 1.25rem;">Are you sure you want to logout from your resident portal?</p>
+            <div style="display:flex; justify-content:flex-end; gap:0.75rem;">
+                <button id="logoutCancelBtn" type="button" class="mark-all-btn" style="background:#f1f5f9; color:#334155;">Cancel</button>
+                <button id="logoutConfirmBtn" type="button" class="mark-all-btn" style="background:#e11d48;">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../shared/routes.js"></script>
     <script>
+        const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "landing.html" };
+        const RESIDENT_ROUTES = window.APP_ROUTES?.resident || {};
+        const logoutModal = document.getElementById("logoutModal");
+        const logoutCancelBtn = document.getElementById("logoutCancelBtn");
+        const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
+        function applyResidentRouteLinks() {
+            const hrefMap = {
+                "dashboard.html": RESIDENT_ROUTES.dashboard || "dashboard.html",
+                "service-requests.html": RESIDENT_ROUTES.serviceRequests || "service-requests.html",
+                "appointments.html": RESIDENT_ROUTES.appointments || "appointments.html",
+                "notifications.html": RESIDENT_ROUTES.notifications || "notifications.html",
+                "request-history.html": RESIDENT_ROUTES.requestHistory || "request-history.html",
+                "landing.html": COMMON_ROUTES.landing
+            };
+            Object.entries(hrefMap).forEach(([from, to]) => {
+                document.querySelectorAll(`a[href="${from}"]`).forEach((link) => {
+                    link.href = to;
+                });
+            });
+        }
+        applyResidentRouteLinks();
         function markAllAsRead() {
             const unreadCards = document.querySelectorAll('.notif-card.unread');
             const unreadDots = document.querySelectorAll('.unread-dot');
@@ -402,6 +435,12 @@
         function closeDetail() {
             document.getElementById('detailModal').style.display = 'none';
         }
+        function openLogoutModal() {
+            if (logoutModal) logoutModal.style.display = 'flex';
+        }
+        function closeLogoutModal() {
+            if (logoutModal) logoutModal.style.display = 'none';
+        }
 
         function toggleChat() {
             const win = document.getElementById('chatWindow');
@@ -430,13 +469,21 @@
 
         window.onclick = function(e) {
             if (e.target.id === 'detailModal') closeDetail();
+            if (e.target === logoutModal) closeLogoutModal();
         }
 
         function handleLogout(event) {
             event.preventDefault();
-            
-            window.location.href = 'landing.html'; 
+            openLogoutModal();
         }
+        logoutCancelBtn?.addEventListener("click", closeLogoutModal);
+        logoutConfirmBtn?.addEventListener("click", () => {
+            if (window.APP_NAV?.logout) {
+                window.APP_NAV.logout();
+                return;
+            }
+            window.location.href = COMMON_ROUTES.landing;
+        });
     </script>
 </body>
 </html>

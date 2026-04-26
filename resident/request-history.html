@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Request History | SerbisyoBurgos</title>
-    <link rel="icon" type="image/png" href="SB.png">
+    <link rel="icon" type="image/png" href="../asset/SB.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
@@ -203,13 +203,23 @@
         .chat-footer input { flex-grow: 1; padding: 0.7rem; border: 1.5px solid #e2e8f0; border-radius: 10px; outline: none; }
         .chat-footer button { background: var(--brand-green); color: white; border: none; padding: 0 15px; border-radius: 10px; cursor: pointer; font-weight: 600; }
         .chat-footer button:hover { background: #15803d; }
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            padding: 1rem;
+        }
     </style>
 </head>
 <body>
 
     <aside>
         <div class="sidebar-header">
-            <img src="SB.png" alt="Logo">
+            <img src="../asset/SB.png" alt="Logo">
             <span>SerbisyoBurgos</span>
         </div>
         
@@ -293,17 +303,102 @@
         </div>
     </div>
 
+    <div id="logoutModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
+        <div class="history-card" style="max-width:420px; margin:0; padding:1.25rem;">
+            <h2 id="logoutModalTitle" style="font-size:1.1rem; color:var(--brand-dark); margin-bottom:0.75rem;">Confirm Logout</h2>
+            <p style="color: var(--text-muted); margin-bottom: 1.25rem;">Are you sure you want to logout from your resident portal?</p>
+            <div style="display:flex; justify-content:flex-end; gap:0.75rem;">
+                <button id="logoutCancelBtn" type="button" style="padding:0.65rem 1rem; border-radius:10px; border:none; background:#f1f5f9; color:#334155; cursor:pointer;">Cancel</button>
+                <button id="logoutConfirmBtn" type="button" style="padding:0.65rem 1rem; border-radius:10px; border:none; background:#e11d48; color:white; cursor:pointer;">Logout</button>
+            </div>
+        </div>
+    </div>
+    <div id="feedbackModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
+        <div class="history-card" style="max-width:420px; margin:0; padding:1.25rem;">
+            <h2 id="feedbackModalTitle" style="font-size:1.1rem; color:var(--brand-dark); margin-bottom:0.75rem;">Notice</h2>
+            <p id="feedbackModalText" style="color: var(--text-muted); margin-bottom: 1.25rem;">Operation completed.</p>
+            <div style="display:flex; justify-content:flex-end;">
+                <button id="feedbackModalOkBtn" type="button" style="padding:0.65rem 1rem; border-radius:10px; border:none; background:var(--brand-green); color:white; cursor:pointer;">OK</button>
+            </div>
+        </div>
+    </div>
+    <div id="repeatConfirmModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="repeatConfirmTitle">
+        <div class="history-card" style="max-width:420px; margin:0; padding:1.25rem;">
+            <h2 id="repeatConfirmTitle" style="font-size:1.1rem; color:var(--brand-dark); margin-bottom:0.75rem;">Confirm Request Repeat</h2>
+            <p id="repeatConfirmText" style="color: var(--text-muted); margin-bottom: 1.25rem;">Do you want to repeat this request?</p>
+            <div style="display:flex; justify-content:flex-end; gap:0.75rem;">
+                <button id="repeatCancelBtn" type="button" style="padding:0.65rem 1rem; border-radius:10px; border:none; background:#f1f5f9; color:#334155; cursor:pointer;">Cancel</button>
+                <button id="repeatConfirmBtn" type="button" style="padding:0.65rem 1rem; border-radius:10px; border:none; background:var(--brand-green); color:white; cursor:pointer;">Continue</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../shared/routes.js"></script>
     <script>
+        const RESIDENT_ROUTES = window.APP_ROUTES?.resident || { serviceRequests: "service-requests.html" };
+        const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "landing.html" };
+        const logoutModal = document.getElementById("logoutModal");
+        const logoutCancelBtn = document.getElementById("logoutCancelBtn");
+        const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
+        const feedbackModal = document.getElementById("feedbackModal");
+        const feedbackModalTitle = document.getElementById("feedbackModalTitle");
+        const feedbackModalText = document.getElementById("feedbackModalText");
+        const feedbackModalOkBtn = document.getElementById("feedbackModalOkBtn");
+        const repeatConfirmModal = document.getElementById("repeatConfirmModal");
+        const repeatConfirmText = document.getElementById("repeatConfirmText");
+        const repeatCancelBtn = document.getElementById("repeatCancelBtn");
+        const repeatConfirmBtn = document.getElementById("repeatConfirmBtn");
+        let repeatConfirmAction = null;
+        function applyResidentRouteLinks() {
+            const hrefMap = {
+                "dashboard.html": RESIDENT_ROUTES.dashboard || "dashboard.html",
+                "service-requests.html": RESIDENT_ROUTES.serviceRequests || "service-requests.html",
+                "appointments.html": RESIDENT_ROUTES.appointments || "appointments.html",
+                "notifications.html": RESIDENT_ROUTES.notifications || "notifications.html",
+                "request-history.html": RESIDENT_ROUTES.requestHistory || "request-history.html",
+                "landing.html": COMMON_ROUTES.landing
+            };
+            Object.entries(hrefMap).forEach(([from, to]) => {
+                document.querySelectorAll(`a[href="${from}"]`).forEach((link) => {
+                    link.href = to;
+                });
+            });
+        }
+        applyResidentRouteLinks();
+        function openLogoutModal() {
+            if (logoutModal) logoutModal.style.display = "flex";
+        }
+        function closeLogoutModal() {
+            if (logoutModal) logoutModal.style.display = "none";
+        }
+        function openFeedbackModal(title, message) {
+            if (feedbackModalTitle) feedbackModalTitle.textContent = title;
+            if (feedbackModalText) feedbackModalText.textContent = message;
+            if (feedbackModal) feedbackModal.style.display = "flex";
+        }
+        function closeFeedbackModal() {
+            if (feedbackModal) feedbackModal.style.display = "none";
+        }
+        function closeRepeatConfirmModal() {
+            if (repeatConfirmModal) repeatConfirmModal.style.display = "none";
+            repeatConfirmAction = null;
+        }
         /* BUTTON ACTIONS */
         function handleDownload(fileName) {
-            alert("Preparing download for: " + fileName + "\nYour document will start downloading shortly.");
+            openFeedbackModal(
+                "Preparing Download",
+                `Preparing download for ${fileName}. Your document will start downloading shortly.`
+            );
         }
 
         function handleRepeat(serviceName) {
-            const confirmRepeat = confirm("Would you like to start a new request for " + serviceName + " using your previous details?");
-            if (confirmRepeat) {
-                window.location.href = "service-requests.html?service=" + encodeURIComponent(serviceName);
+            repeatConfirmAction = () => {
+                window.location.href = `${RESIDENT_ROUTES.serviceRequests}?service=${encodeURIComponent(serviceName)}`;
+            };
+            if (repeatConfirmText) {
+                repeatConfirmText.textContent = `Would you like to start a new request for ${serviceName} using your previous details?`;
             }
+            if (repeatConfirmModal) repeatConfirmModal.style.display = "flex";
         }
 
         /* CHATBOT LOGIC */
@@ -379,7 +474,7 @@
                 <div>
                     <div style="display: flex; flex-direction: column; gap: 4px;">
                         ${req.fileName !== "No Document" ? `<a href="#" style="font-size: 0.7rem; color: #16a34a; text-decoration: none;">📎 ${req.fileName}</a>` : '<span style="font-size: 0.7rem; color: #94a3b8;">No Uploads</span>'}
-                        <button class="action-btn" onclick="window.location.href='service-requests.html'" style="margin-top:5px;">Request Again</button>
+                        <button class="action-btn" onclick="window.location.href='${RESIDENT_ROUTES.serviceRequests}'" style="margin-top:5px;">Request Again</button>
                     </div>
                 </div>
             </div>
@@ -390,9 +485,32 @@
 
         function handleLogout(event) {
             event.preventDefault();
-            
-            window.location.href = 'landing.html'; 
+            openLogoutModal();
         }
+        logoutCancelBtn?.addEventListener("click", closeLogoutModal);
+        logoutModal?.addEventListener("click", (event) => {
+            if (event.target === logoutModal) closeLogoutModal();
+        });
+        feedbackModal?.addEventListener("click", (event) => {
+            if (event.target === feedbackModal) closeFeedbackModal();
+        });
+        feedbackModalOkBtn?.addEventListener("click", closeFeedbackModal);
+        repeatConfirmModal?.addEventListener("click", (event) => {
+            if (event.target === repeatConfirmModal) closeRepeatConfirmModal();
+        });
+        repeatCancelBtn?.addEventListener("click", closeRepeatConfirmModal);
+        repeatConfirmBtn?.addEventListener("click", () => {
+            const action = repeatConfirmAction;
+            closeRepeatConfirmModal();
+            if (typeof action === "function") action();
+        });
+        logoutConfirmBtn?.addEventListener("click", () => {
+            if (window.APP_NAV?.logout) {
+                window.APP_NAV.logout();
+                return;
+            }
+            window.location.href = COMMON_ROUTES.landing;
+        });
     </script>
 </body>
 </html>

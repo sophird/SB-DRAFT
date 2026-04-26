@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Login | SerbisyoBurgos</title>
-    <link rel="icon" type="image/png" href="SB.png">
+    <link rel="icon" type="image/png" href="../asset/SB.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 
     <style>
@@ -250,7 +250,7 @@
         Back
     </a>
 
-    <img src="SB.png" alt="SerbisyoBurgos Logo" class="logo">
+    <img src="../asset/SB.png" alt="SerbisyoBurgos Logo" class="logo">
     
     <div id="login-form">
         <h2>Hello!</h2>
@@ -275,12 +275,12 @@
         <div style="display: flex; flex-direction: column; align-items: center; margin-top: 1.5rem;">
             <p style="color: var(--text-gray); font-size: 0.85rem; margin: 0 0 1rem 0;">or</p>
             <a href="#" onclick="loginWithGoogle(event)" class="btn-google">
-                <img src="GOOGLE.png" alt="Google logo">
+                <img src="../asset/GOOGLE.png" alt="Google logo">
                 Continue with Google
             </a>
         </div>
 
-        <button class="btn-submit" onclick="window.location.href='dashboard.html'">Log in</button>
+        <button class="btn-submit" onclick="handleResidentLogin()">Log in</button>
         <p class="footer-text">New to SerbisyoBurgos? <span onclick="toggleForm()">Sign in</span></p>
     </div>
 
@@ -334,7 +334,14 @@
     </div>
 </div>
 
+<script src="../shared/routes.js"></script>
 <script>
+    const RESIDENT_ROUTES = window.APP_ROUTES?.resident || { dashboard: "dashboard.html" };
+
+    function handleResidentLogin() {
+        window.location.href = RESIDENT_ROUTES.dashboard;
+    }
+
     function toggleForm() {
         document.getElementById('login-form').classList.toggle('hidden');
         document.getElementById('register-form').classList.toggle('hidden');

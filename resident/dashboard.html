@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard | SerbisyoBurgos</title>
-    <link rel="icon" type="image/png" href="SB.png">
+    <link rel="icon" type="image/png" href="../asset/SB.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
@@ -265,13 +265,32 @@
         .chat-footer { padding: 1rem; display: flex; gap: 8px; border-top: 1px solid #e2e8f0; background: white; }
         .chat-footer input { flex-grow: 1; padding: 0.7rem; border: 1.5px solid #e2e8f0; border-radius: 10px; outline: none; }
         .chat-footer button { background: var(--brand-green); color: white; border: none; padding: 0 15px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            padding: 1rem;
+        }
+        .modal-content {
+            width: 100%;
+            max-width: 420px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 20px 40px rgba(2, 6, 23, 0.2);
+        }
     </style>
 </head>
 <body>
 
     <aside>
         <div class="sidebar-header">
-            <img src="SB.png" alt="Logo">
+            <img src="../asset/SB.png" alt="Logo">
             <span>SerbisyoBurgos</span>
         </div>
         <nav>
@@ -322,22 +341,22 @@
         </section>
 
         <div class="overview-grid">
-            <div class="overview-card" onclick="location.href='service-requests.html'">
+            <div class="overview-card" onclick="goToResidentPage('serviceRequests')">
                 <h3>Total Requests</h3>
                 <p class="value" id="countTotal" style="color: var(--brand-blue);">0</p>
                 <span class="trend" style="color: var(--brand-blue);">View all</span>
             </div>
-            <div class="overview-card" onclick="location.href='service-requests.html'">
+            <div class="overview-card" onclick="goToResidentPage('serviceRequests')">
                 <h3>Pending</h3>
                 <p class="value" id="countPending" style="color:#ea580c">0</p>
                 <span class="trend" style="color: #ea580c;">Awaiting review</span>
             </div>
-            <div class="overview-card" onclick="location.href='service-requests.html'">
+            <div class="overview-card" onclick="goToResidentPage('serviceRequests')">
                 <h3>In Progress</h3>
                 <p class="value" id="countProgress" style="color:#16a34a">0</p>
                 <span class="trend" style="color: #16a34a;">Processing</span>
             </div>
-            <div class="overview-card" onclick="location.href='appointments.html'">
+            <div class="overview-card" onclick="goToResidentPage('appointments')">
                 <h3>Appointments</h3>
                 <p class="value" style="color: var(--brand-purple);">03</p>
                 <span class="trend" style="color: var(--brand-purple);">Upcoming</span>
@@ -377,7 +396,56 @@
         </div>
     </div>
 
+    <div id="logoutModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
+        <div class="modal-content delete-modal" style="max-width:420px;">
+            <h2 id="logoutModalTitle" style="font-size:1.1rem; color:var(--brand-dark); margin-bottom:0.75rem;">Confirm Logout</h2>
+            <p style="color: var(--text-muted); margin-bottom: 1.25rem;">Are you sure you want to logout from your resident portal?</p>
+            <div style="display:flex; justify-content:flex-end; gap:0.75rem;">
+                <button id="logoutCancelBtn" type="button" style="padding:0.65rem 1rem; border-radius:10px; border:none; background:#f1f5f9; color:#334155; cursor:pointer;">Cancel</button>
+                <button id="logoutConfirmBtn" type="button" style="padding:0.65rem 1rem; border-radius:10px; border:none; background:#e11d48; color:white; cursor:pointer;">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../shared/routes.js"></script>
     <script>
+        const RESIDENT_ROUTES = window.APP_ROUTES?.resident || {
+            serviceRequests: "service-requests.html",
+            appointments: "appointments.html"
+        };
+        const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "landing.html" };
+        const logoutModal = document.getElementById("logoutModal");
+        const logoutCancelBtn = document.getElementById("logoutCancelBtn");
+        const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
+        function applyResidentRouteLinks() {
+            const hrefMap = {
+                "dashboard.html": RESIDENT_ROUTES.dashboard || "dashboard.html",
+                "service-requests.html": RESIDENT_ROUTES.serviceRequests || "service-requests.html",
+                "appointments.html": RESIDENT_ROUTES.appointments || "appointments.html",
+                "notifications.html": RESIDENT_ROUTES.notifications || "notifications.html",
+                "request-history.html": RESIDENT_ROUTES.requestHistory || "request-history.html",
+                "landing.html": COMMON_ROUTES.landing
+            };
+            Object.entries(hrefMap).forEach(([from, to]) => {
+                document.querySelectorAll(`a[href="${from}"]`).forEach((link) => {
+                    link.href = to;
+                });
+            });
+        }
+        applyResidentRouteLinks();
+
+        function goToResidentPage(routeKey) {
+            const target = RESIDENT_ROUTES[routeKey];
+            if (target) {
+                window.location.href = target;
+            }
+        }
+        function openLogoutModal() {
+            if (logoutModal) logoutModal.style.display = "flex";
+        }
+        function closeLogoutModal() {
+            if (logoutModal) logoutModal.style.display = "none";
+        }
         // DATA SYNC LOGIC
         function syncDashboardData() {
             const data = JSON.parse(localStorage.getItem('serbisyoRequests')) || [];
@@ -445,9 +513,22 @@
 
         function handleLogout(event) {
             event.preventDefault();
-            
-            window.location.href = 'landing.html'; 
+            openLogoutModal();
         }
+        logoutCancelBtn?.addEventListener("click", closeLogoutModal);
+        logoutModal?.addEventListener("click", (event) => {
+            if (event.target === logoutModal) closeLogoutModal();
+        });
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") closeLogoutModal();
+        });
+        logoutConfirmBtn?.addEventListener("click", () => {
+            if (window.APP_NAV?.logout) {
+                window.APP_NAV.logout();
+                return;
+            }
+            window.location.href = COMMON_ROUTES.landing;
+        });
     </script>
 </body>
 </html>
