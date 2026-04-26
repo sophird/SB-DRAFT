@@ -189,11 +189,16 @@
         .overview-card .value { font-size: 1.75rem; font-weight: 700; margin: 0.2rem 0; }
         .overview-card .trend { font-size: 0.75rem; font-weight: 600; }
 
-        /* DASHBOARD GRID - MODIFIED FOR FULL WIDTH RECENT ACTIVITIES */
+        /* DASHBOARD GRID */
         .dashboard-grid {
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 1.5rem;
+        }
+        @media (max-width: 1100px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         .card {
@@ -358,7 +363,7 @@
             </div>
             <div class="overview-card" onclick="goToResidentPage('appointments')">
                 <h3>Appointments</h3>
-                <p class="value" style="color: var(--brand-purple);">03</p>
+                <p class="value" id="countAppointments" style="color: var(--brand-purple);">00</p>
                 <span class="trend" style="color: var(--brand-purple);">Upcoming</span>
             </div>
         </div>
@@ -366,11 +371,17 @@
         <div class="dashboard-grid">
             <div class="card">
                 <div class="card-header">
-                    <h2>Recent Activities</h2>
-                    <button onclick="toggleViewAll(this)" style="background:none; border:none; color:var(--brand-green); font-weight:600; cursor:pointer;">View all</button>
+                    <h2>Recent Service Requests</h2>
+                    <button onclick="toggleCardViewAll(this, '#recentRequestList')" style="background:none; border:none; color:var(--brand-green); font-weight:600; cursor:pointer;">View all</button>
                 </div>
-                <div id="recentActivityList">
-                    </div>
+                <div id="recentRequestList"></div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2>Upcoming Appointments</h2>
+                    <button onclick="toggleCardViewAll(this, '#upcomingAppointmentList')" style="background:none; border:none; color:var(--brand-green); font-weight:600; cursor:pointer;">View all</button>
+                </div>
+                <div id="upcomingAppointmentList"></div>
             </div>
         </div>
     </main>
@@ -409,6 +420,7 @@
 
     <script src="../shared/routes.js"></script>
     <script>
+        const API_BASE_URL = "http://localhost:4000";
         const RESIDENT_ROUTES = window.APP_ROUTES?.resident || {
             serviceRequests: "service-requests.html",
             appointments: "appointments.html"
@@ -446,35 +458,149 @@
         function closeLogoutModal() {
             if (logoutModal) logoutModal.style.display = "none";
         }
-        // DATA SYNC LOGIC
-        function syncDashboardData() {
-            const data = JSON.parse(localStorage.getItem('serbisyoRequests')) || [];
-            
-            document.getElementById('countTotal').innerText = data.length.toString().padStart(2, '0');
-            document.getElementById('countPending').innerText = data.filter(r => r.status === 'Pending').length.toString().padStart(2, '0');
-            document.getElementById('countProgress').innerText = data.filter(r => r.status === 'In Progress').length.toString().padStart(2, '0');
-
-            const list = document.getElementById('recentActivityList');
-            list.innerHTML = "";
-            
-            data.forEach((req, index) => {
-                const isHidden = index > 1 ? "item-hidden" : "";
-                const statusColor = req.status === "In Progress" ? "#16a34a" : "#64748b";
-                
-                list.innerHTML += `
-                    <div class="activity-item ${isHidden}">
-                        <div>
-                            <p style="font-weight:600;">${req.type}</p>
-                            <p style="font-size:0.8rem; color:var(--text-muted);">${req.id} • ${req.date}</p>
-                        </div>
-                        <span style="color:${statusColor}; font-weight:600; font-size:0.85rem;">${req.status}</span>
-                    </div>
-                `;
-            });
+        function statusColor(status) {
+            const normalized = String(status || "").toLowerCase();
+            if (normalized === "in progress" || normalized === "processing") return "#16a34a";
+            if (normalized === "pending") return "#ea580c";
+            if (normalized === "approved" || normalized === "ready for pickup") return "#2563eb";
+            if (normalized === "rejected") return "#dc2626";
+            return "#64748b";
         }
 
-        function toggleViewAll(btn) {
-            const extra = document.querySelectorAll('.item-hidden');
+        function formatDateForActivity(value) {
+            const dateObj = new Date(value || 0);
+            if (Number.isNaN(dateObj.getTime())) return "Unknown date";
+            return dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        }
+
+        async function syncDashboardData() {
+            const recentRequestList = document.getElementById('recentRequestList');
+            const upcomingAppointmentList = document.getElementById('upcomingAppointmentList');
+            const countTotalEl = document.getElementById('countTotal');
+            const countPendingEl = document.getElementById('countPending');
+            const countProgressEl = document.getElementById('countProgress');
+            const countAppointmentsEl = document.getElementById('countAppointments');
+
+            if (recentRequestList) recentRequestList.innerHTML = `<p style="color:var(--text-muted); font-size:0.9rem;">Loading recent requests...</p>`;
+            if (upcomingAppointmentList) upcomingAppointmentList.innerHTML = `<p style="color:var(--text-muted); font-size:0.9rem;">Loading appointments...</p>`;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/requests`);
+                const result = await response.json();
+                if (!response.ok || !result?.ok || !Array.isArray(result.requests)) {
+                    throw new Error(result?.message || "Unable to load dashboard data.");
+                }
+
+                const requests = result.requests.slice();
+                const now = new Date();
+                now.setHours(0, 0, 0, 0);
+
+                const totalCount = requests.length;
+                const pendingCount = requests.filter((r) => String(r.status || "").toLowerCase() === "pending").length;
+                const progressCount = requests.filter((r) => {
+                    const status = String(r.status || "").toLowerCase();
+                    return status === "in progress" || status === "processing";
+                }).length;
+                const appointmentsCount = requests.filter((r) => {
+                    const preferredDate = new Date(r.preferredDate || 0);
+                    const status = String(r.status || "").toLowerCase();
+                    return (
+                        !Number.isNaN(preferredDate.getTime()) &&
+                        preferredDate >= now &&
+                        status !== "rejected" &&
+                        status !== "completed" &&
+                        Boolean(r.preferredTimeSlot)
+                    );
+                }).length;
+
+                if (countTotalEl) countTotalEl.innerText = String(totalCount).padStart(2, "0");
+                if (countPendingEl) countPendingEl.innerText = String(pendingCount).padStart(2, "0");
+                if (countProgressEl) countProgressEl.innerText = String(progressCount).padStart(2, "0");
+                if (countAppointmentsEl) countAppointmentsEl.innerText = String(appointmentsCount).padStart(2, "0");
+
+                const sortedByRecent = requests.slice().sort((a, b) => {
+                    const aTime = new Date(a.createdAt || a.preferredDate || 0).getTime();
+                    const bTime = new Date(b.createdAt || b.preferredDate || 0).getTime();
+                    return bTime - aTime;
+                });
+                const sortedUpcomingAppointments = requests
+                    .filter((r) => {
+                        const preferredDate = new Date(r.preferredDate || 0);
+                        const status = String(r.status || "").toLowerCase();
+                        return (
+                            !Number.isNaN(preferredDate.getTime()) &&
+                            preferredDate >= now &&
+                            Boolean(r.preferredTimeSlot) &&
+                            status !== "rejected" &&
+                            status !== "completed"
+                        );
+                    })
+                    .sort((a, b) => {
+                        const aTime = new Date(`${a.preferredDate || ""} ${a.preferredTimeSlot || ""}`).getTime();
+                        const bTime = new Date(`${b.preferredDate || ""} ${b.preferredTimeSlot || ""}`).getTime();
+                        return aTime - bTime;
+                    });
+
+                if (recentRequestList) {
+                    if (!sortedByRecent.length) {
+                        recentRequestList.innerHTML = `<p style="color:var(--text-muted); font-size:0.9rem;">No recent requests yet.</p>`;
+                    } else {
+                        recentRequestList.innerHTML = sortedByRecent.map((req, index) => {
+                            const isHidden = index > 1 ? "item-hidden" : "";
+                            const title = req.title || req.serviceType || "Service Request";
+                            const reference = req.referenceNo || "—";
+                            const submittedOn = formatDateForActivity(req.createdAt || req.preferredDate);
+                            const currentStatus = req.status || "Pending";
+                            return `
+                                <div class="activity-item ${isHidden}">
+                                    <div>
+                                        <p style="font-weight:600;">${title}</p>
+                                        <p style="font-size:0.8rem; color:var(--text-muted);">#${reference} • ${submittedOn}</p>
+                                    </div>
+                                    <span style="color:${statusColor(currentStatus)}; font-weight:600; font-size:0.85rem;">${currentStatus}</span>
+                                </div>
+                            `;
+                        }).join("");
+                    }
+                }
+
+                if (upcomingAppointmentList) {
+                    if (!sortedUpcomingAppointments.length) {
+                        upcomingAppointmentList.innerHTML = `<p style="color:var(--text-muted); font-size:0.9rem;">No upcoming appointments.</p>`;
+                    } else {
+                        upcomingAppointmentList.innerHTML = sortedUpcomingAppointments.map((req, index) => {
+                        const isHidden = index > 1 ? "item-hidden" : "";
+                        const title = req.title || req.serviceType || "Service Request";
+                        const reference = req.referenceNo || "—";
+                        const appointmentDate = formatDateForActivity(req.preferredDate);
+                        const slot = req.preferredTimeSlot || "Time slot pending";
+                        const currentStatus = req.status || "Pending";
+                        return `
+                            <div class="activity-item ${isHidden}">
+                                <div>
+                                    <p style="font-weight:600;">${title}</p>
+                                    <p style="font-size:0.8rem; color:var(--text-muted);">#${reference} • ${appointmentDate} • ${slot}</p>
+                                </div>
+                                <span style="color:${statusColor(currentStatus)}; font-weight:600; font-size:0.85rem;">${currentStatus}</span>
+                            </div>
+                        `;
+                    }).join("");
+                    }
+                }
+            } catch (_error) {
+                if (countTotalEl) countTotalEl.innerText = "00";
+                if (countPendingEl) countPendingEl.innerText = "00";
+                if (countProgressEl) countProgressEl.innerText = "00";
+                if (countAppointmentsEl) countAppointmentsEl.innerText = "00";
+                if (recentRequestList) recentRequestList.innerHTML = `<p style="color:#b91c1c; font-size:0.9rem;">Unable to load requests. Make sure backend is running.</p>`;
+                if (upcomingAppointmentList) upcomingAppointmentList.innerHTML = `<p style="color:#b91c1c; font-size:0.9rem;">Unable to load appointments. Make sure backend is running.</p>`;
+            }
+        }
+
+        function toggleCardViewAll(btn, containerSelector) {
+            const container = document.querySelector(containerSelector);
+            if (!container) return;
+            const extra = container.querySelectorAll('.item-hidden');
             extra.forEach(item => item.classList.toggle('show'));
             btn.innerText = btn.innerText === 'View all' ? 'Show less' : 'View all';
         }

@@ -146,6 +146,32 @@
         .btn-new:hover { background: var(--brand-dark); transform: translateY(-2px); }
 
         /* TABLE STYLES */
+        .request-toolbar {
+            /* background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 0.9rem; */
+            display: grid;
+            grid-template-columns: 1fr 220px;
+            gap: 0.8rem;
+            margin-bottom: 1rem;
+        }
+        .toolbar-input,
+        .toolbar-select {
+            width: 100%;
+            padding: 0.75rem 0.85rem;
+            border: 1px solid #dbe2ea;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            background: #fff;
+            outline: none;
+        }
+        .toolbar-input:focus,
+        .toolbar-select:focus {
+            border-color: #86efac;
+            box-shadow: 0 0 0 3px rgba(134, 239, 172, 0.3);
+        }
         .content-card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .requests-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
         .requests-table th { padding: 1.2rem 1rem; text-align: left; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; border-bottom: 2px solid #f8fafc; }
@@ -409,6 +435,26 @@
             <button class="btn-new" onclick="openModal()">+ New Request</button>
         </div>
 
+        <div class="request-toolbar">
+            <input
+                id="requestSearchInput"
+                class="toolbar-input"
+                type="text"
+                placeholder="Search by reference or title..."
+            >
+            <select id="requestStatusFilter" class="toolbar-select">
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="processing">Processing</option>
+                <option value="in progress">In Progress</option>
+                <option value="approved">Approved</option>
+                <option value="revision requested">Revision Requested</option>
+                <option value="ready for pickup">Ready for Pickup</option>
+                <option value="completed">Completed</option>
+                <option value="rejected">Rejected</option>
+            </select>
+        </div>
+
         <div class="content-card">
             <table class="requests-table">
                 <thead>
@@ -627,6 +673,7 @@
         applyResidentRouteLinks();
         let requestIdToDelete = null;
         let latestRequests = [];
+        let latestFilteredRequests = [];
         let requestEventStream = null;
         let selectedSupportingFiles = [];
         const SUPPORTING_DOCS_KEY = 'residentSupportingDocsByReference';
@@ -641,6 +688,8 @@
         const feedbackModalTitle = document.getElementById('feedbackModalTitle');
         const feedbackModalText = document.getElementById('feedbackModalText');
         const feedbackModalOkBtn = document.getElementById('feedbackModalOkBtn');
+        const requestSearchInput = document.getElementById('requestSearchInput');
+        const requestStatusFilter = document.getElementById('requestStatusFilter');
         const viewRequestModal = document.getElementById('viewRequestModal');
         const viewRefNo = document.getElementById('viewRefNo');
         const viewStatus = document.getElementById('viewStatus');
@@ -998,11 +1047,25 @@
                     throw new Error(result.message || 'Unable to load requests.');
                 }
                 latestRequests = result.requests || [];
-                renderTable(latestRequests);
+                applyRequestFilters();
             } catch (_error) {
                 latestRequests = [];
                 tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#b91c1c; padding:2rem;">Failed to load requests. Make sure backend is running.</td></tr>';
             }
+        }
+
+        function applyRequestFilters() {
+            const rawSearch = (requestSearchInput?.value || '').trim().toLowerCase();
+            const statusFilter = (requestStatusFilter?.value || 'all').toLowerCase();
+            latestFilteredRequests = latestRequests.filter((req) => {
+                const ref = String(req.referenceNo || '').toLowerCase();
+                const title = String(req.title || req.serviceType || '').toLowerCase();
+                const status = String(req.status || '').toLowerCase();
+                const matchesSearch = !rawSearch || ref.includes(rawSearch) || title.includes(rawSearch);
+                const matchesStatus = statusFilter === 'all' || status === statusFilter;
+                return matchesSearch && matchesStatus;
+            });
+            renderTable(latestFilteredRequests);
         }
 
         function renderTable(requests) {
@@ -1210,6 +1273,8 @@
             }
             window.location.href = COMMON_ROUTES.landing;
         });
+        requestSearchInput?.addEventListener('input', applyRequestFilters);
+        requestStatusFilter?.addEventListener('change', applyRequestFilters);
     </script>
 </body>
 </html>
