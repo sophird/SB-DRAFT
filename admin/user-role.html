@@ -375,7 +375,11 @@
             </div>
         </div>
     </main>
-    <script>    
+    <script src="../shared/routes.js"></script>
+    <script src="../shared/admin-access.js"></script>
+    <script>
+        window.SB_ADMIN_ACCESS?.requireRole("admin");
+
         let targetUserRow = null;
 
         function openUserManage(userName, currentRole, currentStatus, rowId) {

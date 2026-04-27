@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Administrator Dashboard | SerbisyoBurgos</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+        .panel {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 2rem 2.5rem;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+            text-align: center;
+        }
+        h1 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <main class="panel">
+        <h1>Coming Soon.</h1>
+        <p>System Administrator dashboard is under development.</p>
+    </main>
+    <script src="../shared/routes.js"></script>
+    <script src="../shared/admin-access.js"></script>
+    <script>
+        window.SB_ADMIN_ACCESS?.requireRole("system-admin");
+    </script>
+</body>
+</html>

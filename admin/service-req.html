@@ -365,7 +365,21 @@
         </div>
     </main>
 
+    <script src="../shared/routes.js"></script>
+    <script src="../shared/admin-access.js"></script>
     <script>
+        window.SB_ADMIN_ACCESS?.requireRole("admin");
+
+        function handleLogout(event) {
+            event?.preventDefault?.();
+            if (window.APP_NAV?.logout) {
+                window.APP_NAV.logout();
+                return;
+            }
+            sessionStorage.removeItem("adminAuth");
+            window.location.href = "../admin-login.html";
+        }
+
         function openConfigure(serviceName, currentDocs, currentTime) {
             // 1. Target the elements in your modal
             const modal = document.getElementById('configModal');

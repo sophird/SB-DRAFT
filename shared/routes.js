@@ -5,7 +5,12 @@
 
   function computeRootPrefix(pathname) {
     const normalized = normalizePathname(pathname);
-    if (normalized.includes("/resident/") || normalized.includes("/staff/") || normalized.includes("/admin/")) {
+    if (
+      normalized.includes("/resident/") ||
+      normalized.includes("/staff/") ||
+      normalized.includes("/admin/") ||
+      normalized.includes("/system-admin/")
+    ) {
       return "../";
     }
     return "";
@@ -18,11 +23,19 @@
     },
     entry: {
       residentLogin: `${rootPrefix}resident/resident-login.html`,
-      staffLogin: `${rootPrefix}staff/staff-login.html`
+      staffLogin: `${rootPrefix}admin-login.html`
     },
     staff: {
-      login: "staff-login.html",
-      dashboard: "staff-dashboard.html"
+      login: `${rootPrefix}admin-login.html`,
+      dashboard: `${rootPrefix}staff/staff-dashboard.html`
+    },
+    admin: {
+      login: `${rootPrefix}admin-login.html`,
+      dashboard: `${rootPrefix}admin/service-req.html`
+    },
+    systemAdmin: {
+      login: `${rootPrefix}admin-login.html`,
+      dashboard: `${rootPrefix}system-admin/sysad-dashboard.html`
     },
     resident: {
       login: "resident-login.html",

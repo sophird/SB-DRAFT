@@ -6,9 +6,9 @@ const { createClient } = require("@supabase/supabase-js");
 async function main() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD || "ADserbisyoburgos1";
-  const staffPassword = process.env.SEED_STAFF_PASSWORD || "STserbisyoburgos1";
-  const systemAdminPassword = process.env.SEED_SYSTEM_ADMIN_PASSWORD || "SYSserbisyoburgos1";
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || "SBadmin123";
+  const staffPassword = process.env.SEED_STAFF_PASSWORD || "SBstaff123";
+  const systemAdminPassword = process.env.SEED_SYSTEM_ADMIN_PASSWORD || "SBsysad123";
 
   if (!url || !key) {
     throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for seeding.");
@@ -19,7 +19,7 @@ async function main() {
   const residents = [
     {
       email: "admin@serbisyoburgos.com",
-      full_name: "Admin Burgos",
+      full_name: "Barangay Admin",
       role: "admin"
     },
     {
