@@ -389,6 +389,7 @@
     <script src="../shared/routes.js"></script>
     <script>
         const API_BASE_URL = "http://localhost:4000";
+        const RESIDENT_CONTEXT_KEY = "residentContext";
         const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "landing.html" };
         const RESIDENT_ROUTES = window.APP_ROUTES?.resident || {};
         const logoutModal = document.getElementById("logoutModal");
@@ -433,6 +434,23 @@
             if (normalized === "consultation") return "Face-to-Face Consultation";
             return value || "Appointment";
         }
+        async function getResidentUserId() {
+            try {
+                const cached = JSON.parse(sessionStorage.getItem(RESIDENT_CONTEXT_KEY) || "{}");
+                const cachedId = Number(cached?.residentUserId);
+                if (Number.isInteger(cachedId) && cachedId > 0) return cachedId;
+            } catch (_e) {
+                // Ignore invalid cached context and resolve from backend.
+            }
+            const response = await fetch(`${API_BASE_URL}/resident/context`);
+            const result = await response.json();
+            if (!response.ok || !result?.ok || !Number.isInteger(Number(result.residentUserId))) {
+                throw new Error(result?.message || "Unable to resolve resident context.");
+            }
+            const residentUserId = Number(result.residentUserId);
+            sessionStorage.setItem(RESIDENT_CONTEXT_KEY, JSON.stringify({ residentUserId }));
+            return residentUserId;
+        }
         function renderAppointments(appointments) {
             const appointmentsGrid = document.getElementById("appointmentsGrid");
             if (!appointmentsGrid) return;
@@ -458,7 +476,8 @@
         }
         async function loadAppointments() {
             try {
-                const response = await fetch(`${API_BASE_URL}/appointments`);
+                const residentUserId = await getResidentUserId();
+                const response = await fetch(`${API_BASE_URL}/appointments?residentUserId=${encodeURIComponent(residentUserId)}`);
                 const result = await response.json();
                 if (!response.ok || !result?.ok || !Array.isArray(result.appointments)) {
                     throw new Error(result?.message || "Unable to load appointments.");
@@ -486,10 +505,11 @@
             }
 
             try {
+                const residentUserId = await getResidentUserId();
                 const response = await fetch(`${API_BASE_URL}/appointments`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ purpose, appointmentDate, slotId })
+                    body: JSON.stringify({ purpose, appointmentDate, slotId, residentUserId })
                 });
                 const result = await response.json();
                 if (!response.ok || !result?.ok) {

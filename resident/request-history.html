@@ -145,14 +145,55 @@
 
         /* HISTORY TABLE/LIST */
         .history-card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; flex-grow: 0; }
-        .history-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid #f1f5f9; background: #fafafa; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; font-weight: 700; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-        
-        .history-item { padding: 1.25rem 1.5rem; border-bottom: 1px solid #f1f5f9; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; align-items: center; transition: background 0.2s; }
+        .history-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid #f1f5f9;
+            background: #fafafa;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .history-item {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid #f1f5f9;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            align-items: center;
+            transition: background 0.2s;
+        }
         .history-item:hover { background: #f8fafc; }
         .history-item:last-child { border-bottom: none; }
 
-        .service-info b { display: block; color: var(--brand-dark); margin-bottom: 4px; }
-        .service-info small { color: var(--text-muted); font-size: 0.8rem; }
+        .type-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+        }
+        .type-badge.request { background: #dbeafe; color: #1d4ed8; }
+        .type-badge.appointment { background: #f3e8ff; color: #7e22ce; }
+
+        .service-info b { display: block; color: var(--brand-dark); margin-bottom: 4px; font-weight: 600; line-height: 1.4; word-break: break-word; }
+        .service-info small { display: block; color: var(--text-muted); font-size: 0.8rem; line-height: 1.35; }
+        .date-info span { font-size: 0.9rem; color: var(--text-main); }
+        .date-info small { display: block; color: var(--text-muted); font-size: 0.8rem; margin-top: 4px; }
+        .status-pill-history {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            max-width: 100%;
+            word-break: break-word;
+        }
         
         .action-btn { background: none; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; color: var(--text-main); transition: 0.2s; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
         .action-btn:hover { border-color: var(--brand-green); color: var(--brand-green); }
@@ -278,9 +319,9 @@
                 <span>Actions</span>
             </div>
 
-            <div id="historyList">
-                </div>
+            <div id="historyList"></div>
         </div>
+    </main>
 
     <div id="chatToggle" onclick="toggleChat()">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
@@ -335,7 +376,13 @@
 
     <script src="../shared/routes.js"></script>
     <script>
-        const RESIDENT_ROUTES = window.APP_ROUTES?.resident || { serviceRequests: "service-requests.html" };
+        const API_BASE_URL = "http://localhost:4000";
+        const RESIDENT_CONTEXT_KEY = "residentContext";
+        const SUPPORTING_DOCS_KEY = "residentSupportingDocsByReference";
+        const RESIDENT_ROUTES = window.APP_ROUTES?.resident || {
+            serviceRequests: "service-requests.html",
+            appointments: "appointments.html"
+        };
         const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "landing.html" };
         const logoutModal = document.getElementById("logoutModal");
         const logoutCancelBtn = document.getElementById("logoutCancelBtn");
@@ -384,19 +431,71 @@
             repeatConfirmAction = null;
         }
         /* BUTTON ACTIONS */
-        function handleDownload(fileName) {
-            openFeedbackModal(
-                "Preparing Download",
-                `Preparing download for ${fileName}. Your document will start downloading shortly.`
-            );
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function getAppointmentPurposeLabel(value) {
+            const normalized = String(value || "").toLowerCase();
+            if (normalized === "in-person") return "In-person Document Processing";
+            if (normalized === "pickup") return "Document / ID Pickup";
+            if (normalized === "consultation") return "Face-to-Face Consultation";
+            return String(value || "Appointment").trim() || "Appointment";
+        }
+
+        function formatHistoryDate(value) {
+            if (!value) return "—";
+            const dateObj = new Date(value);
+            if (Number.isNaN(dateObj.getTime())) return String(value);
+            return dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        }
+
+        function loadSupportingDocMap() {
+            try {
+                const parsed = JSON.parse(localStorage.getItem(SUPPORTING_DOCS_KEY) || "{}");
+                return parsed && typeof parsed === "object" ? parsed : {};
+            } catch (_e) {
+                return {};
+            }
+        }
+
+        function supportingDocsLine(referenceNo) {
+            const map = loadSupportingDocMap();
+            const raw = map[referenceNo];
+            const names = Array.isArray(raw) ? raw : raw ? [raw] : [];
+            if (!names.length) return '<span style="font-size:0.78rem;color:#94a3b8;">No uploads on file</span>';
+            const text = escapeHtml(names.join(", "));
+            return `<span style="font-size:0.78rem;color:#166534;">${text}</span>`;
+        }
+
+        async function getResidentUserId() {
+            try {
+                const cached = JSON.parse(sessionStorage.getItem(RESIDENT_CONTEXT_KEY) || "{}");
+                const cachedId = Number(cached?.residentUserId);
+                if (Number.isInteger(cachedId) && cachedId > 0) return cachedId;
+            } catch (_e) {}
+            const response = await fetch(`${API_BASE_URL}/resident/context`);
+            const result = await response.json();
+            if (!response.ok || !result?.ok || !Number.isInteger(Number(result.residentUserId))) {
+                throw new Error(result?.message || "Unable to resolve resident context.");
+            }
+            const residentUserId = Number(result.residentUserId);
+            sessionStorage.setItem(RESIDENT_CONTEXT_KEY, JSON.stringify({ residentUserId }));
+            return residentUserId;
         }
 
         function handleRepeat(serviceName) {
+            const label = serviceName || "this service";
             repeatConfirmAction = () => {
-                window.location.href = `${RESIDENT_ROUTES.serviceRequests}?service=${encodeURIComponent(serviceName)}`;
+                const base = RESIDENT_ROUTES.serviceRequests || "service-requests.html";
+                window.location.href = `${base}?service=${encodeURIComponent(label)}`;
             };
             if (repeatConfirmText) {
-                repeatConfirmText.textContent = `Would you like to start a new request for ${serviceName} using your previous details?`;
+                repeatConfirmText.textContent = `Start a new request for ${label}?`;
             }
             if (repeatConfirmModal) repeatConfirmModal.style.display = "flex";
         }
@@ -443,45 +542,90 @@
             }, 800);
         }
 
-        function loadHistory() {
-        const container = document.getElementById('historyList');
-        // This line looks for the "serviceHistory" we saved in the other file
-        const history = JSON.parse(localStorage.getItem('serviceHistory')) || [];
+        async function loadHistory() {
+            const container = document.getElementById("historyList");
+            if (!container) return;
+            container.innerHTML = '<p style="text-align:center; padding:2rem; color:var(--text-muted);">Loading history…</p>';
 
-        if (history.length === 0) {
-            container.innerHTML = '<p style="text-align:center; padding: 2rem; color: #64748b;">No request history found.</p>';
-            return;
+            try {
+                const residentUserId = await getResidentUserId();
+                const response = await fetch(
+                    `${API_BASE_URL}/resident/history?residentUserId=${encodeURIComponent(residentUserId)}`
+                );
+                const result = await response.json();
+                if (!response.ok || !result?.ok || !Array.isArray(result.items)) {
+                    throw new Error(result?.message || "Unable to load history.");
+                }
+
+                if (!result.items.length) {
+                    container.innerHTML =
+                        '<p style="text-align:center; padding:2rem; color:#64748b;">No service requests or appointments yet.</p>';
+                    return;
+                }
+
+                const rowsHtml = result.items
+                    .map((entry) => {
+                        if (entry.kind === "request") {
+                            const r = entry.request || {};
+                            const title = escapeHtml(r.title || r.serviceType || "Service request");
+                            const ref = escapeHtml(r.referenceNo || "—");
+                            const status = escapeHtml(r.status || "Pending");
+                            const submitted = formatHistoryDate(r.createdAt || r.preferredDate);
+                            const pref = r.preferredDate
+                                ? `${formatHistoryDate(r.preferredDate)} · ${escapeHtml(r.preferredTimeSlot || "—")}`
+                                : escapeHtml(r.preferredTimeSlot || "—");
+                            const docs = supportingDocsLine(r.referenceNo);
+                            return `
+                                <div class="history-item">
+                                    <div class="service-info">
+                                        <span class="type-badge request" style="margin-bottom:6px;">Request</span>
+                                        <b>${title}</b>
+                                        <small>Ref: #${ref}</small>
+                                        <small>Status: ${status}</small>
+                                        <small>${pref}</small>
+                                    </div>
+                                    <div class="date-info">
+                                        <span>${submitted}</span>
+                                        <small>Submitted</small>
+                                    </div>
+                                    <div>${docs}</div>
+                                    <div></div>
+                                </div>`;
+                        }
+                        const a = entry.appointment || {};
+                        const purpose = escapeHtml(getAppointmentPurposeLabel(a.purpose));
+                        const ref = escapeHtml(a.referenceNo || "—");
+                        const status = escapeHtml(a.status || "Pending Review");
+                        const sched = formatHistoryDate(a.appointmentDate);
+                        const slot = escapeHtml(a.timeLabel || "—");
+                        const created = formatHistoryDate(a.createdAt);
+                        return `
+                            <div class="history-item">
+                                <div class="service-info">
+                                    <span class="type-badge appointment" style="margin-bottom:6px;">Appointment</span>
+                                    <b>${purpose}</b>
+                                    <small>Ref: #${ref}</small>
+                                    <small>Status: ${status}</small>
+                                    <small>${slot}</small>
+                                </div>
+                                <div class="date-info">
+                                    <span>${sched}</span>
+                                    <small>Booked ${created}</small>
+                                </div>
+                                <div><span style="font-size:0.78rem;color:#94a3b8;">No uploads</span></div>
+                                <div></div>
+                            </div>`;
+                    })
+                    .join("");
+
+                container.innerHTML = rowsHtml;
+            } catch (_err) {
+                container.innerHTML =
+                    '<p style="text-align:center; padding:2rem; color:#b91c1c;">Unable to load history. Ensure the API server is running.</p>';
+            }
         }
 
-        // This part builds the HTML for every request found in the system
-        container.innerHTML = history.map(req => `
-            <div class="history-item">
-                <div class="service-info">
-                    <b>${req.title}</b>
-                    <small>Ref: ${req.id}</small>
-                </div>
-                <div class="date-info">
-                    <span>${req.date}</span>
-                    <small style="display:block; color:#64748b;">${req.time}</small>
-                </div>
-                <div>
-                    <span class="status-badge" style="
-                        background: ${req.status === 'Completed' ? '#f0fdf4' : '#fef9c3'};
-                        color: ${req.status === 'Completed' ? '#16a34a' : '#854d0e'};
-                        padding: 4px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;
-                    ">${req.status}</span>
-                </div>
-                <div>
-                    <div style="display: flex; flex-direction: column; gap: 4px;">
-                        ${req.fileName !== "No Document" ? `<a href="#" style="font-size: 0.7rem; color: #16a34a; text-decoration: none;">📎 ${req.fileName}</a>` : '<span style="font-size: 0.7rem; color: #94a3b8;">No Uploads</span>'}
-                        <button class="action-btn" onclick="window.location.href='${RESIDENT_ROUTES.serviceRequests}'" style="margin-top:5px;">Request Again</button>
-                    </div>
-                </div>
-            </div>
-        `).join('');
-    }
-
-    window.onload = loadHistory;
+        window.onload = loadHistory;
 
         function handleLogout(event) {
             event.preventDefault();
