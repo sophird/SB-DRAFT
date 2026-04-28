@@ -92,6 +92,45 @@ async function resolveProfileFromToken(req) {
   return { profile };
 }
 
+const STAFF_PORTAL_ROLES = new Set(["admin", "staff", "system-admin"]);
+
+async function requireStaffPortalUser(req, res) {
+  const { profile, error } = await resolveProfileFromToken(req);
+  if (error) {
+    res.status(error.status).json({ ok: false, message: error.message });
+    return null;
+  }
+  if (!STAFF_PORTAL_ROLES.has(profile.role)) {
+    res.status(403).json({ ok: false, message: "Admin portal access required." });
+    return null;
+  }
+  return { profile };
+}
+
+function normalizeAnnouncementRow(row) {
+  return {
+    id: row.id,
+    category: row.category,
+    title: row.title,
+    body: row.body,
+    isActive: row.is_active,
+    createdAt: row.created_at
+  };
+}
+
+function normalizeServiceCatalogRow(row) {
+  return {
+    id: row.id,
+    name: row.service_name,
+    requiredDocuments: row.required_documents,
+    processingTime: row.processing_time,
+    status: row.status,
+    archivedAt: row.archived_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 // Return basic API status and whether Supabase env vars are present.
 app.get("/health", async (_req, res) => {
   // Lightweight check that API server is up and env is loaded.
@@ -224,6 +263,7 @@ function normalizeRequestRow(row) {
   return {
     id: row.id,
     referenceNo: row.reference_no,
+    residentUserId: row.resident_user_id ?? null,
     title: row.title,
     serviceType: row.service_type,
     preferredDate: row.preferred_date,
@@ -237,6 +277,7 @@ function normalizeAppointmentRow(row) {
   return {
     id: row.id,
     referenceNo: row.reference_no,
+    residentUserId: row.resident_user_id ?? null,
     purpose: row.purpose,
     appointmentDate: row.appointment_date,
     slotId: row.slot_id || null,
@@ -306,6 +347,86 @@ async function resolveFallbackResidentUserId() {
   }
 }
 
+function parseResidentUserId(rawValue) {
+  if (rawValue === undefined || rawValue === null || rawValue === "") return null;
+  const parsed = Number(rawValue);
+  if (!Number.isInteger(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+app.get("/resident/context", async (_req, res) => {
+  const residentUserId = await resolveFallbackResidentUserId();
+  if (!residentUserId) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to resolve resident context."
+    });
+  }
+  return res.json({
+    ok: true,
+    residentUserId
+  });
+});
+
+// Combined service requests + appointments for a resident, newest activity first.
+app.get("/resident/history", async (req, res) => {
+  const residentUserId = parseResidentUserId(req.query?.residentUserId);
+  if (!residentUserId) {
+    return res.status(400).json({
+      ok: false,
+      message: "residentUserId query parameter is required."
+    });
+  }
+
+  const [requestsResult, appointmentsResult] = await Promise.all([
+    supabaseAdmin.from("service_requests").select("*").eq("resident_user_id", residentUserId),
+    supabaseAdmin
+      .from("appointments")
+      .select("*, appointment_slots(label)")
+      .eq("resident_user_id", residentUserId)
+  ]);
+
+  if (requestsResult.error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load request history.",
+      detail: requestsResult.error.message
+    });
+  }
+  if (appointmentsResult.error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load appointment history.",
+      detail: appointmentsResult.error.message
+    });
+  }
+
+  const requests = (requestsResult.data || []).map(normalizeRequestRow);
+  const appointments = (appointmentsResult.data || []).map(normalizeAppointmentRow);
+
+  const items = [
+    ...requests.map((request) => ({
+      kind: "request",
+      sortAt: request.createdAt || null,
+      request
+    })),
+    ...appointments.map((appointment) => ({
+      kind: "appointment",
+      sortAt: appointment.createdAt || null,
+      appointment
+    }))
+  ].sort((a, b) => {
+    const left = new Date(a.sortAt || 0).getTime();
+    const right = new Date(b.sortAt || 0).getTime();
+    return right - left;
+  });
+
+  return res.json({
+    ok: true,
+    items
+  });
+});
+
 app.get("/requests/events", (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -334,10 +455,13 @@ app.get("/appointments/events", (req, res) => {
   });
 });
 
-app.get("/requests", async (_req, res) => {
-  const { data, error } = await supabaseAdmin
-    .from("service_requests")
-    .select("*");
+app.get("/requests", async (req, res) => {
+  const requestedResidentUserId = parseResidentUserId(req.query?.residentUserId);
+  let query = supabaseAdmin.from("service_requests").select("*");
+  if (requestedResidentUserId) {
+    query = query.eq("resident_user_id", requestedResidentUserId);
+  }
+  const { data, error } = await query;
 
   if (error) {
     return res.status(500).json({
@@ -494,7 +618,7 @@ app.patch("/requests/:id/status", async (req, res) => {
 });
 
 app.post("/requests", async (req, res) => {
-  const { title, serviceType, preferredDate, preferredTimeSlot } = req.body || {};
+  const { title, serviceType, preferredDate, preferredTimeSlot, residentUserId } = req.body || {};
 
   if (!title || !serviceType || !preferredDate || !preferredTimeSlot) {
     return res.status(400).json({
@@ -505,6 +629,8 @@ app.post("/requests", async (req, res) => {
 
   const referenceNo = `REQ-${Math.floor(1000 + Math.random() * 9000)}`;
   const fallbackResidentUserId = await resolveFallbackResidentUserId();
+  const requestedResidentUserId = parseResidentUserId(residentUserId);
+  const resolvedResidentUserId = requestedResidentUserId || fallbackResidentUserId;
   const insertPayload = {
     reference_no: referenceNo,
     title: String(title).trim(),
@@ -513,8 +639,8 @@ app.post("/requests", async (req, res) => {
     preferred_time_slot: String(preferredTimeSlot).trim(),
     status: "Pending"
   };
-  if (fallbackResidentUserId) {
-    insertPayload.resident_user_id = fallbackResidentUserId;
+  if (resolvedResidentUserId) {
+    insertPayload.resident_user_id = resolvedResidentUserId;
   }
 
   const { data, error } = await supabaseAdmin
@@ -585,12 +711,17 @@ app.delete("/requests/:id", async (req, res) => {
   });
 });
 
-app.get("/appointments", async (_req, res) => {
-  const { data, error } = await supabaseAdmin
+app.get("/appointments", async (req, res) => {
+  const requestedResidentUserId = parseResidentUserId(req.query?.residentUserId);
+  let query = supabaseAdmin
     .from("appointments")
     .select("*, appointment_slots(label)")
     .order("appointment_date", { ascending: true })
     .order("created_at", { ascending: false });
+  if (requestedResidentUserId) {
+    query = query.eq("resident_user_id", requestedResidentUserId);
+  }
+  const { data, error } = await query;
 
   if (error) {
     return res.status(500).json({
@@ -679,7 +810,7 @@ app.get("/appointments/by-reference/:referenceNo", async (req, res) => {
 });
 
 app.post("/appointments", async (req, res) => {
-  const { purpose, appointmentDate, slotId } = req.body || {};
+  const { purpose, appointmentDate, slotId, residentUserId } = req.body || {};
 
   if (!purpose || !appointmentDate || !slotId) {
     return res.status(400).json({
@@ -697,7 +828,9 @@ app.post("/appointments", async (req, res) => {
   }
 
   const fallbackResidentUserId = await resolveFallbackResidentUserId();
-  if (!fallbackResidentUserId) {
+  const requestedResidentUserId = parseResidentUserId(residentUserId);
+  const resolvedResidentUserId = requestedResidentUserId || fallbackResidentUserId;
+  if (!resolvedResidentUserId) {
     return res.status(500).json({
       ok: false,
       message: "Unable to resolve resident account for appointment booking."
@@ -707,7 +840,7 @@ app.post("/appointments", async (req, res) => {
   const referenceNo = `APT-${Math.floor(1000 + Math.random() * 9000)}`;
   const insertPayload = {
     reference_no: referenceNo,
-    resident_user_id: fallbackResidentUserId,
+    resident_user_id: resolvedResidentUserId,
     purpose: String(purpose).trim(),
     appointment_date: appointmentDate,
     slot_id: parsedSlotId,
@@ -803,6 +936,220 @@ app.patch("/appointments/:id/status", async (req, res) => {
   return res.json({
     ok: true,
     appointment: appointmentRow
+  });
+});
+
+// --- Community announcements (resident bulletin; admin creates) ---
+
+app.get("/announcements", async (_req, res) => {
+  const { data, error } = await supabaseAdmin
+    .from("community_announcements")
+    .select("*")
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load announcements.",
+      detail: error.message
+    });
+  }
+
+  return res.json({
+    ok: true,
+    announcements: (data || []).map(normalizeAnnouncementRow)
+  });
+});
+
+app.post("/admin/announcements", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+
+  const { category, title, body } = req.body || {};
+  if (!title || !String(title).trim()) {
+    return res.status(400).json({ ok: false, message: "Title is required." });
+  }
+  if (!body || !String(body).trim()) {
+    return res.status(400).json({ ok: false, message: "Announcement details are required." });
+  }
+
+  const insertPayload = {
+    category: String(category || "Community News").trim(),
+    title: String(title).trim(),
+    body: String(body).trim(),
+    is_active: true
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from("community_announcements")
+    .insert(insertPayload)
+    .select("*")
+    .single();
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to post announcement.",
+      detail: error.message
+    });
+  }
+
+  return res.status(201).json({
+    ok: true,
+    message: "Announcement posted.",
+    announcement: normalizeAnnouncementRow(data)
+  });
+});
+
+// --- Admin service catalog ---
+
+app.get("/admin/service-catalog", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+
+  const includeArchived = String(req.query?.includeArchived || "") === "1";
+  let query = supabaseAdmin.from("service_catalog").select("*").order("created_at", { ascending: true });
+  if (!includeArchived) {
+    query = query.is("archived_at", null);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load service catalog.",
+      detail: error.message
+    });
+  }
+
+  return res.json({
+    ok: true,
+    services: (data || []).map(normalizeServiceCatalogRow)
+  });
+});
+
+app.post("/admin/service-catalog", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+
+  const { name, requiredDocuments, processingTime, status } = req.body || {};
+  if (!name || !String(name).trim()) {
+    return res.status(400).json({ ok: false, message: "Service name is required." });
+  }
+
+  const allowedStatuses = new Set(["Active", "Under Review", "Inactive"]);
+  const nextStatus = allowedStatuses.has(String(status)) ? String(status) : "Active";
+
+  const insertPayload = {
+    service_name: String(name).trim(),
+    required_documents: String(requiredDocuments ?? "").trim(),
+    processing_time: String(processingTime || "1-2 Days").trim(),
+    status: nextStatus,
+    archived_at: null
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from("service_catalog")
+    .insert(insertPayload)
+    .select("*")
+    .single();
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to create service.",
+      detail: error.message
+    });
+  }
+
+  return res.status(201).json({
+    ok: true,
+    service: normalizeServiceCatalogRow(data)
+  });
+});
+
+app.patch("/admin/service-catalog/:id", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, message: "Invalid service id." });
+  }
+
+  const { name, requiredDocuments, processingTime, status } = req.body || {};
+  const updatePayload = {};
+  if (typeof name === "string" && name.trim()) updatePayload.service_name = name.trim();
+  if (typeof requiredDocuments === "string") updatePayload.required_documents = requiredDocuments.trim();
+  if (typeof processingTime === "string") updatePayload.processing_time = processingTime.trim();
+  if (typeof status === "string") {
+    const allowedStatuses = new Set(["Active", "Under Review", "Inactive"]);
+    if (allowedStatuses.has(status)) updatePayload.status = status;
+  }
+
+  if (!Object.keys(updatePayload).length) {
+    return res.status(400).json({ ok: false, message: "No valid fields to update." });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("service_catalog")
+    .update(updatePayload)
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to update service.",
+      detail: error.message
+    });
+  }
+
+  if (!data) {
+    return res.status(404).json({ ok: false, message: "Service not found." });
+  }
+
+  return res.json({
+    ok: true,
+    service: normalizeServiceCatalogRow(data)
+  });
+});
+
+app.post("/admin/service-catalog/:id/archive", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, message: "Invalid service id." });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("service_catalog")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("archived_at", null)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to archive service.",
+      detail: error.message
+    });
+  }
+
+  if (!data) {
+    return res.status(404).json({ ok: false, message: "Service not found or already archived." });
+  }
+
+  return res.json({
+    ok: true,
+    service: normalizeServiceCatalogRow(data)
   });
 });
 
