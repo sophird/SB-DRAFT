@@ -482,6 +482,7 @@
         let selectedAction = null;
         let latestActionNode = null;
         let activeRequestId = null;
+        let activeItemType = "request";
 
         function escapeHtml(value) {
             return String(value ?? "")
@@ -514,14 +515,19 @@
             return { bg: "#fef9c3", fg: "#854d0e" };
         }
 
-        function applyRequestToUI(request) {
+        function applyRequestToUI(request, itemType = "request") {
             if (!request) return;
-            const subject = request.title || request.serviceType || "Service Request";
+            const isAppointment = itemType === "appointment";
+            const subject = isAppointment
+                ? (request.purpose || "Appointment")
+                : (request.title || request.serviceType || "Service Request");
             const currentStatus = request.status || "Pending";
-            const filedAt = request.createdAt || request.preferredDate;
+            const filedAt = request.createdAt || request.appointmentDate || request.preferredDate;
             const referenceNo = request.referenceNo || "—";
             const normalizedStatus = String(currentStatus).toLowerCase();
-            const hasReviewActionSelected = ["approved", "revision requested", "rejected"].includes(normalizedStatus);
+            const hasReviewActionSelected = isAppointment
+                ? ["confirmed", "rejected"].includes(normalizedStatus)
+                : ["approved", "revision requested", "rejected"].includes(normalizedStatus);
 
             document.getElementById("fieldSubject").textContent = subject;
             document.getElementById("fieldResident").textContent = "Resident User";
@@ -529,7 +535,11 @@
 
             const metaLine = document.getElementById("requestMetaLine");
             if (metaLine) {
-                metaLine.textContent = `Reference #${referenceNo} • Preferred: ${request.preferredDate || "—"} ${request.preferredTimeSlot || ""}`.trim();
+                if (isAppointment) {
+                    metaLine.textContent = `Appointment #${referenceNo} • Scheduled: ${request.appointmentDate || "—"} ${request.timeLabel || ""}`.trim();
+                } else {
+                    metaLine.textContent = `Reference #${referenceNo} • Preferred: ${request.preferredDate || "—"} ${request.preferredTimeSlot || ""}`.trim();
+                }
             }
 
             const badge = document.getElementById("statusBadge");
@@ -559,12 +569,18 @@
             if (reviewActionCard) {
                 reviewActionCard.style.display = hasReviewActionSelected ? "none" : "block";
             }
+            const revisionActionBtn = document.querySelector('.btn-info');
+            if (revisionActionBtn) {
+                revisionActionBtn.style.display = isAppointment ? "none" : "block";
+            }
         }
 
         async function loadRequestFromQuery() {
             const params = new URLSearchParams(window.location.search);
             const requestId = params.get("requestId");
             const referenceNo = params.get("referenceNo");
+            const itemType = params.get("type");
+            activeItemType = itemType === "appointment" ? "appointment" : "request";
             let targetRequestId = requestId ? String(requestId) : "";
             let targetReferenceNo = referenceNo ? String(referenceNo) : "";
 
@@ -579,16 +595,18 @@
                     const parsedRef = String(parsed.referenceNo || "");
 
                     // If URL has no identifier, use the last selected request as fallback.
+                    const cachedType = parsed.itemType === "appointment" ? "appointment" : "request";
                     if (!targetRequestId && !targetReferenceNo) {
                         targetRequestId = parsedId;
                         targetReferenceNo = parsedRef;
+                        activeItemType = cachedType;
                         if (metaLine) metaLine.textContent = "Loading last selected request details...";
                     }
 
                     const sameId = targetRequestId && parsedId && parsedId === targetRequestId;
                     const sameRef = targetReferenceNo && parsedRef && parsedRef === targetReferenceNo;
                     if (sameId || sameRef || (!requestId && !referenceNo)) {
-                        applyRequestToUI(parsed);
+                        applyRequestToUI(parsed, activeItemType);
                     }
                 }
             } catch (_error) {
@@ -606,18 +624,45 @@
                 let result = null;
                 let response = null;
 
-                if (targetRequestId) {
+                if (activeItemType === "appointment") {
+                    if (targetRequestId) {
+                        response = await fetch(`${API_BASE_URL}/appointments/${encodeURIComponent(targetRequestId)}`);
+                        result = await response.json();
+                    }
+                    if ((!response || !response.ok || !result?.ok || !result?.appointment) && targetReferenceNo) {
+                        response = await fetch(`${API_BASE_URL}/appointments/by-reference/${encodeURIComponent(targetReferenceNo)}`);
+                        result = await response.json();
+                    }
+                } else if (targetRequestId) {
                     response = await fetch(`${API_BASE_URL}/requests/${encodeURIComponent(targetRequestId)}`);
                     result = await response.json();
                 }
 
-                if ((!response || !response.ok || !result?.ok || !result?.request) && targetReferenceNo) {
+                if (
+                    activeItemType !== "appointment" &&
+                    (!response || !response.ok || !result?.ok || !result?.request) &&
+                    targetReferenceNo
+                ) {
                     response = await fetch(`${API_BASE_URL}/requests/by-reference/${encodeURIComponent(targetReferenceNo)}`);
                     result = await response.json();
                 }
 
                 // Last fallback: load full list and resolve by id/reference client-side.
-                if ((!response || !response.ok || !result?.ok || !result?.request)) {
+                if (activeItemType === "appointment" && (!response || !response.ok || !result?.ok || !result?.appointment)) {
+                    response = await fetch(`${API_BASE_URL}/appointments`);
+                    result = await response.json();
+                    if (response.ok && result?.ok && Array.isArray(result.appointments)) {
+                        const found = result.appointments.find((item) => {
+                            const itemId = item?.id != null ? String(item.id) : "";
+                            const itemRef = String(item?.referenceNo || "");
+                            return (targetRequestId && itemId === targetRequestId) || (targetReferenceNo && itemRef === targetReferenceNo);
+                        });
+                        if (found) {
+                            result = { ok: true, appointment: found };
+                        }
+                    }
+                }
+                if (activeItemType !== "appointment" && (!response || !response.ok || !result?.ok || !result?.request)) {
                     response = await fetch(`${API_BASE_URL}/requests`);
                     result = await response.json();
                     if (response.ok && result?.ok && Array.isArray(result.requests)) {
@@ -632,13 +677,22 @@
                     }
                 }
 
+                if (activeItemType === "appointment") {
+                    if (!response || !response.ok || !result?.ok || !result?.appointment) {
+                        throw new Error(result?.message || "Unable to load appointment details.");
+                    }
+                    const appointment = { ...result.appointment, itemType: "appointment" };
+                    activeRequestId = appointment.id ?? activeRequestId;
+                    applyRequestToUI(appointment, "appointment");
+                    sessionStorage.setItem("selectedRequest", JSON.stringify(appointment));
+                    return;
+                }
                 if (!response || !response.ok || !result?.ok || !result?.request) {
                     throw new Error(result?.message || "Unable to load request details.");
                 }
-
-                const request = result.request;
+                const request = { ...result.request, itemType: "request" };
                 activeRequestId = request.id ?? activeRequestId;
-                applyRequestToUI(request);
+                applyRequestToUI(request, "request");
                 sessionStorage.setItem("selectedRequest", JSON.stringify(request));
             } catch (error) {
                 if (metaLine) metaLine.textContent = error.message || "Unable to load request details.";
@@ -649,16 +703,20 @@
             if (!activeRequestId) {
                 throw new Error("Request ID is missing.");
             }
-            const response = await fetch(`${API_BASE_URL}/requests/${encodeURIComponent(activeRequestId)}/status`, {
+            const endpoint = activeItemType === "appointment"
+                ? `${API_BASE_URL}/appointments/${encodeURIComponent(activeRequestId)}/status`
+                : `${API_BASE_URL}/requests/${encodeURIComponent(activeRequestId)}/status`;
+            const response = await fetch(endpoint, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status, note })
             });
             const result = await response.json();
-            if (!response.ok || !result.ok || !result.request) {
+            const payload = activeItemType === "appointment" ? result.appointment : result.request;
+            if (!response.ok || !result.ok || !payload) {
                 throw new Error(result.message || "Unable to update request status.");
             }
-            return result.request;
+            return payload;
         }
 
         // Update badge, timeline, and feedback text for the latest action.
@@ -712,7 +770,10 @@
 
         // Handle quick actions and toggle revision input when needed.
         async function handleAction(button) {
-            const status = button.dataset.action;
+            const isAppointment = activeItemType === "appointment";
+            const status = isAppointment && button.dataset.action === "Approved"
+                ? "Confirmed"
+                : button.dataset.action;
             const dotClass = button.dataset.dot;
             const reviewActionCard = document.getElementById('reviewActionCard');
             const revisionBox = document.getElementById('revisionBox');
@@ -724,7 +785,7 @@
             selectedAction = button;
             selectedAction.classList.add('selected');
 
-            if (status === 'Revision Requested') {
+            if (!isAppointment && status === 'Revision Requested') {
                 revisionBox.style.display = 'block';
                 return;
             }

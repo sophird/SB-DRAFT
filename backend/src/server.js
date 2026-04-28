@@ -55,6 +55,7 @@ const supabaseAuth = createClient(
 );
 
 const requestEventClients = new Set();
+const appointmentEventClients = new Set();
 
 function getBearerToken(req) {
   const authHeader = req.headers.authorization || "";
@@ -232,6 +233,19 @@ function normalizeRequestRow(row) {
   };
 }
 
+function normalizeAppointmentRow(row) {
+  return {
+    id: row.id,
+    referenceNo: row.reference_no,
+    purpose: row.purpose,
+    appointmentDate: row.appointment_date,
+    slotId: row.slot_id || null,
+    timeLabel: row.appointment_slots?.label || null,
+    status: row.status,
+    createdAt: row.created_at || null
+  };
+}
+
 function broadcastRequestEvent(payload) {
   const packet = `event: request-updated\ndata: ${JSON.stringify(payload)}\n\n`;
   for (const client of requestEventClients) {
@@ -239,6 +253,17 @@ function broadcastRequestEvent(payload) {
       client.write(packet);
     } catch (_error) {
       requestEventClients.delete(client);
+    }
+  }
+}
+
+function broadcastAppointmentEvent(payload) {
+  const packet = `event: appointment-updated\ndata: ${JSON.stringify(payload)}\n\n`;
+  for (const client of appointmentEventClients) {
+    try {
+      client.write(packet);
+    } catch (_error) {
+      appointmentEventClients.delete(client);
     }
   }
 }
@@ -292,6 +317,20 @@ app.get("/requests/events", (req, res) => {
 
   req.on("close", () => {
     requestEventClients.delete(res);
+  });
+});
+
+app.get("/appointments/events", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+
+  res.write(`event: ready\ndata: {"ok":true}\n\n`);
+  appointmentEventClients.add(res);
+
+  req.on("close", () => {
+    appointmentEventClients.delete(res);
   });
 });
 
@@ -543,6 +582,227 @@ app.delete("/requests/:id", async (req, res) => {
   return res.json({
     ok: true,
     request: requestRow
+  });
+});
+
+app.get("/appointments", async (_req, res) => {
+  const { data, error } = await supabaseAdmin
+    .from("appointments")
+    .select("*, appointment_slots(label)")
+    .order("appointment_date", { ascending: true })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load appointments.",
+      detail: error.message
+    });
+  }
+
+  return res.json({
+    ok: true,
+    appointments: (data || []).map(normalizeAppointmentRow)
+  });
+});
+
+app.get("/appointments/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({
+      ok: false,
+      message: "Invalid appointment id."
+    });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("appointments")
+    .select("*, appointment_slots(label)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load appointment.",
+      detail: error.message
+    });
+  }
+
+  if (!data) {
+    return res.status(404).json({
+      ok: false,
+      message: "Appointment not found."
+    });
+  }
+
+  return res.json({
+    ok: true,
+    appointment: normalizeAppointmentRow(data)
+  });
+});
+
+app.get("/appointments/by-reference/:referenceNo", async (req, res) => {
+  const referenceNo = String(req.params.referenceNo || "").trim();
+  if (!referenceNo) {
+    return res.status(400).json({
+      ok: false,
+      message: "Invalid appointment reference number."
+    });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("appointments")
+    .select("*, appointment_slots(label)")
+    .eq("reference_no", referenceNo)
+    .maybeSingle();
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load appointment by reference.",
+      detail: error.message
+    });
+  }
+
+  if (!data) {
+    return res.status(404).json({
+      ok: false,
+      message: "Appointment not found."
+    });
+  }
+
+  return res.json({
+    ok: true,
+    appointment: normalizeAppointmentRow(data)
+  });
+});
+
+app.post("/appointments", async (req, res) => {
+  const { purpose, appointmentDate, slotId } = req.body || {};
+
+  if (!purpose || !appointmentDate || !slotId) {
+    return res.status(400).json({
+      ok: false,
+      message: "purpose, appointmentDate, and slotId are required."
+    });
+  }
+
+  const parsedSlotId = Number(slotId);
+  if (!Number.isInteger(parsedSlotId) || parsedSlotId <= 0) {
+    return res.status(400).json({
+      ok: false,
+      message: "Invalid slotId."
+    });
+  }
+
+  const fallbackResidentUserId = await resolveFallbackResidentUserId();
+  if (!fallbackResidentUserId) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to resolve resident account for appointment booking."
+    });
+  }
+
+  const referenceNo = `APT-${Math.floor(1000 + Math.random() * 9000)}`;
+  const insertPayload = {
+    reference_no: referenceNo,
+    resident_user_id: fallbackResidentUserId,
+    purpose: String(purpose).trim(),
+    appointment_date: appointmentDate,
+    slot_id: parsedSlotId,
+    status: "Pending Review"
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from("appointments")
+    .insert(insertPayload)
+    .select("*, appointment_slots(label)")
+    .single();
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to book appointment.",
+      detail: error.message
+    });
+  }
+
+  const appointmentRow = normalizeAppointmentRow(data);
+  broadcastAppointmentEvent({ type: "created", appointment: appointmentRow });
+
+  return res.status(201).json({
+    ok: true,
+    message: "Appointment booked successfully.",
+    appointment: appointmentRow
+  });
+});
+
+app.patch("/appointments/:id/status", async (req, res) => {
+  const id = Number(req.params.id);
+  const { status, note } = req.body || {};
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({
+      ok: false,
+      message: "Invalid appointment id."
+    });
+  }
+
+  const normalizedInputStatus = String(status || "").trim();
+  const mappedStatus = (() => {
+    const key = normalizedInputStatus.toLowerCase();
+    if (key === "approved") return "Confirmed";
+    if (key === "processing" || key === "in progress") return "Pending Review";
+    if (key === "revision requested") return "Pending Review";
+    if (key === "rejected") return "Rejected";
+    if (key === "confirmed" || key === "completed" || key === "cancelled" || key === "pending review") {
+      return normalizedInputStatus;
+    }
+    return null;
+  })();
+  if (!mappedStatus) {
+    return res.status(400).json({
+      ok: false,
+      message: "Invalid status value."
+    });
+  }
+
+  const updatePayload = { status: mappedStatus };
+  if (typeof note === "string" && note.trim()) {
+    updatePayload.notes = note.trim();
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("appointments")
+    .update(updatePayload)
+    .eq("id", id)
+    .select("*, appointment_slots(label)")
+    .maybeSingle();
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to update appointment status.",
+      detail: error.message
+    });
+  }
+  if (!data) {
+    return res.status(404).json({
+      ok: false,
+      message: "Appointment not found."
+    });
+  }
+
+  const appointmentRow = normalizeAppointmentRow(data);
+  broadcastAppointmentEvent({
+    type: "status-updated",
+    appointment: appointmentRow,
+    note: note ? String(note) : null
+  });
+
+  return res.json({
+    ok: true,
+    appointment: appointmentRow
   });
 });
 

@@ -485,7 +485,8 @@
         applySessionSidebar();
 
         let requestEventStream = null;
-        let latestRequests = [];
+        let appointmentEventStream = null;
+        let latestItems = [];
 
         function escapeHtml(value) {
             return String(value ?? "")
@@ -503,20 +504,33 @@
             return dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
         }
 
+        function appointmentPurposeLabel(value) {
+            const normalized = String(value || "").toLowerCase();
+            if (normalized === "in-person") return "In-person Document Processing";
+            if (normalized === "pickup") return "Document / ID Pickup";
+            if (normalized === "consultation") return "Face-to-Face Consultation";
+            return value || "Appointment";
+        }
+
         function statusBadgeClass(status) {
             const normalized = String(status || "").toLowerCase();
             if (normalized === "pending") return "badge-pending";
+            if (normalized === "pending review") return "badge-pending";
             if (normalized === "processing" || normalized === "in progress") return "badge-processing";
+            if (normalized === "confirmed") return "badge-approved";
             if (normalized === "approved") return "badge-approved";
             if (normalized === "revision requested") return "badge-revision";
             if (normalized === "rejected") return "badge-rejected";
+            if (normalized === "cancelled") return "badge-rejected";
             if (normalized === "ready for pickup") return "badge-pickup";
             if (normalized === "completed") return "badge-completed";
             return "badge-pending";
         }
 
         function openRequestDetails(request) {
+            const itemType = request?.itemType || "request";
             const payload = {
+                itemType,
                 id: request?.id ?? null,
                 referenceNo: request?.referenceNo || "",
                 title: request?.title || "",
@@ -524,25 +538,39 @@
                 status: request?.status || "Pending",
                 createdAt: request?.createdAt || null,
                 preferredDate: request?.preferredDate || null,
-                preferredTimeSlot: request?.preferredTimeSlot || ""
+                preferredTimeSlot: request?.preferredTimeSlot || "",
+                appointmentDate: request?.appointmentDate || null,
+                timeLabel: request?.timeLabel || null,
+                purpose: request?.purpose || ""
             };
             sessionStorage.setItem("selectedRequest", JSON.stringify(payload));
 
             const idParam = encodeURIComponent(String(payload.id ?? ""));
             const refParam = encodeURIComponent(payload.referenceNo || "");
-            window.location.href = `request-processing.html?requestId=${idParam}&referenceNo=${refParam}`;
+            const typeParam = encodeURIComponent(itemType);
+            window.location.href = `request-processing.html?type=${typeParam}&requestId=${idParam}&referenceNo=${refParam}`;
         }
 
         function renderRequestCards(requests) {
             requestContainer.innerHTML = requests.map((req) => {
-                const safeTitle = escapeHtml(req.title || req.serviceType || "Service Request");
+                const isAppointment = req.itemType === "appointment";
+                const safeTitle = escapeHtml(
+                    isAppointment
+                        ? appointmentPurposeLabel(req.purpose)
+                        : (req.title || req.serviceType || "Service Request")
+                );
                 const safeStatus = escapeHtml(req.status || "Pending");
-                const safeType = "Request";
+                const safeType = isAppointment ? "Appointment" : "Request";
                 const safeReference = escapeHtml(req.referenceNo || "—");
-                const safeDate = formatRequestDate(req.createdAt || req.preferredDate);
+                const safeDate = formatRequestDate(req.createdAt || req.appointmentDate || req.preferredDate);
                 const badgeClass = statusBadgeClass(req.status);
                 const requestId = req.id ?? "";
                 const referenceParam = encodeURIComponent(req.referenceNo || "");
+                const typeParam = encodeURIComponent(req.itemType || "request");
+                const slotText = isAppointment
+                    ? escapeHtml(req.timeLabel || "—")
+                    : escapeHtml(req.preferredTimeSlot || "—");
+                const dateLabel = isAppointment ? "Appointment Date" : "Date Submitted";
 
                 return `
                     <div class="request-card" data-title="${safeTitle}">
@@ -553,11 +581,11 @@
                         </div>
                         <p class="desc-text">Reference: #${safeReference}</p>
                         <div class="meta-row">
-                            <span>Date Submitted: ${safeDate}</span>
-                            <span>Preferred Slot: ${escapeHtml(req.preferredTimeSlot || "—")}</span>
+                            <span>${dateLabel}: ${safeDate}</span>
+                            <span>Preferred Slot: ${slotText}</span>
                         </div>
                         <div style="margin-top: 12px;">
-                            <a class="btn-review js-view-request" href="request-processing.html?requestId=${requestId}&referenceNo=${referenceParam}" data-request-id="${requestId}">
+                            <a class="btn-review js-view-request" href="request-processing.html?type=${typeParam}&requestId=${requestId}&referenceNo=${referenceParam}" data-request-id="${requestId}" data-item-type="${escapeHtml(req.itemType || "request")}">
                                 View Request
                             </a>
                         </div>
@@ -571,7 +599,10 @@
             if (!viewLink) return;
             event.preventDefault();
             const requestId = String(viewLink.dataset.requestId || "");
-            const selected = latestRequests.find((item) => String(item?.id ?? "") === requestId);
+            const itemType = String(viewLink.dataset.itemType || "request");
+            const selected = latestItems.find((item) => {
+                return String(item?.id ?? "") === requestId && String(item?.itemType || "request") === itemType;
+            });
             if (selected) {
                 openRequestDetails(selected);
                 return;
@@ -581,23 +612,35 @@
 
         async function loadAdminRequests() {
             try {
-                const response = await fetch(`${API_BASE_URL}/requests`);
-                const result = await response.json();
-                if (!response.ok || !result.ok) {
-                    throw new Error(result.message || "Unable to load requests.");
+                const [requestResponse, appointmentResponse] = await Promise.all([
+                    fetch(`${API_BASE_URL}/requests`),
+                    fetch(`${API_BASE_URL}/appointments`)
+                ]);
+                const requestResult = await requestResponse.json();
+                const appointmentResult = await appointmentResponse.json();
+                if (!requestResponse.ok || !requestResult.ok) {
+                    throw new Error(requestResult.message || "Unable to load requests.");
                 }
-                const requests = (result.requests || []).slice().sort((a, b) => {
+                if (!appointmentResponse.ok || !appointmentResult.ok) {
+                    throw new Error(appointmentResult.message || "Unable to load appointments.");
+                }
+                const requests = (requestResult.requests || []).map((item) => ({ ...item, itemType: "request" }));
+                const appointments = (appointmentResult.appointments || []).map((item) => ({
+                    ...item,
+                    itemType: "appointment"
+                }));
+                const merged = [...requests, ...appointments].sort((a, b) => {
                     const aApproved = String(a.status || "").toLowerCase() === "approved";
                     const bApproved = String(b.status || "").toLowerCase() === "approved";
                     if (aApproved !== bApproved) return aApproved ? 1 : -1;
-                    const aTime = new Date(a.createdAt || 0).getTime();
-                    const bTime = new Date(b.createdAt || 0).getTime();
+                    const aTime = new Date(a.createdAt || a.appointmentDate || a.preferredDate || 0).getTime();
+                    const bTime = new Date(b.createdAt || b.appointmentDate || b.preferredDate || 0).getTime();
                     return bTime - aTime;
                 });
-                latestRequests = requests;
-                renderRequestCards(requests);
+                latestItems = merged;
+                renderRequestCards(merged);
             } catch (_error) {
-                latestRequests = [];
+                latestItems = [];
                 requestContainer.innerHTML = "";
             }
             filterCards(true);
@@ -607,6 +650,12 @@
             if (requestEventStream) requestEventStream.close();
             requestEventStream = new EventSource(`${API_BASE_URL}/requests/events`);
             requestEventStream.addEventListener("request-updated", () => {
+                loadAdminRequests();
+            });
+
+            if (appointmentEventStream) appointmentEventStream.close();
+            appointmentEventStream = new EventSource(`${API_BASE_URL}/appointments/events`);
+            appointmentEventStream.addEventListener("appointment-updated", () => {
                 loadAdminRequests();
             });
         }

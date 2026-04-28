@@ -300,34 +300,8 @@
             <button class="btn-primary" onclick="openModal()">+ Book New Appointment</button>
         </header>
 
-        <div class="appointments-grid">
-            <div class="appointment-card">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1rem;">
-                    <div>
-                        <h2 style="font-size:1.1rem; margin-bottom:4px;">Legal Consultation</h2>
-                        <p style="color:var(--text-muted); font-size:0.85rem;">ID: #APT-7721</p>
-                    </div>
-                    <span class="status-badge status-confirmed">Confirmed</span>
-                </div>
-                <div style="display:flex; gap:15px; color:var(--text-muted); font-size:0.9rem;">
-                    <span>📅 Mar 18, 2026</span>
-                    <span>⏰ 02:00 PM</span>
-                </div>
-            </div>
-
-            <div class="appointment-card">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1rem;">
-                    <div>
-                        <h2 style="font-size:1.1rem; margin-bottom:4px;">Property Inspection</h2>
-                        <p style="color:var(--text-muted); font-size:0.85rem;">ID: #APT-8890</p>
-                    </div>
-                    <span class="status-badge status-pending">Pending Review</span>
-                </div>
-                <div style="display:flex; gap:15px; color:var(--text-muted); font-size:0.9rem;">
-                    <span>📅 Mar 25, 2026</span>
-                    <span>⏰ 10:00 AM</span>
-                </div>
-            </div>
+        <div class="appointments-grid" id="appointmentsGrid">
+            <p style="color:var(--text-muted); font-size:0.9rem;">Loading appointments...</p>
         </div>
     </main>
 
@@ -350,16 +324,16 @@
                     <div style="flex:1;">
                         <label class="form-label">Available Time Slots</label>
                         <select class="form-input" id="aptTime">
-                            <option disabled selected>Choose a slot</option>
+                            <option value="" disabled selected>Choose a slot</option>
                             <optgroup label="Morning (Pickup Only)">
-                                <option value="09:00">09:00 AM - 10:00 AM</option>
-                                <option value="10:00">10:00 AM - 11:00 AM</option>
-                                <option value="11:00">11:00 AM - 12:00 PM</option>
+                                <option value="1">09:00 AM - 10:00 AM</option>
+                                <option value="2">10:00 AM - 11:00 AM</option>
+                                <option value="3">11:00 AM - 12:00 PM</option>
                             </optgroup>
                             <optgroup label="Afternoon">
-                                <option value="01:30">01:00 PM - 02:00 PM</option>
-                                <option value="02:30">03:00 PM - 04:00 PM</option>
-                                <option value="03:30">04:00 PM - 05:00 PM</option>
+                                <option value="4">01:00 PM - 02:00 PM</option>
+                                <option value="5">03:00 PM - 04:00 PM</option>
+                                <option value="6">04:00 PM - 05:00 PM</option>
                             </optgroup>
                         </select>
                     </div>
@@ -414,6 +388,7 @@
 
     <script src="../shared/routes.js"></script>
     <script>
+        const API_BASE_URL = "http://localhost:4000";
         const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "landing.html" };
         const RESIDENT_ROUTES = window.APP_ROUTES?.resident || {};
         const logoutModal = document.getElementById("logoutModal");
@@ -441,13 +416,98 @@
         applyResidentRouteLinks();
         function openModal() { document.getElementById('bookingModal').style.display = 'flex'; }
         function closeModal() { document.getElementById('bookingModal').style.display = 'none'; }
+        function formatAppointmentDate(value) {
+            const dateObj = new Date(value || 0);
+            if (Number.isNaN(dateObj.getTime())) return "Unknown date";
+            return dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        }
+        function statusBadgeClass(status) {
+            const normalized = String(status || "").toLowerCase();
+            if (normalized === "confirmed") return "status-confirmed";
+            return "status-pending";
+        }
+        function getPurposeLabel(value) {
+            const normalized = String(value || "").toLowerCase();
+            if (normalized === "in-person") return "In-person Document Processing";
+            if (normalized === "pickup") return "Document / ID Pickup";
+            if (normalized === "consultation") return "Face-to-Face Consultation";
+            return value || "Appointment";
+        }
+        function renderAppointments(appointments) {
+            const appointmentsGrid = document.getElementById("appointmentsGrid");
+            if (!appointmentsGrid) return;
+            if (!Array.isArray(appointments) || !appointments.length) {
+                appointmentsGrid.innerHTML = `<p style="color:var(--text-muted); font-size:0.9rem;">No appointments yet. Book your first appointment.</p>`;
+                return;
+            }
+            appointmentsGrid.innerHTML = appointments.map((appointment) => `
+                <div class="appointment-card">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1rem;">
+                        <div>
+                            <h2 style="font-size:1.1rem; margin-bottom:4px;">${getPurposeLabel(appointment.purpose)}</h2>
+                            <p style="color:var(--text-muted); font-size:0.85rem;">ID: #${appointment.referenceNo || "—"}</p>
+                        </div>
+                        <span class="status-badge ${statusBadgeClass(appointment.status)}">${appointment.status || "Pending Review"}</span>
+                    </div>
+                    <div style="display:flex; gap:15px; color:var(--text-muted); font-size:0.9rem;">
+                        <span>📅 ${formatAppointmentDate(appointment.appointmentDate)}</span>
+                        <span>⏰ ${appointment.timeLabel || "Time slot pending"}</span>
+                    </div>
+                </div>
+            `).join("");
+        }
+        async function loadAppointments() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/appointments`);
+                const result = await response.json();
+                if (!response.ok || !result?.ok || !Array.isArray(result.appointments)) {
+                    throw new Error(result?.message || "Unable to load appointments.");
+                }
+                renderAppointments(result.appointments);
+            } catch (_error) {
+                const appointmentsGrid = document.getElementById("appointmentsGrid");
+                if (appointmentsGrid) {
+                    appointmentsGrid.innerHTML = `<p style="color:#b91c1c; font-size:0.9rem;">Unable to load appointments. Make sure backend is running.</p>`;
+                }
+            }
+        }
         
-        function submitBooking() {
-            openFeedbackModal(
-                "Booking Submitted",
-                "Booking submitted successfully. Awaiting office confirmation."
-            );
-            closeModal();
+        async function submitBooking() {
+            const purposeEl = document.getElementById("appointmentPurpose");
+            const aptDateEl = document.getElementById("aptDate");
+            const aptTimeEl = document.getElementById("aptTime");
+            const purpose = purposeEl?.value;
+            const appointmentDate = aptDateEl?.value;
+            const slotId = aptTimeEl?.value;
+
+            if (!purpose || !appointmentDate || !slotId) {
+                openFeedbackModal("Missing Information", "Please select a purpose, date, and time slot.");
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/appointments`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ purpose, appointmentDate, slotId })
+                });
+                const result = await response.json();
+                if (!response.ok || !result?.ok) {
+                    throw new Error(result?.message || "Unable to submit booking.");
+                }
+
+                openFeedbackModal(
+                    "Booking Submitted",
+                    "Booking submitted successfully. Awaiting office confirmation."
+                );
+                closeModal();
+                if (aptDateEl) aptDateEl.value = "";
+                if (aptTimeEl) aptTimeEl.value = "";
+                if (purposeEl) purposeEl.value = "in-person";
+                await loadAppointments();
+            } catch (_error) {
+                openFeedbackModal("Booking Failed", "Unable to submit booking right now. Please try again.");
+            }
         }
         function openLogoutModal() {
             if (logoutModal) logoutModal.style.display = 'flex';
@@ -531,6 +591,7 @@
             }
             window.location.href = COMMON_ROUTES.landing;
         });
+        loadAppointments();
     </script>
 </body>
 </html>

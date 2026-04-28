@@ -485,13 +485,22 @@
             if (upcomingAppointmentList) upcomingAppointmentList.innerHTML = `<p style="color:var(--text-muted); font-size:0.9rem;">Loading appointments...</p>`;
 
             try {
-                const response = await fetch(`${API_BASE_URL}/requests`);
-                const result = await response.json();
-                if (!response.ok || !result?.ok || !Array.isArray(result.requests)) {
-                    throw new Error(result?.message || "Unable to load dashboard data.");
+                const [requestResponse, appointmentResponse] = await Promise.all([
+                    fetch(`${API_BASE_URL}/requests`),
+                    fetch(`${API_BASE_URL}/appointments`)
+                ]);
+                const requestResult = await requestResponse.json();
+                const appointmentResult = await appointmentResponse.json();
+
+                if (!requestResponse.ok || !requestResult?.ok || !Array.isArray(requestResult.requests)) {
+                    throw new Error(requestResult?.message || "Unable to load dashboard data.");
+                }
+                if (!appointmentResponse.ok || !appointmentResult?.ok || !Array.isArray(appointmentResult.appointments)) {
+                    throw new Error(appointmentResult?.message || "Unable to load appointment data.");
                 }
 
-                const requests = result.requests.slice();
+                const requests = requestResult.requests.slice();
+                const appointments = appointmentResult.appointments.slice();
                 const now = new Date();
                 now.setHours(0, 0, 0, 0);
 
@@ -501,15 +510,15 @@
                     const status = String(r.status || "").toLowerCase();
                     return status === "in progress" || status === "processing";
                 }).length;
-                const appointmentsCount = requests.filter((r) => {
-                    const preferredDate = new Date(r.preferredDate || 0);
-                    const status = String(r.status || "").toLowerCase();
+                const appointmentsCount = appointments.filter((appointment) => {
+                    const preferredDate = new Date(appointment.appointmentDate || 0);
+                    const status = String(appointment.status || "").toLowerCase();
                     return (
                         !Number.isNaN(preferredDate.getTime()) &&
                         preferredDate >= now &&
                         status !== "rejected" &&
                         status !== "completed" &&
-                        Boolean(r.preferredTimeSlot)
+                        status !== "cancelled"
                     );
                 }).length;
 
@@ -523,21 +532,21 @@
                     const bTime = new Date(b.createdAt || b.preferredDate || 0).getTime();
                     return bTime - aTime;
                 });
-                const sortedUpcomingAppointments = requests
-                    .filter((r) => {
-                        const preferredDate = new Date(r.preferredDate || 0);
-                        const status = String(r.status || "").toLowerCase();
+                const sortedUpcomingAppointments = appointments
+                    .filter((appointment) => {
+                        const preferredDate = new Date(appointment.appointmentDate || 0);
+                        const status = String(appointment.status || "").toLowerCase();
                         return (
                             !Number.isNaN(preferredDate.getTime()) &&
                             preferredDate >= now &&
-                            Boolean(r.preferredTimeSlot) &&
                             status !== "rejected" &&
-                            status !== "completed"
+                            status !== "completed" &&
+                            status !== "cancelled"
                         );
                     })
                     .sort((a, b) => {
-                        const aTime = new Date(`${a.preferredDate || ""} ${a.preferredTimeSlot || ""}`).getTime();
-                        const bTime = new Date(`${b.preferredDate || ""} ${b.preferredTimeSlot || ""}`).getTime();
+                        const aTime = new Date(a.appointmentDate || 0).getTime();
+                        const bTime = new Date(b.appointmentDate || 0).getTime();
                         return aTime - bTime;
                     });
 
@@ -570,11 +579,11 @@
                     } else {
                         upcomingAppointmentList.innerHTML = sortedUpcomingAppointments.map((req, index) => {
                         const isHidden = index > 1 ? "item-hidden" : "";
-                        const title = req.title || req.serviceType || "Service Request";
+                        const title = req.purpose || "Appointment";
                         const reference = req.referenceNo || "—";
-                        const appointmentDate = formatDateForActivity(req.preferredDate);
-                        const slot = req.preferredTimeSlot || "Time slot pending";
-                        const currentStatus = req.status || "Pending";
+                        const appointmentDate = formatDateForActivity(req.appointmentDate);
+                        const slot = req.timeLabel || "Time slot pending";
+                        const currentStatus = req.status || "Pending Review";
                         return `
                             <div class="activity-item ${isHidden}">
                                 <div>

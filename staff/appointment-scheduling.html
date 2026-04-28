@@ -97,6 +97,31 @@
             align-items: center;
             margin: 2rem 0 1rem 0;
         }
+        .schedule-filter {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .schedule-filter label {
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            font-weight: 600;
+            letter-spacing: 0.04em;
+        }
+        .schedule-filter input[type="date"] {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 0.55rem 0.7rem;
+            font-family: inherit;
+            color: var(--text-main);
+        }
 
         .slot-grid {
             display: grid;
@@ -259,6 +284,13 @@
             <h1>Appointment Scheduling</h1>
             <p>Managing daily appointment slots and prevents overbooking</p>
         </section>
+        <div class="schedule-filter">
+            <div>
+                <label for="scheduleDateInput">View slots for date</label>
+                <p id="scheduleDateMeta" style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">Loading date...</p>
+            </div>
+            <input type="date" id="scheduleDateInput">
+        </div>
 
         <div class="section-header">
             <h2 style="font-size: 1.1rem; color: var(--text-muted);">Morning Slots (Pickup Only)</h2>
@@ -478,6 +510,7 @@
         applySessionSidebar();
 
         const bookedResidents = {};
+        let appointmentEventStream = null;
         let requestEventStream = null;
 
         // Default capacity limits (frontend-only until backed by records).
@@ -485,41 +518,110 @@
             "0900": 10, "1000": 10, "1100": 10,
             "0100": 15, "0300": 15, "0400": 15
         };
+        const slotCodeById = {
+            1: "0900",
+            2: "1000",
+            3: "1100",
+            4: "0100",
+            5: "0300",
+            6: "0400"
+        };
+        const scheduleDateInput = document.getElementById("scheduleDateInput");
+        const scheduleDateMeta = document.getElementById("scheduleDateMeta");
+        const today = new Date();
+        const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+        let selectedScheduleDate = todayISO;
 
-        function slotCodeFromTimeRange(timeRange) {
-            const normalized = String(timeRange || "")
+        function normalizeSlotRangeText(value) {
+            return String(value || "")
                 .toLowerCase()
+                .replace(/[–—]/g, "-")
+                .replace(/\bnn\b/g, "pm")
                 .replace(/\s+/g, " ")
                 .trim();
+        }
 
+        function slotCodeFromTimeRange(timeRange) {
+            const normalized = normalizeSlotRangeText(timeRange);
             if (!normalized) return null;
-            if (normalized.includes("09:00 am - 10:00 am")) return "0900";
-            if (normalized.includes("10:00 am - 11:00 am")) return "1000";
-            if (normalized.includes("11:00 am - 12:00")) return "1100";
-            if (normalized.includes("01:00 pm - 02:00 pm")) return "0100";
-            if (normalized.includes("03:00 pm - 04:00 pm")) return "0300";
-            if (normalized.includes("04:00 pm - 05:00 pm")) return "0400";
 
-            // Handle existing resident form option typo/variant.
-            if (normalized.includes("2:00 pm - 3:00 pm")) return "0300";
+            // Accept common variants with/without leading zero and known legacy options.
+            const slotPatterns = [
+                { code: "0900", patterns: ["9:00 am - 10:00 am", "09:00 am - 10:00 am"] },
+                { code: "1000", patterns: ["10:00 am - 11:00 am"] },
+                { code: "1100", patterns: ["11:00 am - 12:00 pm", "11:00 am - 12:00 nn", "11:00 am - 12:00"] },
+                { code: "0100", patterns: ["1:00 pm - 2:00 pm", "01:00 pm - 02:00 pm"] },
+                { code: "0300", patterns: ["2:00 pm - 3:00 pm", "3:00 pm - 4:00 pm", "03:00 pm - 04:00 pm"] },
+                { code: "0400", patterns: ["4:00 pm - 5:00 pm", "04:00 pm - 05:00 pm"] }
+            ];
+
+            for (const slot of slotPatterns) {
+                if (slot.patterns.some((pattern) => normalized.includes(pattern))) {
+                    return slot.code;
+                }
+            }
             return null;
         }
 
-        async function loadSlotCountsFromRequests() {
+        function updateScheduleDateMeta() {
+            if (!scheduleDateMeta) return;
+            const parsed = new Date(selectedScheduleDate);
+            if (Number.isNaN(parsed.getTime())) {
+                scheduleDateMeta.textContent = "Showing selected date";
+                return;
+            }
+            scheduleDateMeta.textContent = `Showing booked appointments and requested slots for ${parsed.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+        }
+
+        function resolveSlotCodeFromAppointment(appointment) {
+            const directCode = slotCodeById[Number(appointment?.slotId)];
+            if (directCode) return directCode;
+            return slotCodeFromTimeRange(appointment?.timeLabel);
+        }
+
+        function dateKey(value) {
+            if (!value) return "";
+            const asString = String(value);
+            if (/^\d{4}-\d{2}-\d{2}/.test(asString)) {
+                return asString.slice(0, 10);
+            }
+            const parsed = new Date(asString);
+            if (Number.isNaN(parsed.getTime())) return "";
+            return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+        }
+
+        async function loadSlotCountsFromRecords() {
             try {
-                const response = await fetch(`${API_BASE_URL}/requests`);
-                const result = await response.json();
-                if (!response.ok || !result.ok || !Array.isArray(result.requests)) {
-                    throw new Error(result.message || "Unable to load request data.");
+                const [appointmentResponse, requestResponse] = await Promise.all([
+                    fetch(`${API_BASE_URL}/appointments`),
+                    fetch(`${API_BASE_URL}/requests`)
+                ]);
+                const appointmentResult = await appointmentResponse.json();
+                const requestResult = await requestResponse.json();
+                if (!appointmentResponse.ok || !appointmentResult.ok || !Array.isArray(appointmentResult.appointments)) {
+                    throw new Error(appointmentResult.message || "Unable to load appointment data.");
+                }
+                if (!requestResponse.ok || !requestResult.ok || !Array.isArray(requestResult.requests)) {
+                    throw new Error(requestResult.message || "Unable to load request data.");
                 }
 
                 Object.keys(bookedResidents).forEach((slot) => {
                     bookedResidents[slot] = 0;
                 });
 
-                result.requests.forEach((request) => {
+                appointmentResult.appointments.forEach((appointment) => {
+                    const status = String(appointment?.status || "").toLowerCase();
+                    if (status === "rejected" || status === "cancelled") return;
+                    if (dateKey(appointment?.appointmentDate) !== selectedScheduleDate) return;
+                    const slotCode = resolveSlotCodeFromAppointment(appointment);
+                    if (!slotCode || !(slotCode in capacityLimits)) return;
+                    bookedResidents[slotCode] = (bookedResidents[slotCode] || 0) + 1;
+                });
+
+                requestResult.requests.forEach((request) => {
                     const status = String(request?.status || "").toLowerCase();
                     if (status === "rejected") return;
+                    if (dateKey(request?.preferredDate) !== selectedScheduleDate) return;
                     const slotCode = slotCodeFromTimeRange(request?.preferredTimeSlot);
                     if (!slotCode || !(slotCode in capacityLimits)) return;
                     bookedResidents[slotCode] = (bookedResidents[slotCode] || 0) + 1;
@@ -533,10 +635,16 @@
         }
 
         function connectRealtimeSlotCounts() {
+            if (appointmentEventStream) appointmentEventStream.close();
+            appointmentEventStream = new EventSource(`${API_BASE_URL}/appointments/events`);
+            appointmentEventStream.addEventListener("appointment-updated", () => {
+                loadSlotCountsFromRecords();
+            });
+
             if (requestEventStream) requestEventStream.close();
             requestEventStream = new EventSource(`${API_BASE_URL}/requests/events`);
             requestEventStream.addEventListener("request-updated", () => {
-                loadSlotCountsFromRequests();
+                loadSlotCountsFromRecords();
             });
         }
 
@@ -571,13 +679,23 @@
 
         // Apply a slot capacity change and refresh the UI.
         function updateLimit(slot, newValue) {
-            capacityLimits[slot] = parseInt(newValue);
+            const parsed = Number.parseInt(newValue, 10);
+            capacityLimits[slot] = Number.isFinite(parsed) && parsed > 0 ? parsed : capacityLimits[slot];
             syncUI();
         }
 
         // Initialize UI on load
         window.onload = function() {
-            loadSlotCountsFromRequests();
+            if (scheduleDateInput) {
+                scheduleDateInput.value = todayISO;
+                scheduleDateInput.addEventListener("change", () => {
+                    selectedScheduleDate = scheduleDateInput.value || todayISO;
+                    updateScheduleDateMeta();
+                    loadSlotCountsFromRecords();
+                });
+            }
+            updateScheduleDateMeta();
+            loadSlotCountsFromRecords();
             connectRealtimeSlotCounts();
         };
     </script>
