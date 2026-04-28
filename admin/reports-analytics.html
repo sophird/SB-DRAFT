@@ -155,6 +155,39 @@
             color: var(--text-muted);
             border-style: dashed;
         }
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1200;
+            padding: 1rem;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal-card {
+            width: 100%;
+            max-width: 420px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 20px 40px rgba(2, 6, 23, 0.2);
+        }
+        .modal-title { font-size: 1.1rem; font-weight: 700; color: var(--brand-dark); margin-bottom: 0.6rem; }
+        .modal-text { font-size: 0.92rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1.25rem; }
+        .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
+        .modal-btn {
+            border: none;
+            border-radius: 10px;
+            padding: 0.65rem 1rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .modal-btn-cancel { background: #f1f5f9; color: #334155; }
+        .modal-btn-confirm { background: #e11d48; color: white; }
     </style>
 </head>
 <body>
@@ -183,7 +216,7 @@
             </a>
         </nav>
 
-        <div onclick="handleLogout()" class="nav-item btn-logout">
+        <div onclick="handleLogout(event)" class="nav-item btn-logout">
             <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
             Logout
         </div>
@@ -254,22 +287,48 @@
             </div>
         </div>
     </main>
+    <div id="logoutModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
+        <div class="modal-card">
+            <h2 class="modal-title" id="logoutModalTitle">Confirm Logout</h2>
+            <p class="modal-text">Are you sure you want to logout from the admin portal?</p>
+            <div class="modal-actions">
+                <button type="button" class="modal-btn modal-btn-cancel" id="logoutCancelBtn">Cancel</button>
+                <button type="button" class="modal-btn modal-btn-confirm" id="logoutConfirmBtn">Logout</button>
+            </div>
+        </div>
+    </div>
 
     <script src="../shared/routes.js"></script>
     <script src="../shared/admin-access.js"></script>
     <script>
         window.SB_ADMIN_ACCESS?.requireRole("admin");
+        const logoutModal = document.getElementById("logoutModal");
+        const logoutCancelBtn = document.getElementById("logoutCancelBtn");
+        const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
 
-        function handleLogout() {
-            if(confirm("Are you sure you want to logout?")) {
-                if (window.APP_NAV?.logout) {
-                    window.APP_NAV.logout();
-                    return;
-                }
-                sessionStorage.removeItem("adminAuth");
-                window.location.href = '../admin-login.html';
-            }
+        function handleLogout(event) {
+            event?.preventDefault?.();
+            logoutModal.classList.add("show");
         }
+        function closeLogoutModal() {
+            logoutModal.classList.remove("show");
+        }
+        logoutCancelBtn?.addEventListener("click", closeLogoutModal);
+        logoutModal?.addEventListener("click", (event) => {
+            if (event.target === logoutModal) closeLogoutModal();
+        });
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") closeLogoutModal();
+        });
+        logoutConfirmBtn?.addEventListener("click", () => {
+            closeLogoutModal();
+            if (window.APP_NAV?.logout) {
+                window.APP_NAV.logout();
+                return;
+            }
+            sessionStorage.removeItem("adminAuth");
+            window.location.href = "../admin-login.html";
+        });
     </script>
 </body>
 </html>

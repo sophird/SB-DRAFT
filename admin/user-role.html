@@ -191,6 +191,7 @@
             align-items: center;
             z-index: 1000;
         }
+        .modal-overlay.show { display: flex; }
 
         /* Modal Content Box */
         .user-modal {
@@ -225,6 +226,36 @@
         }
 
         .permission-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+        .btn-danger {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .modal-card {
+            width: 100%;
+            max-width: 420px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 20px 40px rgba(2, 6, 23, 0.2);
+        }
+        .modal-title { font-size: 1.1rem; font-weight: 700; color: var(--brand-dark); margin-bottom: 0.6rem; }
+        .modal-text { font-size: 0.92rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1.25rem; }
+        .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
+        .modal-btn {
+            border: none;
+            border-radius: 10px;
+            padding: 0.65rem 1rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .modal-btn-cancel { background: #f1f5f9; color: #334155; }
+        .modal-btn-confirm { background: #e11d48; color: white; }
     </style>
 </head>
 <body>
@@ -254,7 +285,7 @@
         </nav>
         </nav>
 
-        <a href="#" class="nav-item btn-logout">
+        <a href="#" onclick="handleLogout(event)" class="nav-item btn-logout">
             <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
             Logout
         </a>
@@ -374,6 +405,28 @@
                 </div>
             </div>
         </div>
+        <div class="modal-overlay" id="appDialogModal" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
+            <div class="user-modal" style="max-width:430px;">
+                <div class="modal-header">
+                    <h2 id="appDialogTitle" style="color: var(--brand-dark);">Notice</h2>
+                </div>
+                <p id="appDialogMessage" style="color: var(--text-muted); line-height: 1.55;"></p>
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:1.4rem;">
+                    <button type="button" id="appDialogCancelBtn" style="padding:10px 20px; border:none; background:#e2e8f0; border-radius:8px; cursor:pointer;">Cancel</button>
+                    <button type="button" id="appDialogOkBtn" style="padding:10px 20px; border:none; background:var(--brand-green); color:white; border-radius:8px; cursor:pointer;">OK</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-overlay" id="logoutModal" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
+            <div class="modal-card">
+                <h2 class="modal-title" id="logoutModalTitle">Confirm Logout</h2>
+                <p class="modal-text">Are you sure you want to logout from the admin portal?</p>
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn modal-btn-cancel" id="logoutCancelBtn">Cancel</button>
+                    <button type="button" class="modal-btn modal-btn-confirm" id="logoutConfirmBtn">Logout</button>
+                </div>
+            </div>
+        </div>
     </main>
     <script src="../shared/routes.js"></script>
     <script src="../shared/admin-access.js"></script>
@@ -381,6 +434,63 @@
         window.SB_ADMIN_ACCESS?.requireRole("admin");
 
         let targetUserRow = null;
+        const appDialogModal = document.getElementById("appDialogModal");
+        const appDialogTitle = document.getElementById("appDialogTitle");
+        const appDialogMessage = document.getElementById("appDialogMessage");
+        const appDialogCancelBtn = document.getElementById("appDialogCancelBtn");
+        const appDialogOkBtn = document.getElementById("appDialogOkBtn");
+        const logoutModal = document.getElementById("logoutModal");
+        const logoutCancelBtn = document.getElementById("logoutCancelBtn");
+        const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
+
+        function showDialog(options) {
+            return new Promise((resolve) => {
+                const {
+                    title = "Notice",
+                    message = "",
+                    confirmLabel = "OK",
+                    cancelLabel = null,
+                    danger = false
+                } = options || {};
+                appDialogTitle.textContent = title;
+                appDialogMessage.textContent = message;
+                appDialogOkBtn.textContent = confirmLabel;
+                appDialogOkBtn.className = danger ? "btn-danger" : "";
+                appDialogOkBtn.style.padding = "10px 20px";
+                appDialogOkBtn.style.borderRadius = "8px";
+                appDialogOkBtn.style.cursor = "pointer";
+                appDialogOkBtn.style.background = danger ? "#dc2626" : "var(--brand-green)";
+                appDialogOkBtn.style.color = "white";
+                appDialogOkBtn.style.border = "none";
+                if (cancelLabel) {
+                    appDialogCancelBtn.style.display = "inline-flex";
+                    appDialogCancelBtn.textContent = cancelLabel;
+                } else {
+                    appDialogCancelBtn.style.display = "none";
+                }
+                const cleanup = () => {
+                    appDialogModal.style.display = "none";
+                    appDialogOkBtn.onclick = null;
+                    appDialogCancelBtn.onclick = null;
+                    appDialogModal.onclick = null;
+                };
+                appDialogOkBtn.onclick = () => {
+                    cleanup();
+                    resolve(true);
+                };
+                appDialogCancelBtn.onclick = () => {
+                    cleanup();
+                    resolve(false);
+                };
+                appDialogModal.onclick = (event) => {
+                    if (event.target === appDialogModal) {
+                        cleanup();
+                        resolve(false);
+                    }
+                };
+                appDialogModal.style.display = "flex";
+            });
+        }
 
         function openUserManage(userName, currentRole, currentStatus, rowId) {
             targetUserRow = rowId;
@@ -395,23 +505,59 @@
             document.getElementById('userManageModal').style.display = 'none';
         }
 
-        function saveUserChanges() {
+        async function saveUserChanges() {
             // Logic to update the UI table row instantly
             const newRole = document.getElementById('userRoleSelect').value;
-            const newStatus = document.getElementById('userStatusSelect').value;
-
-            alert("User account for " + targetUserRow + " has been updated to " + newRole);
+            await showDialog({
+                title: "User Updated",
+                message: "User account has been updated to " + newRole + ".",
+                confirmLabel: "OK"
+            });
             
             closeUserModal();
         }
 
         // Function for Archive User (destructive action)
-        function archiveUser(userName) {
-            if(confirm("Are you sure you want to archive " + userName + "? This will revoke all system access immediately.")) {
-                alert(userName + " has been moved to archives.");
-                // Code to remove row from table would go here
-            }
+        async function archiveUser(userName) {
+            const confirmed = await showDialog({
+                title: "Archive User",
+                message: "Are you sure you want to archive " + userName + "? This will revoke all system access immediately.",
+                confirmLabel: "Archive",
+                cancelLabel: "Cancel",
+                danger: true
+            });
+            if (!confirmed) return;
+            await showDialog({
+                title: "User Archived",
+                message: userName + " has been moved to archives.",
+                confirmLabel: "OK"
+            });
+            // Code to remove row from table would go here
         }
+
+        function handleLogout(event) {
+            event?.preventDefault?.();
+            logoutModal.classList.add("show");
+        }
+        function closeLogoutModal() {
+            logoutModal.classList.remove("show");
+        }
+        logoutCancelBtn?.addEventListener("click", closeLogoutModal);
+        logoutModal?.addEventListener("click", (event) => {
+            if (event.target === logoutModal) closeLogoutModal();
+        });
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") closeLogoutModal();
+        });
+        logoutConfirmBtn?.addEventListener("click", () => {
+            closeLogoutModal();
+            if (window.APP_NAV?.logout) {
+                window.APP_NAV.logout();
+                return;
+            }
+            sessionStorage.removeItem("adminAuth");
+            window.location.href = "../admin-login.html";
+        });
     </script>
 </body>
 </html>

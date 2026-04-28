@@ -187,6 +187,7 @@
             align-items: center;
             z-index: 1000;
         }
+        .modal-overlay.show { display: flex; }
 
         /* Modal Box */
         .modal-content {
@@ -216,6 +217,29 @@
 
         .btn-secondary { background: #e2e8f0; color: var(--text-main); border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
         .btn-save { background: var(--brand-green); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
+        .btn-save.danger { background: #dc2626; }
+        .modal-card {
+            width: 100%;
+            max-width: 420px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 20px 40px rgba(2, 6, 23, 0.2);
+        }
+        .modal-title { font-size: 1.1rem; font-weight: 700; color: var(--brand-dark); margin-bottom: 0.6rem; }
+        .modal-text { font-size: 0.92rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1.25rem; }
+        .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
+        .modal-btn {
+            border: none;
+            border-radius: 10px;
+            padding: 0.65rem 1rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .modal-btn-cancel { background: #f1f5f9; color: #334155; }
+        .modal-btn-confirm { background: #e11d48; color: white; }
     </style>
 </head>
 <body>
@@ -269,7 +293,7 @@
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h3 style="color: var(--brand-dark);">Active Services</h3>
-                <button class="btn-add">+ Add Service</button>
+                <button type="button" class="btn-add" id="btnAddService">+ Add Service</button>
             </div>
 
             <div class="table-container">
@@ -283,29 +307,45 @@
                             <th>Action</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <tr id="row-clearance">
-                            <td style="font-weight: 600;">Barangay Clearance</td>
-                            <td>Valid ID, Cedula</td>
-                            <td>1-2 Days</td>
-                            <td><span class="status-badge" style="background: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Active</span></td>
-                            <td>
-                                <button class="btn-config" onclick="openConfigure('Barangay Clearance', 'row-clearance')">Configure</button>
-                                <button class="btn-archive" onclick="archiveService('row-clearance')">Archive</button>
-                            </td>
-                        </tr>
-                        <tr id="row-indigency">
-                            <td style="font-weight: 600;">Certificate of Indigency</td>
-                            <td>Voter's ID or Brgy. ID</td>
-                            <td>Same Day</td>
-                            <td><span class="status-badge" style="background: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Active</span></td>
-                            <td>
-                                <button class="btn-config" onclick="openConfigure('Certificate of Indigency', 'row-indigency')">Configure</button>
-                                <button class="btn-archive" onclick="archiveService('row-indigency')">Archive</button>
-                            </td>
-                        </tr>
-                    </tbody>
+                    <tbody id="serviceCatalogBody"></tbody>
                 </table>
+            </div>
+        </div>
+
+        <div class="modal-overlay" id="addServiceModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 style="color: var(--brand-dark);">Add Service</h2>
+                    <button type="button" onclick="closeAddModal()" style="background:none; border:none; font-size: 1.5rem; cursor:pointer;">&times;</button>
+                </div>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="display:block; font-weight:600; margin-bottom: 5px;">Service Name</label>
+                    <input type="text" id="addServiceName" placeholder="e.g., Barangay Clearance" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px;">
+                </div>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="display:block; font-weight:600; margin-bottom: 5px;">Required Documents</label>
+                    <input type="text" id="addServiceDocs" placeholder="e.g., Valid ID, Cedula" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px;">
+                </div>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="display:block; font-weight:600; margin-bottom: 5px;">Processing Time</label>
+                    <select id="addServiceTime" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px;">
+                        <option value="Same Day">Same Day</option>
+                        <option value="1-2 Days">1-2 Working Days</option>
+                        <option value="3-5 Days">3-5 Working Days</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="display:block; font-weight:600; margin-bottom: 5px;">Service Status</label>
+                    <select id="addServiceStatus" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px;">
+                        <option value="Active">Active</option>
+                        <option value="Under Review">Under Review</option>
+                        <option value="Inactive">Inactive</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeAddModal()">Cancel</button>
+                    <button type="button" class="btn-save" onclick="submitAddService()">Add Service</button>
+                </div>
             </div>
         </div>
 
@@ -340,112 +380,340 @@
                 </div>
 
                 <div class="modal-footer">
-                    <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-                    <button class="btn-save" onclick="saveConfig()">Save Changes</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="configModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
-            <div style="background:white; padding:2rem; border-radius:16px; width:400px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
-                <h3 id="modalTitle" style="color:var(--brand-dark); margin-bottom:1.5rem;">Configure Service</h3>
-                
-                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:5px;">Change Status</label>
-                <select id="statusSelect" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:1.5rem;">
-                    <option value="Active">Active</option>
-                    <option value="Under Review">Under Review</option>
-                    <option value="Inactive">Inactive</option>
-                </select>
-
-                <div style="display:flex; justify-content:flex-end; gap:10px;">
-                    <button onclick="closeModal()" style="padding:8px 16px; border:none; background:#e2e8f0; border-radius:8px; cursor:pointer;">Cancel</button>
-                    <button onclick="saveSettings()" style="padding:8px 16px; border:none; background:var(--brand-green); color:white; border-radius:8px; cursor:pointer;">Save Changes</button>
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="button" class="btn-save" onclick="saveConfig()">Save Changes</button>
                 </div>
             </div>
         </div>
     </main>
+    <div class="modal-overlay" id="appDialogModal" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
+        <div class="modal-content" style="max-width:430px;">
+            <div class="modal-header">
+                <h2 id="appDialogTitle" style="color: var(--brand-dark);">Notice</h2>
+            </div>
+            <p id="appDialogMessage" style="color: var(--text-muted); line-height: 1.55;"></p>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" id="appDialogCancelBtn">Cancel</button>
+                <button type="button" class="btn-save" id="appDialogOkBtn">OK</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-overlay" id="logoutModal" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
+        <div class="modal-card">
+            <h2 class="modal-title" id="logoutModalTitle">Confirm Logout</h2>
+            <p class="modal-text">Are you sure you want to logout from the admin portal?</p>
+            <div class="modal-actions">
+                <button type="button" class="modal-btn modal-btn-cancel" id="logoutCancelBtn">Cancel</button>
+                <button type="button" class="modal-btn modal-btn-confirm" id="logoutConfirmBtn">Logout</button>
+            </div>
+        </div>
+    </div>
 
     <script src="../shared/routes.js"></script>
     <script src="../shared/admin-access.js"></script>
     <script>
         window.SB_ADMIN_ACCESS?.requireRole("admin");
 
+        const API_BASE_URL = "http://localhost:4000";
+        let serviceCatalogCache = [];
+        let editingServiceId = null;
+        const appDialogModal = document.getElementById("appDialogModal");
+        const appDialogTitle = document.getElementById("appDialogTitle");
+        const appDialogMessage = document.getElementById("appDialogMessage");
+        const appDialogCancelBtn = document.getElementById("appDialogCancelBtn");
+        const appDialogOkBtn = document.getElementById("appDialogOkBtn");
+        const logoutModal = document.getElementById("logoutModal");
+        const logoutCancelBtn = document.getElementById("logoutCancelBtn");
+        const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
+
+        function getAdminAccessToken() {
+            try {
+                const raw = sessionStorage.getItem("adminAuth");
+                if (!raw) return null;
+                return JSON.parse(raw)?.session?.accessToken || null;
+            } catch (_e) {
+                return null;
+            }
+        }
+
+        async function adminFetch(path, options = {}) {
+            const token = getAdminAccessToken();
+            const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+            if (token) headers.Authorization = `Bearer ${token}`;
+            return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function statusBadgeHtml(status) {
+            const s = String(status || "Active");
+            if (s === "Active") {
+                return `<span class="status-badge" style="background: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Active</span>`;
+            }
+            return `<span class="status-badge" style="background: #fff7ed; color: #ea580c; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">${escapeHtml(s)}</span>`;
+        }
+
+        function processingTimeLabel(value) {
+            const v = String(value || "");
+            if (v === "Same Day") return "Same Day";
+            if (v === "1-2 Days") return "1-2 Working Days";
+            if (v === "3-5 Days") return "3-5 Working Days";
+            return escapeHtml(v);
+        }
+
+        function syncProcessingSelect(selectEl, storedValue) {
+            if (!selectEl) return;
+            const allowed = new Set(["Same Day", "1-2 Days", "3-5 Days"]);
+            selectEl.value = allowed.has(String(storedValue)) ? String(storedValue) : "1-2 Days";
+        }
+
+        function showDialog(options) {
+            return new Promise((resolve) => {
+                const {
+                    title = "Notice",
+                    message = "",
+                    confirmLabel = "OK",
+                    cancelLabel = null,
+                    danger = false
+                } = options || {};
+                appDialogTitle.textContent = title;
+                appDialogMessage.textContent = message;
+                appDialogOkBtn.textContent = confirmLabel;
+                appDialogOkBtn.classList.toggle("danger", Boolean(danger));
+                if (cancelLabel) {
+                    appDialogCancelBtn.style.display = "inline-flex";
+                    appDialogCancelBtn.textContent = cancelLabel;
+                } else {
+                    appDialogCancelBtn.style.display = "none";
+                }
+                const cleanup = () => {
+                    appDialogModal.style.display = "none";
+                    appDialogOkBtn.onclick = null;
+                    appDialogCancelBtn.onclick = null;
+                    appDialogModal.onclick = null;
+                };
+                appDialogOkBtn.onclick = () => {
+                    cleanup();
+                    resolve(true);
+                };
+                appDialogCancelBtn.onclick = () => {
+                    cleanup();
+                    resolve(false);
+                };
+                appDialogModal.onclick = (event) => {
+                    if (event.target === appDialogModal) {
+                        cleanup();
+                        resolve(false);
+                    }
+                };
+                appDialogModal.style.display = "flex";
+            });
+        }
+
+        async function loadServices() {
+            const tbody = document.getElementById("serviceCatalogBody");
+            if (!tbody) return;
+            tbody.innerHTML =
+                '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted);">Loading services…</td></tr>';
+            const response = await adminFetch("/admin/service-catalog");
+            const result = await response.json();
+            if (!response.ok || !result?.ok) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:2rem;color:#b91c1c;">Unable to load services. Sign in as admin and apply the latest database migration.</td></tr>`;
+                return;
+            }
+            serviceCatalogCache = Array.isArray(result.services) ? result.services : [];
+            if (!serviceCatalogCache.length) {
+                tbody.innerHTML =
+                    '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted);">No active services.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = serviceCatalogCache
+                .map((svc) => {
+                    const name = escapeHtml(svc.name);
+                    const docs = escapeHtml(svc.requiredDocuments || "—");
+                    const timeLabel = processingTimeLabel(svc.processingTime);
+                    return `
+                        <tr data-service-id="${svc.id}">
+                            <td style="font-weight: 600;">${name}</td>
+                            <td>${docs}</td>
+                            <td>${timeLabel}</td>
+                            <td>${statusBadgeHtml(svc.status)}</td>
+                            <td>
+                                <button type="button" class="btn-config" data-action="configure" data-id="${svc.id}">Configure</button>
+                                <button type="button" class="btn-archive" data-action="archive" data-id="${svc.id}">Archive</button>
+                            </td>
+                        </tr>`;
+                })
+                .join("");
+
+            tbody.querySelectorAll("button[data-action]").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    const id = Number(btn.getAttribute("data-id"));
+                    const svc = serviceCatalogCache.find((s) => Number(s.id) === id);
+                    if (!svc) return;
+                    if (btn.getAttribute("data-action") === "configure") {
+                        openConfigureModal(svc);
+                    } else {
+                        archiveServiceById(svc.id);
+                    }
+                });
+            });
+        }
+
+        function openConfigureModal(svc) {
+            editingServiceId = svc.id;
+            document.getElementById("modalTitle").innerText = `Configure: ${svc.name}`;
+            document.getElementById("editDocs").value = svc.requiredDocuments || "";
+            syncProcessingSelect(document.getElementById("editTime"), svc.processingTime);
+            document.getElementById("editStatus").value = svc.status || "Active";
+            document.getElementById("configModal").style.display = "flex";
+        }
+
+        function closeModal() {
+            editingServiceId = null;
+            document.getElementById("configModal").style.display = "none";
+        }
+
+        async function saveConfig() {
+            if (!editingServiceId) {
+                closeModal();
+                return;
+            }
+            const payload = {
+                requiredDocuments: document.getElementById("editDocs").value,
+                processingTime: document.getElementById("editTime").value,
+                status: document.getElementById("editStatus").value
+            };
+            const response = await adminFetch(`/admin/service-catalog/${editingServiceId}`, {
+                method: "PATCH",
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            if (!response.ok || !result?.ok) {
+                await showDialog({
+                    title: "Save Failed",
+                    message: result?.message || result?.detail || "Unable to save changes.",
+                    confirmLabel: "OK"
+                });
+                return;
+            }
+            await showDialog({
+                title: "Saved",
+                message: "Changes saved successfully!",
+                confirmLabel: "OK"
+            });
+            closeModal();
+            loadServices();
+        }
+
+        function openAddModal() {
+            document.getElementById("addServiceName").value = "";
+            document.getElementById("addServiceDocs").value = "";
+            document.getElementById("addServiceTime").value = "1-2 Days";
+            document.getElementById("addServiceStatus").value = "Active";
+            document.getElementById("addServiceModal").style.display = "flex";
+        }
+
+        function closeAddModal() {
+            document.getElementById("addServiceModal").style.display = "none";
+        }
+
+        async function submitAddService() {
+            const name = document.getElementById("addServiceName").value.trim();
+            if (!name) {
+                await showDialog({
+                    title: "Missing Service Name",
+                    message: "Please enter a service name.",
+                    confirmLabel: "OK"
+                });
+                return;
+            }
+            const response = await adminFetch("/admin/service-catalog", {
+                method: "POST",
+                body: JSON.stringify({
+                    name,
+                    requiredDocuments: document.getElementById("addServiceDocs").value.trim(),
+                    processingTime: document.getElementById("addServiceTime").value,
+                    status: document.getElementById("addServiceStatus").value
+                })
+            });
+            const result = await response.json();
+            if (!response.ok || !result?.ok) {
+                await showDialog({
+                    title: "Add Service Failed",
+                    message: result?.message || result?.detail || "Unable to add service.",
+                    confirmLabel: "OK"
+                });
+                return;
+            }
+            closeAddModal();
+            loadServices();
+        }
+
+        async function archiveServiceById(id) {
+            const confirmed = await showDialog({
+                title: "Archive Service",
+                message: "Are you sure you want to archive this service? It will be hidden from the active list.",
+                confirmLabel: "Archive",
+                cancelLabel: "Cancel",
+                danger: true
+            });
+            if (!confirmed) {
+                return;
+            }
+            const response = await adminFetch(`/admin/service-catalog/${id}/archive`, { method: "POST" });
+            const result = await response.json();
+            if (!response.ok || !result?.ok) {
+                await showDialog({
+                    title: "Archive Failed",
+                    message: result?.message || result?.detail || "Unable to archive service.",
+                    confirmLabel: "OK"
+                });
+                return;
+            }
+            loadServices();
+        }
+
         function handleLogout(event) {
             event?.preventDefault?.();
+            logoutModal.classList.add("show");
+        }
+        function closeLogoutModal() {
+            logoutModal.classList.remove("show");
+        }
+        logoutCancelBtn?.addEventListener("click", closeLogoutModal);
+        logoutModal?.addEventListener("click", (event) => {
+            if (event.target === logoutModal) closeLogoutModal();
+        });
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") closeLogoutModal();
+        });
+        logoutConfirmBtn?.addEventListener("click", () => {
+            closeLogoutModal();
             if (window.APP_NAV?.logout) {
                 window.APP_NAV.logout();
                 return;
             }
             sessionStorage.removeItem("adminAuth");
             window.location.href = "../admin-login.html";
-        }
+        });
 
-        function openConfigure(serviceName, currentDocs, currentTime) {
-            // 1. Target the elements in your modal
-            const modal = document.getElementById('configModal');
-            const title = document.getElementById('modalTitle');
-            const docsInput = document.getElementById('editDocs');
-            const timeInput = document.getElementById('editTime');
+        document.getElementById("btnAddService")?.addEventListener("click", openAddModal);
 
-            // 2. Set the content
-            title.innerText = "Configure: " + serviceName;
-            docsInput.value = currentDocs;
-            timeInput.value = currentTime;
-            
-            // 3. Show the modal using flex (to align with your CSS)
-            modal.style.display = 'flex';
-        }
+        document.getElementById("configModal")?.addEventListener("click", (e) => {
+            if (e.target.id === "configModal") closeModal();
+        });
+        document.getElementById("addServiceModal")?.addEventListener("click", (e) => {
+            if (e.target.id === "addServiceModal") closeAddModal();
+        });
 
-        function closeModal() {
-            document.getElementById('configModal').style.display = 'none';
-        }
-
-        function saveConfig() {
-            // Here you would normally save to a database. 
-            // For now, we'll just show a success message.
-            alert("Changes saved successfully!");
-            closeModal();
-        }
-
-        let currentEditingRowId = null;
-
-        // Function for Configure Button
-        function openConfigure(serviceName, rowId) {
-            currentEditingRowId = rowId;
-            document.getElementById('modalTitle').innerText = "Configure: " + serviceName;
-            document.getElementById('configModal').style.display = 'flex';
-        }
-
-        function closeModal() {
-            document.getElementById('configModal').style.display = 'none';
-        }
-
-        function saveSettings() {
-            const newStatus = document.getElementById('statusSelect').value;
-            const statusCell = document.querySelector(`#${currentEditingRowId} td:nth-child(4)`);
-            
-            // Update the UI based on selection
-            if(newStatus === "Active") {
-                statusCell.innerHTML = `<span class="status-badge" style="background: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Active</span>`;
-            } else {
-                statusCell.innerHTML = `<span class="status-badge" style="background: #fff7ed; color: #ea580c; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">${newStatus}</span>`;
-            }
-
-            alert("Configuration Updated!");
-            closeModal();
-        }
-
-        // Function for Archive Button
-        function archiveService(rowId) {
-            if(confirm("Are you sure you want to archive this service? It will be hidden from the active list.")) {
-                const row = document.getElementById(rowId);
-                row.style.transition = "0.3s";
-                row.style.opacity = "0";
-                setTimeout(() => {
-                    row.style.display = "none";
-                }, 300);
-            }
-        }
+        loadServices();
     </script>
 </body>
 </html>

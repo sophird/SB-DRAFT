@@ -167,6 +167,79 @@
         }
 
         .btn-post:hover { background: #15803d; }
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1200;
+            padding: 1rem;
+            opacity: 0;
+            transition: opacity 0.22s ease;
+        }
+        .modal-overlay.show { display: flex; opacity: 1; }
+        .confirm-modal {
+            width: 100%;
+            max-width: 430px;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 1.25rem;
+            box-shadow: 0 18px 34px rgba(2, 6, 23, 0.25);
+            transform: translateY(8px) scale(0.98);
+            opacity: 0;
+            transition: transform 0.22s ease, opacity 0.22s ease;
+        }
+        .modal-overlay.show .confirm-modal { transform: translateY(0) scale(1); opacity: 1; }
+        .confirm-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.65rem;
+            margin-top: 1.2rem;
+        }
+        .btn-cancel {
+            background: #f1f5f9;
+            border: none;
+            border-radius: 8px;
+            padding: 0.6rem 0.95rem;
+            font-weight: 600;
+            color: #334155;
+            cursor: pointer;
+        }
+        .btn-confirm {
+            background: var(--brand-green);
+            border: none;
+            border-radius: 8px;
+            padding: 0.6rem 0.95rem;
+            font-weight: 600;
+            color: #fff;
+            cursor: pointer;
+        }
+        .btn-confirm.danger { background: #dc2626; }
+        .modal-card {
+            width: 100%;
+            max-width: 420px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 20px 40px rgba(2, 6, 23, 0.2);
+        }
+        .modal-title { font-size: 1.1rem; font-weight: 700; color: var(--brand-dark); margin-bottom: 0.6rem; }
+        .modal-text { font-size: 0.92rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1.25rem; }
+        .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
+        .modal-btn {
+            border: none;
+            border-radius: 10px;
+            padding: 0.65rem 1rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .modal-btn-cancel { background: #f1f5f9; color: #334155; }
+        .modal-btn-confirm { background: #e11d48; color: white; }
     </style>
 </head>
 <body>
@@ -195,7 +268,7 @@
             </a>
         </nav>
 
-        <div onclick="handleLogout()" class="nav-item btn-logout">
+        <div onclick="handleLogout(event)" class="nav-item btn-logout">
             <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
             Logout
         </div>
@@ -245,8 +318,8 @@
                 </div>
 
                 <div style="display: flex; gap: 10px;">
-                    <button class="btn-post" style="flex: 2;" onclick="publishAdvisory()">Publish to Community</button>
-                    <button style="flex: 1; background: #e2e8f0; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Save Draft</button>
+                    <button class="btn-post" style="flex: 2;" type="button" id="btnPublish">Publish to Community</button>
+                    <button type="button" style="flex: 1; background: #e2e8f0; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;" id="btnSaveDraft">Save Draft</button>
                 </div>
             </div>
 
@@ -266,53 +339,255 @@
         </div>
     </main>
 
+    <div id="publishConfirmModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="publishConfirmTitle">
+        <div class="confirm-modal">
+            <h3 id="publishConfirmTitle" style="font-size:1.05rem; color:var(--brand-dark); margin-bottom:0.55rem;">Post announcement now?</h3>
+            <p style="font-size:0.9rem; color:var(--text-muted); line-height:1.5;">
+                This advisory will be visible on the resident bulletin board right away.
+            </p>
+            <div class="confirm-actions">
+                <button type="button" class="btn-cancel" id="publishConfirmCancelBtn">Cancel</button>
+                <button type="button" class="btn-confirm" id="publishConfirmSubmitBtn">Post announcement</button>
+            </div>
+        </div>
+    </div>
+    <div id="publishSuccessModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="publishSuccessTitle">
+        <div class="confirm-modal">
+            <h3 id="publishSuccessTitle" style="font-size:1.05rem; color:var(--brand-dark); margin-bottom:0.55rem;">Announcement posted</h3>
+            <p style="font-size:0.9rem; color:var(--text-muted); line-height:1.5;">
+                Your advisory was posted successfully and is now visible on the resident bulletin board.
+            </p>
+            <div class="confirm-actions">
+                <button type="button" class="btn-confirm" id="publishSuccessOkBtn">OK</button>
+            </div>
+        </div>
+    </div>
+    <div id="appDialogModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
+        <div class="confirm-modal">
+            <h3 id="appDialogTitle" style="font-size:1.05rem; color:var(--brand-dark); margin-bottom:0.55rem;">Notice</h3>
+            <p id="appDialogMessage" style="font-size:0.9rem; color:var(--text-muted); line-height:1.5;"></p>
+            <div class="confirm-actions">
+                <button type="button" class="btn-cancel" id="appDialogCancelBtn">Cancel</button>
+                <button type="button" class="btn-confirm" id="appDialogOkBtn">OK</button>
+            </div>
+        </div>
+    </div>
+    <div id="logoutModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
+        <div class="modal-card">
+            <h2 class="modal-title" id="logoutModalTitle">Confirm Logout</h2>
+            <p class="modal-text">Are you sure you want to logout from the admin portal?</p>
+            <div class="modal-actions">
+                <button type="button" class="modal-btn modal-btn-cancel" id="logoutCancelBtn">Cancel</button>
+                <button type="button" class="modal-btn modal-btn-confirm" id="logoutConfirmBtn">Logout</button>
+            </div>
+        </div>
+    </div>
+
     <script src="../shared/routes.js"></script>
     <script src="../shared/admin-access.js"></script>
     <script>
         window.SB_ADMIN_ACCESS?.requireRole("admin");
 
+        const API_BASE_URL = "http://localhost:4000";
+
+        function getAdminAccessToken() {
+            try {
+                const raw = sessionStorage.getItem("adminAuth");
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                return parsed?.session?.accessToken || null;
+            } catch (_e) {
+                return null;
+            }
+        }
+
         // Real-time preview logic to enhance communication accuracy
-        const titleInput = document.getElementById('advTitle');
-        const contentInput = document.getElementById('advContent');
-        const categoryInput = document.getElementById('advCategory');
+        const titleInput = document.getElementById("advTitle");
+        const contentInput = document.getElementById("advContent");
+        const categoryInput = document.getElementById("advCategory");
+        const btnPublish = document.getElementById("btnPublish");
+        const btnSaveDraft = document.getElementById("btnSaveDraft");
+        const publishConfirmModal = document.getElementById("publishConfirmModal");
+        const publishConfirmCancelBtn = document.getElementById("publishConfirmCancelBtn");
+        const publishConfirmSubmitBtn = document.getElementById("publishConfirmSubmitBtn");
+        const publishSuccessModal = document.getElementById("publishSuccessModal");
+        const publishSuccessOkBtn = document.getElementById("publishSuccessOkBtn");
+        const appDialogModal = document.getElementById("appDialogModal");
+        const appDialogTitle = document.getElementById("appDialogTitle");
+        const appDialogMessage = document.getElementById("appDialogMessage");
+        const appDialogCancelBtn = document.getElementById("appDialogCancelBtn");
+        const appDialogOkBtn = document.getElementById("appDialogOkBtn");
+        const logoutModal = document.getElementById("logoutModal");
+        const logoutCancelBtn = document.getElementById("logoutCancelBtn");
+        const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
 
         function updatePreview() {
-            document.getElementById('previewTitle').innerText = titleInput.value || "Title Preview";
-            document.getElementById('previewText').innerText = contentInput.value || "Details will appear here as you type...";
-            document.getElementById('previewTag').innerText = categoryInput.value;
-            
-            // Dynamic colors for the preview tag
-            const tag = document.getElementById('previewTag');
-            if(categoryInput.value.includes('Emergency')) {
-                tag.style.background = '#fee2e2'; tag.style.color = '#ef4444';
-            } else if(categoryInput.value.includes('Holiday')) {
-                tag.style.background = '#dcfce7'; tag.style.color = '#16a34a';
+            document.getElementById("previewTitle").innerText = titleInput.value || "Title Preview";
+            document.getElementById("previewText").innerText = contentInput.value || "Details will appear here as you type...";
+            document.getElementById("previewTag").innerText = categoryInput.value;
+
+            const tag = document.getElementById("previewTag");
+            if (categoryInput.value.includes("Emergency")) {
+                tag.style.background = "#fee2e2";
+                tag.style.color = "#ef4444";
+            } else if (categoryInput.value.includes("Holiday")) {
+                tag.style.background = "#dcfce7";
+                tag.style.color = "#16a34a";
             } else {
-                tag.style.background = '#e0f2fe'; tag.style.color = '#0284c7';
+                tag.style.background = "#e0f2fe";
+                tag.style.color = "#0284c7";
             }
         }
 
-        titleInput.addEventListener('input', updatePreview);
-        contentInput.addEventListener('input', updatePreview);
-        categoryInput.addEventListener('change', updatePreview);
+        titleInput.addEventListener("input", updatePreview);
+        contentInput.addEventListener("input", updatePreview);
+        categoryInput.addEventListener("change", updatePreview);
+        updatePreview();
 
-        function publishAdvisory() {
-            if(!titleInput.value) {
-                alert("Please enter a title before publishing.");
+        function showDialog(options) {
+            return new Promise((resolve) => {
+                const {
+                    title = "Notice",
+                    message = "",
+                    confirmLabel = "OK",
+                    cancelLabel = null,
+                    danger = false
+                } = options || {};
+                appDialogTitle.textContent = title;
+                appDialogMessage.textContent = message;
+                appDialogOkBtn.textContent = confirmLabel;
+                appDialogOkBtn.classList.toggle("danger", Boolean(danger));
+                if (cancelLabel) {
+                    appDialogCancelBtn.style.display = "inline-flex";
+                    appDialogCancelBtn.textContent = cancelLabel;
+                } else {
+                    appDialogCancelBtn.style.display = "none";
+                }
+                const cleanup = () => {
+                    appDialogModal.classList.remove("show");
+                    appDialogOkBtn.onclick = null;
+                    appDialogCancelBtn.onclick = null;
+                    appDialogModal.onclick = null;
+                };
+                appDialogOkBtn.onclick = () => {
+                    cleanup();
+                    resolve(true);
+                };
+                appDialogCancelBtn.onclick = () => {
+                    cleanup();
+                    resolve(false);
+                };
+                appDialogModal.onclick = (event) => {
+                    if (event.target === appDialogModal) {
+                        cleanup();
+                        resolve(false);
+                    }
+                };
+                appDialogModal.classList.add("show");
+            });
+        }
+
+        btnSaveDraft?.addEventListener("click", async () => {
+            await showDialog({ title: "Save Draft", message: "Draft saving is not available yet.", confirmLabel: "OK" });
+        });
+
+        function openPublishConfirmModal() {
+            publishConfirmModal?.classList.add("show");
+        }
+
+        function closePublishConfirmModal() {
+            publishConfirmModal?.classList.remove("show");
+        }
+        function openPublishSuccessModal() {
+            publishSuccessModal?.classList.add("show");
+        }
+        function closePublishSuccessModal() {
+            publishSuccessModal?.classList.remove("show");
+        }
+
+        async function publishAdvisory() {
+            if (!titleInput.value.trim()) {
+                await showDialog({ title: "Missing Title", message: "Please enter a title before publishing.", confirmLabel: "OK" });
                 return;
             }
-            alert("Announcement Published Successfully to the Community Portal!");
-        }
-        function handleLogout() {
-            if(confirm("Are you sure you want to logout?")) {
-                if (window.APP_NAV?.logout) {
-                    window.APP_NAV.logout();
-                    return;
+            if (!contentInput.value.trim()) {
+                await showDialog({ title: "Missing Details", message: "Please enter announcement details before publishing.", confirmLabel: "OK" });
+                return;
+            }
+            const token = getAdminAccessToken();
+            if (!token) {
+                await showDialog({ title: "Session Expired", message: "Your session expired. Please sign in again.", confirmLabel: "OK" });
+                return;
+            }
+            btnPublish.disabled = true;
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/announcements`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        category: categoryInput.value,
+                        title: titleInput.value.trim(),
+                        body: contentInput.value.trim()
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.ok) {
+                    throw new Error(result.message || result.detail || "Unable to post announcement.");
                 }
-                sessionStorage.removeItem("adminAuth");
-                window.location.href = '../admin-login.html';
+                titleInput.value = "";
+                contentInput.value = "";
+                updatePreview();
+                openPublishSuccessModal();
+            } catch (err) {
+                await showDialog({
+                    title: "Publish Failed",
+                    message: err.message || "Failed to publish. Ensure the API is running and the database migration is applied.",
+                    confirmLabel: "OK"
+                });
+            } finally {
+                btnPublish.disabled = false;
             }
         }
+
+        btnPublish?.addEventListener("click", openPublishConfirmModal);
+        publishConfirmCancelBtn?.addEventListener("click", closePublishConfirmModal);
+        publishConfirmModal?.addEventListener("click", (event) => {
+            if (event.target === publishConfirmModal) closePublishConfirmModal();
+        });
+        publishSuccessOkBtn?.addEventListener("click", closePublishSuccessModal);
+        publishSuccessModal?.addEventListener("click", (event) => {
+            if (event.target === publishSuccessModal) closePublishSuccessModal();
+        });
+        publishConfirmSubmitBtn?.addEventListener("click", async () => {
+            closePublishConfirmModal();
+            await publishAdvisory();
+        });
+        function handleLogout(event) {
+            event?.preventDefault?.();
+            logoutModal?.classList.add("show");
+        }
+        function closeLogoutModal() {
+            logoutModal?.classList.remove("show");
+        }
+        logoutCancelBtn?.addEventListener("click", closeLogoutModal);
+        logoutModal?.addEventListener("click", (event) => {
+            if (event.target === logoutModal) closeLogoutModal();
+        });
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") closeLogoutModal();
+        });
+        logoutConfirmBtn?.addEventListener("click", () => {
+            closeLogoutModal();
+            if (window.APP_NAV?.logout) {
+                window.APP_NAV.logout();
+                return;
+            }
+            sessionStorage.removeItem("adminAuth");
+            window.location.href = "../admin-login.html";
+        });
     </script>
 </body>
 </html>
