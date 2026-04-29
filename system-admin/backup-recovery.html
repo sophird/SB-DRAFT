@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backup & Recovery | SerbisyoBurgos</title>
+    <link rel="icon" type="image/png" href="SB.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --brand-green: #16a34a;
+            --brand-dark: #043d2e;
+            --bg-light: #f8fafc;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --sidebar-width: 260px;
+            --white: #ffffff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-light); color: var(--text-main); display: flex; min-height: 100vh; }
+
+        aside {
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: var(--white);
+            border-right: 1px solid #e2e8f0;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0.5rem;
+            margin-bottom: 1.5rem;
+            text-decoration: none;
+            transition: transform 0.2s;
+        }
+
+        .sidebar-header:hover { transform: translateX(4px); }
+        .sidebar-header img { width: 40px; height: 40px; object-fit: contain; }
+        .sidebar-header span {
+            font-weight: 800;
+            font-size: 1.25rem;
+            color: var(--brand-dark);
+            letter-spacing: 0.8px;
+        }
+
+        nav { flex: 1; }
+        .nav-item {
+            display: flex; align-items: center; gap: 12px; padding: 0.75rem 1rem;
+            text-decoration: none; color: var(--text-muted); border-radius: 10px;
+            margin-bottom: 0.5rem; font-weight: 500; transition: all 0.2s;
+        }
+        .nav-item:hover, .nav-item.active { background: #f0fdf4; color: var(--brand-green); }
+        .nav-item svg { width: 20px; height: 20px; }
+
+        .btn-logout { margin-top: auto; color: #ef4444; cursor: pointer; }
+
+        main { margin-left: var(--sidebar-width); flex: 1; padding: 2.5rem; width: calc(100% - var(--sidebar-width)); }
+
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .user-profile {
+            display: flex; align-items: center; gap: 12px; background: var(--white);
+            padding: 6px 16px 6px 6px; border-radius: 30px; border: 1px solid #e2e8f0;
+        }
+        .user-avatar {
+            width: 35px; height: 35px; background: var(--brand-green); color: white;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700;
+        }
+
+        .card {
+            background: var(--white); padding: 2rem; border-radius: 16px;
+            border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            width: 100%; margin-bottom: 2rem;
+        }
+
+        .btn-primary {
+            background: var(--brand-green); color: white; border: none;
+            padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;
+        }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th { text-align: left; padding: 12px; border-bottom: 2px solid #f1f5f9; color: var(--text-muted); font-size: 0.85rem; }
+        td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
+        .badge-green { background: #dcfce7; color: #166534; }
+        .badge-red { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+    <aside>
+            <div class="sidebar-header">
+            <img src="SB.png" alt="Logo">
+            <span>SerbisyoBurgos</span>
+        </div>
+        <nav>
+            <a href="rbac.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                </svg>
+                <span>Role-Based Access Control</span>
+            </a>
+
+            <a href="audit-logs.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                </svg>
+                <span>Audit Trail & Activity Logs</span>
+            </a>
+
+            <a href="sys-config.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                <span>Configuration & Maintenance</span>
+            </a>
+
+            <a href="backup-recovery.html" class="nav-item active">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <span>Data Backup & Recovery</span>
+            </a>
+        </nav>
+        <div onclick="handleLogout()" class="nav-item btn-logout">Logout</div>
+    </aside>
+
+    <main>
+        <div class="top-bar">
+            <div>
+                <h1 style="color: var(--brand-dark); font-weight: 800; font-size: 1.75rem;">Data Backup and Recovery</h1>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Implement scheduled backups and restore mechanisms.</p>
+            </div>
+            <div class="user-profile">
+                <div class="user-avatar">SA</div>
+                <div style="line-height: 1.2;">
+                    <p style="font-weight: 700; font-size: 0.85rem;">System Admin</p>
+                    <p style="font-size: 0.75rem; color: var(--text-muted);">IT Personnel</p>
+                </div>
+            </div>
+        </div>
+        
+<div class="card" style="border-left: 5px solid var(--brand-green);">
+    <h3 style="color: var(--brand-dark);">Instant Backup</h3>
+    <p style="color: var(--text-muted); margin: 0.5rem 0 1.5rem;">Create a manual snapshot of the current system state and database.</p>
+    <button class="btn-primary">Generate Full Backup (.sql/.zip)</button>
+</div>
+<div class="card">
+    <h3 style="color: var(--brand-dark); margin-bottom: 1.5rem;">Backup History</h3>
+    <table>
+        <thead>
+            <tr><th>Snapshot Date</th><th>Size</th><th>Created By</th><th>Type</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>2026-04-26 02:00:00</td><td>450 MB</td><td>System (Auto)</td><td>Scheduled</td><td><a href="#" style="color: var(--brand-green); text-decoration: none; font-weight: 600;">Restore</a></td></tr>
+            <tr><td>2026-04-25 02:00:00</td><td>448 MB</td><td>System (Auto)</td><td>Scheduled</td><td><a href="#" style="color: var(--brand-green); text-decoration: none; font-weight: 600;">Restore</a></td></tr>
+        </tbody>
+    </table>
+</div>
+
+    </main>
+    <script>
+        function handleLogout() {
+            if(confirm("Logout from System Admin Portal?")) window.location.href = "admin-login.html";
+        }
+    </script>
+</body>
+</html>
