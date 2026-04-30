@@ -175,16 +175,62 @@
         /* MAIN CONTENT AREA */
         main { margin-left: var(--sidebar-width); flex-grow: 1; padding: 2.5rem; min-height: 100vh; }
         
-        .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
-        .btn-new { background: var(--brand-green); color: white; border: none; padding: 0.8rem 1.8rem; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.3s; box-shadow: 0 4px 12px rgba(22, 163, 74, 0.2); }
-        .btn-new:hover { background: var(--brand-dark); transform: translateY(-2px); }
+        .header-section {
+            background: #ffffff; /* White background */
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            border-left: 6px solid #5f9632; /* Green accent bar */
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        .welcome-icon-wrapper {
+            width: 56px;
+            height: 56px;
+            background-color: #5f9632; /* Solid green icon background */
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .welcome-icon-wrapper svg {
+            color: white;
+            width: 28px;
+            height: 28px;
+        }
+        
+        .btn-new {
+            background-color: #5f9632; /* Primary Green */
+            color: white;
+            height: 45px; 
+            padding: 0 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-new:hover {
+            background-color: #4d7a28; /* Darker green on hover */
+        }
 
         /* TABLE STYLES */
         .request-toolbar {
-            display: grid;
-            grid-template-columns: 1fr 220px;
-            gap: 0.8rem;
-            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 1.5rem;
         }
         .toolbar-input,
         .toolbar-select {
@@ -207,6 +253,9 @@
         .requests-table th { padding: 1.2rem 1rem; text-align: left; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; border-bottom: 2px solid #f8fafc; }
         .requests-table td { padding: 1.2rem 1rem; border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; }
         
+        #requestSearchInput { flex: 2; }
+        #requestStatusFilter { flex: 1; }
+
         .status-badge { padding: 6px 14px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
         .status-pending { background: #fef9c3; color: #854d0e; }
         .status-processing { background: #dbeafe; color: #1d4ed8; }
@@ -458,32 +507,47 @@
 
     <main>
         <div class="header-section">
-            <div>
-                <h1>Service Requests</h1>
-                <p style="color: var(--text-muted); margin-top: 4px;">Manage and track your service requests</p>
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <div class="welcome-icon-wrapper">
+                <!-- Copied Service Request Icon from Sidebar -->
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
             </div>
-            <button class="btn-new" onclick="openModal()">+ New Request</button>
+            <div>
+                <h1 style="font-size: 1.5rem; margin: 0;">Service Requests</h1>
+                <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 4px;">Manage and track your service requests</p>
+            </div>
         </div>
+    </div>
 
         <div class="request-toolbar">
-            <input
-                id="requestSearchInput"
-                class="toolbar-input"
-                type="text"
-                placeholder="Search by reference or title..."
-            >
-            <select id="requestStatusFilter" class="toolbar-select">
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="processing">Processing</option>
-                <option value="in progress">In Progress</option>
-                <option value="approved">Approved</option>
-                <option value="revision requested">Revision Requested</option>
-                <option value="ready for pickup">Ready for Pickup</option>
-                <option value="completed">Completed</option>
-                <option value="rejected">Rejected</option>
-            </select>
-        </div>
+        <input
+            id="requestSearchInput"
+            class="toolbar-input"
+            type="text"
+            placeholder="Search by reference or title..."
+        >
+        <select id="requestStatusFilter" class="toolbar-select">
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+            <option value="approved">Approved</option>
+            <option value="revision requested">Revision Requested</option>
+            <option value="ready for pickup">Ready for Pickup</option>
+            <option value="completed">Completed</option>
+            <option value="rejected">Rejected</option>
+        </select>
+
+        <button class="btn-new" onclick="openModal()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            New Request
+        </button>
+    </div>
 
         <div class="content-card">
             <table class="requests-table">
@@ -497,7 +561,8 @@
                     </tr>
                 </thead>
                 <tbody id="requestTableBody">
-                    </tbody>
+                    <!-- Populated by JavaScript -->
+                </tbody>
             </table>
         </div>
     </main>
