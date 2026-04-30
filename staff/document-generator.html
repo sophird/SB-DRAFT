@@ -44,7 +44,13 @@
             font-size: 1.25rem;
         }
 
-        .sidebar-header img { width: 32px; }
+        .sidebar-header img {
+            width: 32px;
+            border-radius: 50%;
+            background: white;
+            padding: 3px;
+            border: 3px solid var(--brand-dark);
+        }
 
         nav { flex-grow: 1; padding: 1rem; }
 
@@ -60,11 +66,6 @@
         .nav-link.active { background: #f0fdf4; color: var(--brand-green); font-weight: 600; }
 
         .sidebar-footer { padding: 1.5rem; border-top: 1px solid #f1f5f9; margin-top: auto; }
-        .user-profile { display: flex; align-items: center; gap: 12px; padding: 0.5rem; border-radius: 8px; margin-bottom: 1rem; }
-        .user-avatar { width: 40px; height: 40px; background: #f0fdf4; color: var(--brand-green); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; }
-        .user-info { display: flex; flex-direction: column; }
-        .user-name { font-size: 0.9rem; font-weight: 600; }
-        .user-role { font-size: 0.75rem; color: var(--text-muted); }
 
         .logout-btn {
             width: 100%;
@@ -83,8 +84,60 @@
             margin-top: 10px;
         }
 
+        /* Sidebar theme */
+        aside {
+            background: #5f9632;
+            border-right: 1px solid rgba(4, 61, 46, 0.18);
+        }
+        .sidebar-header {
+            padding: 1.75rem 1.25rem 1.25rem;
+            flex-direction: column;
+            justify-content: center;
+            gap: 0.75rem;
+            color: white;
+            font-weight: 800;
+            text-align: center;
+        }
+        .sidebar-header img {
+            width: 54px !important;
+            height: 54px !important;
+            object-fit: contain;
+        }
+        .nav-link { color: rgba(255, 255, 255, 0.9); }
+        .nav-link:hover { background: #4f7f29; color: white; transform: none; opacity: 1; }
+        .nav-link.active { background: #426c22; color: white; }
+        .logout-btn { background: rgba(255, 255, 255, 0.14); color: white; }
+        .logout-btn:hover,
+        .logout-btn:focus-visible { background: #b91c1c; }
+        .sidebar-footer { border-top-color: rgba(255, 255, 255, 0.18); }
+
         /* MAIN CONTENT */
         main { margin-left: var(--sidebar-width); flex-grow: 1; padding: 2.5rem; display: flex; flex-direction: column; gap: 2rem; }
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--white);
+            padding: 6px 16px 6px 6px;
+            border-radius: 30px;
+            border: 1px solid #e2e8f0;
+        }
+        .user-avatar {
+            width: 35px;
+            height: 35px;
+            background: var(--brand-green);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
         
         .header-section h1 { font-size: 1.875rem; color: var(--brand-dark); font-weight: 700; }
         
@@ -164,7 +217,7 @@
         .modal-btn-confirm { background: #e11d48; color: white; }
 
         @media print {
-            aside, .config-panel, .header-section { display: none !important; }
+            aside, .config-panel, .top-bar { display: none !important; }
             main { margin-left: 0; padding: 0; }
             .preview-panel { background: none; padding: 0; }
             .certificate-page { box-shadow: none; border: none; }
@@ -214,13 +267,6 @@
             </a>
         </nav>
         <div class="sidebar-footer">
-            <div class="user-profile">
-                <div class="user-avatar" id="sidebarUserAvatar">—</div>
-                <div class="user-info">
-                    <span class="user-name" id="sidebarUserName">Admin</span>
-                    <span class="user-role" id="sidebarUserRole">Administrator</span>
-                </div>
-            </div>
             <a href="landing.html" class="logout-btn" id="adminLogoutBtn">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -233,10 +279,20 @@
     </aside>
 
     <main>
-        <section class="header-section">
-            <h1>Document Generator</h1>
-            <p>Standardize and generate printable certificates instantly.</p>
-        </section>
+        <div class="top-bar">
+            <section class="header-section">
+                <h1>Document Generator</h1>
+                <p>Standardize and generate printable certificates instantly.</p>
+            </section>
+
+            <div class="user-profile">
+                <div class="user-avatar" id="topbarUserAvatar">ST</div>
+                <div style="line-height: 1.2;">
+                    <p id="topbarUserName" style="font-weight: 700; font-size: 0.85rem;">Staff</p>
+                    <p id="topbarUserRole" style="font-size: 0.75rem; color: var(--text-muted);">Personnel</p>
+                </div>
+            </div>
+        </div>
 
         <div class="generator-container">
             <div class="config-panel">
@@ -336,7 +392,7 @@
         function roleLabel(role) {
             if (role === "system-admin") return "System Admin";
             if (role === "admin") return "Barangay Admin";
-            if (role === "staff") return "Barangay Staff";
+            if (role === "staff") return "Personnel";
             return role || "Staff";
         }
 
@@ -375,13 +431,13 @@
                 }
                 await verifyBackendRole("staff", accessToken);
                 const display = user.fullName || user.email || "Admin";
-                const nameEl = document.getElementById("sidebarUserName");
-                const avatarEl = document.getElementById("sidebarUserAvatar");
-                const roleEl = document.getElementById("sidebarUserRole");
+                const nameEl = document.getElementById("topbarUserName");
+                const avatarEl = document.getElementById("topbarUserAvatar");
+                const roleEl = document.getElementById("topbarUserRole");
                 const homeLink = document.getElementById("dashboardHomeLink");
-                if (nameEl) nameEl.textContent = display;
-                if (avatarEl) avatarEl.textContent = initialsFromName(user.fullName || user.email || "");
-                if (roleEl) roleEl.textContent = roleLabel(user.role);
+                if (nameEl) nameEl.textContent = "Staff";
+                if (avatarEl) avatarEl.textContent = "ST";
+                if (roleEl) roleEl.textContent = "Personnel";
                 if (homeLink) homeLink.href = STAFF_ROUTES.dashboard;
             } catch (_e) { window.location.href = STAFF_ROUTES.login; }
         }

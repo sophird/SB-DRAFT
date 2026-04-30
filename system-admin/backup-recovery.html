@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Backup & Recovery | SerbisyoBurgos</title>
-    <link rel="icon" type="image/png" href="SB.png">
+    <link rel="icon" type="image/png" href="../asset/SB.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
     <style>
         :root {
             --brand-green: #16a34a;
@@ -20,65 +21,165 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Inter', sans-serif; background-color: var(--bg-light); color: var(--text-main); display: flex; min-height: 100vh; }
 
+        /* SIDEBAR NAVIGATION */
         aside {
             width: var(--sidebar-width);
             height: 100vh;
-            background: var(--white);
+            background: white;
             border-right: 1px solid #e2e8f0;
-            padding: 1rem;
+            position: fixed;
             display: flex;
             flex-direction: column;
-            position: fixed;
             z-index: 100;
         }
 
         .sidebar-header {
+            padding: 1.5rem;
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 0.5rem;
-            margin-bottom: 1.5rem;
-            text-decoration: none;
-            transition: transform 0.2s;
+            font-weight: 700;
+            color: var(--brand-dark);
+            font-size: 1.25rem;
         }
 
-        .sidebar-header:hover { transform: translateX(4px); }
-        .sidebar-header img { width: 40px; height: 40px; object-fit: contain; }
-        .sidebar-header span {
-            font-weight: 800;
-            font-size: 1.25rem;
-            color: var(--brand-dark);
-            letter-spacing: 0.8px;
+        .sidebar-header img {
+            width: 32px;
+            border-radius: 50%;
+            background: white;
+            padding: 3px;
+            border: 3px solid var(--brand-dark);
         }
+        nav { flex-grow: 1; padding: 1rem; }
 
         nav { flex: 1; }
         .nav-item {
-            display: flex; align-items: center; gap: 12px; padding: 0.75rem 1rem;
-            text-decoration: none; color: var(--text-muted); border-radius: 10px;
-            margin-bottom: 0.5rem; font-weight: 500; transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0.75rem 1rem;
+            text-decoration: none;
+            color: var(--text-muted);
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            transition: all 0.2s;
         }
-        .nav-item:hover, .nav-item.active { background: #f0fdf4; color: var(--brand-green); }
+
+        .nav-item:hover, .nav-item.active {
+            background: #f0fdf4;
+            color: var(--brand-green);
+        }
+
         .nav-item svg { width: 20px; height: 20px; }
 
-        .btn-logout { margin-top: auto; color: #ef4444; cursor: pointer; }
+        .sidebar-footer {
+            padding: 1.5rem;
+            border-top: 1px solid #f1f5f9;
+            margin-top: auto;
+        }
 
-        main { margin-left: var(--sidebar-width); flex: 1; padding: 2.5rem; width: calc(100% - var(--sidebar-width)); }
+        .logout-btn {
+            width: 100%;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #fff1f2;
+            color: #e11d48;
+            border-radius: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            border: none;
+            margin-top: 10px;
+        }
 
-        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .logout-btn:hover {
+            background: #ffe4e6;
+        }
+
+        /* Sidebar theme */
+        aside {
+            background: #5f9632;
+            border-right: 1px solid rgba(4, 61, 46, 0.18);
+        }
+.sidebar-header {
+            padding: 1.75rem 1.25rem 1.25rem;
+            flex-direction: column;
+            justify-content: center;
+            gap: 0.75rem;
+            color: white;
+            font-weight: 800;
+            text-align: center;
+        }
+        .sidebar-header img {
+            width: 54px !important;
+            height: 54px !important;
+            object-fit: contain;
+        }
+        .nav-item { color: rgba(255, 255, 255, 0.9); }
+        .nav-item:hover, .nav-item.active { background: #426c22; color: white; }
+        .nav-item:hover:not(.active) { background: #4f7f29; }
+        .logout-btn { background: rgba(255, 255, 255, 0.14); color: white; }
+        .logout-btn:hover,
+        .logout-btn:focus-visible { background: #b91c1c; }
+        .sidebar-footer { border-top-color: rgba(255, 255, 255, 0.18); }
+
+        /* MAIN CONTENT AREA */
+        main {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            padding: 2rem;
+        }
+
+        /* HEADER & USER PROFILE */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
         .user-profile {
-            display: flex; align-items: center; gap: 12px; background: var(--white);
-            padding: 6px 16px 6px 6px; border-radius: 30px; border: 1px solid #e2e8f0;
-        }
-        .user-avatar {
-            width: 35px; height: 35px; background: var(--brand-green); color: white;
-            border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--white);
+            padding: 6px 16px 6px 6px;
+            border-radius: 30px;
+            border: 1px solid #e2e8f0;
         }
 
+        .user-avatar {
+            width: 35px;
+            height: 35px;
+            background: var(--brand-green);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
+
+        /* DASHBOARD CARDS */
         .card {
             background: var(--white); padding: 2rem; border-radius: 16px;
             border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
             width: 100%; margin-bottom: 2rem;
         }
+
+        .page-title {
+            color: var(--brand-dark); font-weight: 800; font-size: 1.75rem;
+        }
+
+        .page-subtitle {
+            color: var(--text-muted); font-size: 0.9rem;
+        }
+
+        h3 { color: var(--brand-dark); margin-bottom: 1rem; }
 
         .btn-primary {
             background: var(--brand-green); color: white; border: none;
@@ -94,9 +195,10 @@
     </style>
 </head>
 <body>
+
     <aside>
-            <div class="sidebar-header">
-            <img src="SB.png" alt="Logo">
+        <div class="sidebar-header">
+            <img src="../asset/SB.png" alt="Logo">
             <span>SerbisyoBurgos</span>
         </div>
         <nav>
@@ -129,14 +231,24 @@
                 <span>Data Backup & Recovery</span>
             </a>
         </nav>
-        <div onclick="handleLogout()" class="nav-item btn-logout">Logout</div>
+
+        <div class="sidebar-footer">
+            <a href="../landing.html" class="logout-btn" onclick="handleLogout(event)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span>Logout</span>
+            </a>
+        </div>
     </aside>
 
     <main>
         <div class="top-bar">
             <div>
-                <h1 style="color: var(--brand-dark); font-weight: 800; font-size: 1.75rem;">Data Backup and Recovery</h1>
-                <p style="color: var(--text-muted); font-size: 0.9rem;">Implement scheduled backups and restore mechanisms.</p>
+                <h1 class="page-title">Data Backup and Recovery</h1>
+                <p class="page-subtitle">Implement scheduled backups and restore mechanisms.</p>
             </div>
             <div class="user-profile">
                 <div class="user-avatar">SA</div>
@@ -147,28 +259,31 @@
             </div>
         </div>
         
-<div class="card" style="border-left: 5px solid var(--brand-green);">
-    <h3 style="color: var(--brand-dark);">Instant Backup</h3>
-    <p style="color: var(--text-muted); margin: 0.5rem 0 1.5rem;">Create a manual snapshot of the current system state and database.</p>
-    <button class="btn-primary">Generate Full Backup (.sql/.zip)</button>
-</div>
-<div class="card">
-    <h3 style="color: var(--brand-dark); margin-bottom: 1.5rem;">Backup History</h3>
-    <table>
-        <thead>
-            <tr><th>Snapshot Date</th><th>Size</th><th>Created By</th><th>Type</th><th>Action</th></tr>
-        </thead>
-        <tbody>
-            <tr><td>2026-04-26 02:00:00</td><td>450 MB</td><td>System (Auto)</td><td>Scheduled</td><td><a href="#" style="color: var(--brand-green); text-decoration: none; font-weight: 600;">Restore</a></td></tr>
-            <tr><td>2026-04-25 02:00:00</td><td>448 MB</td><td>System (Auto)</td><td>Scheduled</td><td><a href="#" style="color: var(--brand-green); text-decoration: none; font-weight: 600;">Restore</a></td></tr>
-        </tbody>
-    </table>
-</div>
+        <div class="card" style="border-left: 5px solid var(--brand-green);">
+            <h3>Instant Backup</h3>
+            <p style="color: var(--text-muted); margin: 0.5rem 0 1.5rem;">Create a manual snapshot of the current system state and database.</p>
+            <button class="btn-primary">Generate Full Backup (.sql/.zip)</button>
+        </div>
+        
+        <div class="card">
+            <h3>Backup History</h3>
+            <table>
+                <thead>
+                    <tr><th>Snapshot Date</th><th>Size</th><th>Created By</th><th>Type</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>2026-04-26 02:00:00</td><td>450 MB</td><td>System (Auto)</td><td>Scheduled</td><td><a href="#" style="color: var(--brand-green); text-decoration: none; font-weight: 600;">Restore</a></td></tr>
+                    <tr><td>2026-04-25 02:00:00</td><td>448 MB</td><td>System (Auto)</td><td>Scheduled</td><td><a href="#" style="color: var(--brand-green); text-decoration: none; font-weight: 600;">Restore</a></td></tr>
+                </tbody>
+            </table>
+        </div>
 
     </main>
+
     <script>
-        function handleLogout() {
-            if(confirm("Logout from System Admin Portal?")) window.location.href = "admin-login.html";
+        function handleLogout(event) {
+            event?.preventDefault?.();
+            if(confirm("Logout from System Admin Portal?")) window.location.href = "../landing.html";
         }
     </script>
 </body>
