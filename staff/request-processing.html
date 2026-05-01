@@ -596,6 +596,18 @@
         });
         applySessionSidebar();
 
+        function staffApiHeaders() {
+            try {
+                const raw = sessionStorage.getItem("adminAuth");
+                if (!raw) return {};
+                const { session } = JSON.parse(raw);
+                const t = session?.accessToken;
+                return t ? { Authorization: `Bearer ${t}` } : {};
+            } catch (_err) {
+                return {};
+            }
+        }
+
         let selectedAction = null;
         let latestActionNode = null;
         let activeRequestId = null;
@@ -801,15 +813,21 @@ const revisionActionBtn = document.querySelector('.btn-info');
 
                 if (activeItemType === "appointment") {
                     if (targetRequestId) {
-                        response = await fetch(`${API_BASE_URL}/appointments/${encodeURIComponent(targetRequestId)}`);
+                        response = await fetch(`${API_BASE_URL}/appointments/${encodeURIComponent(targetRequestId)}`, {
+                            headers: staffApiHeaders()
+                        });
                         result = await response.json();
                     }
                     if ((!response || !response.ok || !result?.ok || !result?.appointment) && targetReferenceNo) {
-                        response = await fetch(`${API_BASE_URL}/appointments/by-reference/${encodeURIComponent(targetReferenceNo)}`);
+                        response = await fetch(`${API_BASE_URL}/appointments/by-reference/${encodeURIComponent(targetReferenceNo)}`, {
+                            headers: staffApiHeaders()
+                        });
                         result = await response.json();
                     }
                 } else if (targetRequestId) {
-                    response = await fetch(`${API_BASE_URL}/requests/${encodeURIComponent(targetRequestId)}`);
+                    response = await fetch(`${API_BASE_URL}/requests/${encodeURIComponent(targetRequestId)}`, {
+                        headers: staffApiHeaders()
+                    });
                     result = await response.json();
                 }
 
@@ -818,13 +836,17 @@ const revisionActionBtn = document.querySelector('.btn-info');
                     (!response || !response.ok || !result?.ok || !result?.request) &&
                     targetReferenceNo
                 ) {
-                    response = await fetch(`${API_BASE_URL}/requests/by-reference/${encodeURIComponent(targetReferenceNo)}`);
+                    response = await fetch(`${API_BASE_URL}/requests/by-reference/${encodeURIComponent(targetReferenceNo)}`, {
+                        headers: staffApiHeaders()
+                    });
                     result = await response.json();
                 }
 
                 // Last fallback: load full list and resolve by id/reference client-side.
                 if (activeItemType === "appointment" && (!response || !response.ok || !result?.ok || !result?.appointment)) {
-                    response = await fetch(`${API_BASE_URL}/appointments`);
+                    response = await fetch(`${API_BASE_URL}/appointments`, {
+                        headers: staffApiHeaders()
+                    });
                     result = await response.json();
                     if (response.ok && result?.ok && Array.isArray(result.appointments)) {
                         const found = result.appointments.find((item) => {
@@ -838,7 +860,9 @@ const revisionActionBtn = document.querySelector('.btn-info');
                     }
                 }
                 if (activeItemType !== "appointment" && (!response || !response.ok || !result?.ok || !result?.request)) {
-                    response = await fetch(`${API_BASE_URL}/requests`);
+                    response = await fetch(`${API_BASE_URL}/requests`, {
+                        headers: staffApiHeaders()
+                    });
                     result = await response.json();
                     if (response.ok && result?.ok && Array.isArray(result.requests)) {
                         const found = result.requests.find((item) => {
@@ -883,7 +907,7 @@ const revisionActionBtn = document.querySelector('.btn-info');
                 : `${API_BASE_URL}/requests/${encodeURIComponent(activeRequestId)}/status`;
             const response = await fetch(endpoint, {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...staffApiHeaders() },
                 body: JSON.stringify({ status, note })
             });
             const result = await response.json();

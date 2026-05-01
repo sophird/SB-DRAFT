@@ -542,6 +542,29 @@ color: white;
 
         applySessionSidebar();
 
+        function staffApiHeaders() {
+            try {
+                const raw = sessionStorage.getItem("adminAuth");
+                if (!raw) return {};
+                const { session } = JSON.parse(raw);
+                const t = session?.accessToken;
+                return t ? { Authorization: `Bearer ${t}` } : {};
+            } catch (_err) {
+                return {};
+            }
+        }
+
+        function staffSseUrl(path) {
+            try {
+                const raw = sessionStorage.getItem("adminAuth");
+                const t = raw ? JSON.parse(raw).session?.accessToken : null;
+                if (!t) return path;
+                return `${path}${path.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(t)}`;
+            } catch (_err) {
+                return path;
+            }
+        }
+
         let requestEventStream = null;
         let appointmentEventStream = null;
         let latestItems = [];
@@ -671,8 +694,8 @@ color: white;
         async function loadAdminRequests() {
             try {
                 const [requestResponse, appointmentResponse] = await Promise.all([
-                    fetch(`${API_BASE_URL}/requests`),
-                    fetch(`${API_BASE_URL}/appointments`)
+                    fetch(`${API_BASE_URL}/requests`, { headers: staffApiHeaders() }),
+                    fetch(`${API_BASE_URL}/appointments`, { headers: staffApiHeaders() })
                 ]);
                 const requestResult = await requestResponse.json();
                 const appointmentResult = await appointmentResponse.json();
@@ -706,13 +729,13 @@ color: white;
 
         function connectRealtimeRequests() {
             if (requestEventStream) requestEventStream.close();
-            requestEventStream = new EventSource(`${API_BASE_URL}/requests/events`);
+            requestEventStream = new EventSource(staffSseUrl(`${API_BASE_URL}/requests/events`));
             requestEventStream.addEventListener("request-updated", () => {
                 loadAdminRequests();
             });
 
             if (appointmentEventStream) appointmentEventStream.close();
-            appointmentEventStream = new EventSource(`${API_BASE_URL}/appointments/events`);
+            appointmentEventStream = new EventSource(staffSseUrl(`${API_BASE_URL}/appointments/events`));
             appointmentEventStream.addEventListener("appointment-updated", () => {
                 loadAdminRequests();
             });
