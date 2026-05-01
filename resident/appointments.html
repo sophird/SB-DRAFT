@@ -539,15 +539,32 @@
             });
         }
         applyResidentRouteLinks();
-        function openModal() { document.getElementById('bookingModal').style.display = 'flex'; }
+        function openModal() {
+            const modal = document.getElementById('bookingModal');
+            if (modal) modal.style.display = 'flex';
+            const aptDateEl = document.getElementById("aptDate");
+            if (aptDateEl?.value) {
+                refreshAppointmentSlotsForDate(aptDateEl.value);
+            }
+        }
         function closeModal() { document.getElementById('bookingModal').style.display = 'none'; }
         function formatAppointmentDate(value) {
             const dateObj = new Date(value || 0);
             if (Number.isNaN(dateObj.getTime())) return "Unknown date";
             return dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
         }
+
+        function escapeHtmlText(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
 function statusBadgeClass(status) {
             const normalized = String(status || "").toLowerCase();
+            if (normalized === "processing" || normalized === "in progress") return "status-approved";
             if (normalized === "confirmed") return "status-confirmed";
             if (normalized === "approved") return "status-approved";
             if (normalized === "revisions" || normalized === "revision requested") return "status-revisions";
@@ -619,6 +636,10 @@ function renderAppointments(appointments) {
                 }
             }
         }
+
+        document.getElementById("aptDate")?.addEventListener("change", (event) => {
+            refreshAppointmentSlotsForDate(event.target?.value);
+        });
         
         async function submitBooking() {
             const purposeEl = document.getElementById("appointmentPurpose");
@@ -653,8 +674,37 @@ function renderAppointments(appointments) {
                 if (aptTimeEl) aptTimeEl.value = "";
                 if (purposeEl) purposeEl.value = "in-person";
                 await loadAppointments();
+            } catch (error) {
+                openFeedbackModal("Booking Failed", error?.message || "Unable to submit booking right now. Please try again.");
+            }
+        }
+
+        async function refreshAppointmentSlotsForDate(dateValue) {
+            const aptTimeEl = document.getElementById("aptTime");
+            if (!aptTimeEl) return;
+            const appointmentDate = String(dateValue || "").trim();
+            if (!appointmentDate) return;
+
+            aptTimeEl.innerHTML = `<option value="" disabled selected>Loading slots...</option>`;
+
+            try {
+                const response = await residentApiFetch(`${API_BASE_URL}/appointment-slots?date=${encodeURIComponent(appointmentDate)}`);
+                const result = await response.json();
+                if (!response.ok || !result?.ok || !Array.isArray(result.slots)) {
+                    throw new Error(result?.message || "Unable to load slots.");
+                }
+
+                const afternoonCodes = new Set(["0100", "0300", "0400"]);
+                const afternoon = result.slots.filter((s) => afternoonCodes.has(String(s?.code || "")));
+                const options = afternoon.map((slot) => {
+                    const disabled = slot.isFull ? "disabled" : "";
+                    const suffix = slot.isFull ? " (Full)" : "";
+                    return `<option value="${String(slot.id)}" ${disabled}>${escapeHtmlText(slot.label || "Time")}${suffix}</option>`;
+                });
+
+                aptTimeEl.innerHTML = `<option value="" disabled selected>Select Time...</option><optgroup label="Afternoon">${options.join("")}</optgroup>`;
             } catch (_error) {
-                openFeedbackModal("Booking Failed", "Unable to submit booking right now. Please try again.");
+                aptTimeEl.innerHTML = `<option value="" disabled selected>Select Time...</option>`;
             }
         }
         function openLogoutModal() {
