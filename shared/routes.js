@@ -16,13 +16,17 @@
     return "";
   }
 
+  const normalizedPath = normalizePathname(globalScope.location?.pathname);
   const rootPrefix = computeRootPrefix(globalScope.location?.pathname);
+  const inResidentFolder = normalizedPath.includes("/resident/");
+  const residentFolderPrefix = inResidentFolder ? "" : "resident/";
+
   const ROUTES = {
     common: {
       landing: `${rootPrefix}landing.html`
     },
     entry: {
-      residentLogin: `${rootPrefix}resident/resident-login.html`,
+      residentLogin: `${rootPrefix}resident-login.html`,
       staffLogin: `${rootPrefix}admin-login.html`
     },
     staff: {
@@ -35,15 +39,15 @@
     },
     systemAdmin: {
       login: `${rootPrefix}admin-login.html`,
-      dashboard: `${rootPrefix}system-admin/sysad-dashboard.html`
+      dashboard: `${rootPrefix}system-admin/sys-config.html`
     },
     resident: {
-      login: "resident-login.html",
-      dashboard: "dashboard.html",
-      serviceRequests: "service-requests.html",
-      appointments: "appointments.html",
-      notifications: "notifications.html",
-      requestHistory: "request-history.html"
+      login: `${rootPrefix}resident-login.html`,
+      dashboard: `${residentFolderPrefix}dashboard.html`,
+      serviceRequests: `${residentFolderPrefix}service-requests.html`,
+      appointments: `${residentFolderPrefix}appointments.html`,
+      notifications: `${residentFolderPrefix}notifications.html`,
+      requestHistory: `${residentFolderPrefix}request-history.html`
     }
   };
 
