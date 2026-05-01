@@ -63,7 +63,7 @@
 
     const welcomeEl = global.document.getElementById("residentWelcomeHeading");
     if (welcomeEl && user) {
-      welcomeEl.textContent = `Welcome back, ${display}!`;
+      welcomeEl.textContent = `Welcome, ${display}!`;
     }
   }
 

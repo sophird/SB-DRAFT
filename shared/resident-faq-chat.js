@@ -37,11 +37,29 @@
     if (!body || body.dataset.faqChatReady === "1") return;
     body.dataset.faqChatReady = "1";
     body.innerHTML = "";
-    const w = doc.createElement("div");
-    w.className = "msg msg-ai faq-chat-reply";
-    w.textContent =
-      "Hi! I'm your SB AI! For updates, always check your Bulletin Board to be notified into the current programs/activities of the barangay!\n\nI'm here to help you, what do you like to ask?";
-    body.appendChild(w);
+    const w1 = doc.createElement("div");
+    w1.className = "msg msg-ai faq-chat-reply";
+    w1.innerHTML =
+      `Hi! I'm your SB AI! For updates, always check your Bulletin Board to be notified into the current programs/activities of the barangay!` +
+      `<br><i>Hi! Ako ang iyong SB AI! Para sa updates, palaging tignan ang inyong Bulletin Board para malaman ang mga kasalukuyang programa/aktibidad ng barangay!</i>`;
+    body.appendChild(w1);
+    scrollChatToBottom();
+
+    global.setTimeout(() => {
+      // If the chat was re-seeded or removed, skip.
+      const latestBody = qs("chatBody");
+      if (!latestBody || latestBody.dataset.faqChatReady !== "1") return;
+      if (latestBody.dataset.faqChatSecondWelcome === "1") return;
+      latestBody.dataset.faqChatSecondWelcome = "1";
+
+      const w2 = doc.createElement("div");
+      w2.className = "msg msg-ai faq-chat-reply";
+      w2.innerHTML =
+        `I'm here to help you, what do you like to ask?` +
+        `<br><i>Nandito ako para tulungan ka, ano ang gusto mong itanong?</i>`;
+      latestBody.appendChild(w2);
+      scrollChatToBottom();
+    }, 5000);
   }
 
   function scrollChatToBottom() {
