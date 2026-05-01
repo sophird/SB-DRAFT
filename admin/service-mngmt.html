@@ -382,7 +382,7 @@
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label style="display:block; font-weight:600; margin-bottom: 5px;">Service Name</label>
                     <input type="text" id="addServiceName" placeholder="e.g., Barangay Clearance" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px;">
-                </div>
+                </div> 
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label style="display:block; font-weight:600; margin-bottom: 5px;">Required Documents</label>
                     <input type="text" id="addServiceDocs" placeholder="e.g., Valid ID, Cedula" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px;">
@@ -392,7 +392,6 @@
                     <select id="addServiceTime" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px;">
                         <option value="Same Day">Same Day</option>
                         <option value="1-2 Days">1-2 Working Days</option>
-                        <option value="3-5 Days">3-5 Working Days</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -427,7 +426,6 @@
                     <select id="editTime" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px;">
                         <option value="Same Day">Same Day</option>
                         <option value="1-2 Days">1-2 Working Days</option>
-                        <option value="3-5 Days">3-5 Working Days</option>
                     </select>
                 </div>
 
@@ -525,13 +523,12 @@
             const v = String(value || "");
             if (v === "Same Day") return "Same Day";
             if (v === "1-2 Days") return "1-2 Working Days";
-            if (v === "3-5 Days") return "3-5 Working Days";
             return escapeHtml(v);
         }
 
         function syncProcessingSelect(selectEl, storedValue) {
             if (!selectEl) return;
-            const allowed = new Set(["Same Day", "1-2 Days", "3-5 Days"]);
+            const allowed = new Set(["Same Day", "1-2 Days"]);
             selectEl.value = allowed.has(String(storedValue)) ? String(storedValue) : "1-2 Days";
         }
 
