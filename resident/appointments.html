@@ -361,9 +361,9 @@
         </nav>
         <div class="sidebar-footer">
             <div class="user-profile">
-                <div class="user-avatar">SD</div>
+                <div class="user-avatar" id="residentSidebarAvatar" aria-hidden="true">?</div>
                 <div class="user-info">
-                    <span class="user-name">Sophia Dumayas</span>
+                    <span class="user-name" id="residentSidebarName">Resident</span>
                     <span class="user-role">Resident</span>
                 </div>
             </div>
@@ -516,6 +516,7 @@
     </div>
 
     <script src="../shared/routes.js"></script>
+    <script src="../shared/resident-sidebar-profile.js"></script>
     <script>
         const API_BASE_URL = "http://localhost:4000";
         const RESIDENT_CONTEXT_KEY = "residentContext";

@@ -257,6 +257,10 @@
         #requestStatusFilter { flex: 1; }
 
 .status-badge { padding: 6px 14px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+        .status-cell-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+        .pickup-appointment-hint { font-size: 0.78rem; color: #64748b; line-height: 1.4; max-width: 280px; }
+        .pickup-appointment-hint a { color: var(--brand-green); font-weight: 600; text-decoration: underline; cursor: pointer; }
+        .pickup-appointment-hint a:hover { color: #15803d; }
         .status-pending { background: #ffedd5; color: #ea580c; }
         .status-processing { background: #dcfce7; color: #16a34a; }
         .status-pickup { background: #dbeafe; color: #2563eb; }
@@ -486,9 +490,9 @@
         </nav>
         <div class="sidebar-footer">
             <div class="user-profile">
-                <div class="user-avatar">SD</div>
+                <div class="user-avatar" id="residentSidebarAvatar" aria-hidden="true">?</div>
                 <div class="user-info">
-                    <span class="user-name">Sophia Dumayas</span>
+                    <span class="user-name" id="residentSidebarName">Resident</span>
                     <span class="user-role">Resident</span>
                 </div>
             </div>
@@ -645,7 +649,7 @@
             </div>
             <div style="margin-top:1rem; display:grid; grid-template-columns:1fr 1fr; gap:0.9rem 1.2rem;">
                 <div><p style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Reference</p><p id="viewRefNo">—</p></div>
-                <div><p style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Status</p><p id="viewStatus">—</p></div>
+                <div><p style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Status</p><p id="viewStatus">—</p><div id="viewPickupHint" class="pickup-appointment-hint" style="display:none;"></div></div>
                 <div><p style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Title</p><p id="viewTitle">—</p></div>
                 <div><p style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Date Submitted</p><p id="viewSubmittedDate">—</p></div>
                 <div style="grid-column: 1 / -1;"><p style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Preferred Slot</p><p id="viewPreferredSlot">—</p></div>
@@ -742,6 +746,7 @@
     </div>
 
     <script src="../shared/routes.js"></script>
+    <script src="../shared/resident-sidebar-profile.js"></script>
     <script>
         const API_BASE_URL = "http://localhost:4000";
         const RESIDENT_CONTEXT_KEY = 'residentContext';
@@ -785,6 +790,7 @@
         const viewRequestModal = document.getElementById('viewRequestModal');
         const viewRefNo = document.getElementById('viewRefNo');
         const viewStatus = document.getElementById('viewStatus');
+        const viewPickupHint = document.getElementById('viewPickupHint');
         const viewTitle = document.getElementById('viewTitle');
         const viewSubmittedDate = document.getElementById('viewSubmittedDate');
         const viewPreferredSlot = document.getElementById('viewPreferredSlot');
@@ -940,12 +946,25 @@
             const supportingPreviewValue = supportingPreviewMap[request.referenceNo] || [];
             const supportingPreviewEntries = Array.isArray(supportingPreviewValue) ? supportingPreviewValue : [];
 
-            if (viewRefNo) viewRefNo.textContent = `#${request.referenceNo || '—'}`;
+            if (viewRefNo) viewRefNo.textContent = request.referenceNo ? `#${request.referenceNo}` : "Not assigned";
             if (viewStatus) viewStatus.textContent = request.status || 'Pending';
+            if (viewPickupHint) {
+                if (String(request.status || "").toLowerCase() === "ready for pickup") {
+                    const apptUrl = RESIDENT_ROUTES.appointments || "appointments.html";
+                    viewPickupHint.innerHTML = `Book an <a href="${escapeHtmlText(apptUrl)}">appointment</a> for when you want to pick it up.`;
+                    viewPickupHint.style.display = "block";
+                } else {
+                    viewPickupHint.innerHTML = "";
+                    viewPickupHint.style.display = "none";
+                }
+            }
             if (viewTitle) viewTitle.textContent = request.title || request.serviceType || 'Service Request';
             if (viewSubmittedDate) viewSubmittedDate.textContent = formatDate(request.createdAt || request.preferredDate);
             if (viewPreferredSlot) {
-                viewPreferredSlot.textContent = `${request.preferredDate || '—'} • ${request.preferredTimeSlot || '—'}`;
+                const d = request.preferredDate || "";
+                const t = request.preferredTimeSlot || "";
+                if (!d && !t) viewPreferredSlot.textContent = "Not specified";
+                else viewPreferredSlot.textContent = `${d || "Date TBD"}${t ? ` · ${t}` : ""}`;
             }
             if (viewSupportingDocsList) {
                 viewSupportingDocsList.innerHTML = '';
@@ -1127,10 +1146,28 @@
         }
 
         function formatDate(dateValue) {
-            if (!dateValue) return "—";
+            if (!dateValue) return "Not recorded";
             const dateObj = new Date(dateValue);
             if (Number.isNaN(dateObj.getTime())) return String(dateValue);
             return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+
+        function escapeHtmlText(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function buildRequestStatusCellHtml(req) {
+            const statusText = String(req.status || "Pending");
+            const escaped = escapeHtmlText(statusText);
+            const cls = statusClass(req.status);
+            const badge = `<span class="status-badge ${cls}">${escaped}</span>`;
+            if (String(req.status || "").toLowerCase() !== "ready for pickup") return badge;
+            const apptUrl = RESIDENT_ROUTES.appointments || "appointments.html";
+            return `<div class="status-cell-stack">${badge}<div class="pickup-appointment-hint">Book an <a href="${escapeHtmlText(apptUrl)}">appointment</a> for when you want to pick it up.</div></div>`;
         }
 
 function statusClass(status) {
@@ -1203,7 +1240,7 @@ function statusClass(status) {
                             : ''}
                     </td>
                     <td>${formatDate(req.createdAt || req.preferredDate)}</td>
-                    <td><span class="status-badge ${statusClass(req.status)}">${req.status || "Pending"}</span></td>
+                    <td>${buildRequestStatusCellHtml(req)}</td>
                     <td style="text-align: right;">
                         <button class="btn-action" onclick="openViewRequestModal('${req.id}')">View</button>
                         <button class="btn-delete" onclick="openDeleteModal('${req.id}')" title="Delete Request">
