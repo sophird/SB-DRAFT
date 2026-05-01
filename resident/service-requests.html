@@ -573,15 +573,19 @@
                 <button onclick="closeModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
             </div>
             
-            <form id="serviceForm">
+<form id="serviceForm">
                 <div class="form-grid">
-<div class="form-group">
+                    <div class="form-group">
+                        <label>Resident Name *</label>
+                        <input type="text" id="reqResidentName" placeholder="Type name...">
+                    </div>
+                    <div class="form-group">
                         <label>Service Type *</label>
                         <select id="reqType" required>
                             <option value="" disabled selected>Select Service...</option>
                             <option>Barangay Clearance</option>
-                            <option>Maintenance Request</option>
-                            <option>Permit Application</option>
+                            <option>Certificate of Indigency</option>
+                            <option>Certificate of Residency</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -883,7 +887,27 @@
             });
         }
 
-        function openModal() { document.getElementById('requestModal').style.display = 'flex'; }
+async function populateResidentNameField() {
+            const residentNameInput = document.getElementById('reqResidentName');
+            if (!residentNameInput) return;
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/resident/context`);
+                const result = await response.json();
+                if (!response.ok || !result?.ok) {
+                    throw new Error(result?.message || 'Unable to load resident context.');
+                }
+                const fullName = result.fullName || result.name || result.residentName || 'Resident';
+                residentNameInput.value = fullName;
+            } catch (error) {
+                residentNameInput.value = 'Unknown Resident';
+            }
+        }
+        
+        function openModal() { 
+            populateResidentNameField();
+            document.getElementById('requestModal').style.display = 'flex'; 
+        }
         function closeModal() { document.getElementById('requestModal').style.display = 'none'; }
         function openUploadSuccessModal(message) {
             if (uploadSuccessText) uploadSuccessText.textContent = message;
