@@ -296,25 +296,79 @@
 
         <div class="generator-container">
             <div class="config-panel">
-                <div class="form-group">
+<div class="form-group">
                     <label>Document Type</label>
-                    <select id="docType">
+                    <select id="docType" onchange="updateFormFields()">
                         <option value="Barangay Clearance">Barangay Clearance</option>
                         <option value="Certificate of Indigency">Certificate of Indigency</option>
-                        <option value="Barangay Residency">Barangay Residency</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>Resident Full Name</label>
-                    <input type="text" id="resName" placeholder="Enter name..." onkeyup="updatePreview()">
+
+                <!-- Barangay Clearance Fields -->
+                <div id="clearanceFields">
+                    <div class="form-group">
+                        <label>Resident Full Name</label>
+                        <input type="text" id="resName" placeholder="Enter full name..." onkeyup="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>Address</label>
+                        <input type="text" id="resAddress" placeholder="Enter address..." onkeyup="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Birth</label>
+                        <input type="date" id="resDateOfBirth" onchange="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>Place of Birth</label>
+                        <input type="text" id="resPlaceOfBirth" placeholder="Enter place of birth..." onkeyup="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>Civil Status</label>
+                        <select id="resCivilStatus" onchange="updatePreview()">
+                            <option value="">Select...</option>
+                            <option value="Single">Single</option>
+                            <option value="Married">Married</option>
+                            <option value="Widowed">Widowed</option>
+                            <option value="Separated">Separated</option>
+                            <option value="Cohabiting">Cohabiting</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Gender</label>
+                        <select id="resGender" onchange="updatePreview()">
+                            <option value="">Select...</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Purpose</label>
+                        <input type="text" id="docPurpose" placeholder="e.g. Employment" onkeyup="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Issue</label>
+                        <input type="date" id="issueDate" onchange="updatePreview()">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Purpose</label>
-                    <input type="text" id="docPurpose" placeholder="e.g. Employment" onkeyup="updatePreview()">
-                </div>
-                <div class="form-group">
-                    <label>Date of Issue</label>
-                    <input type="date" id="issueDate" onchange="updatePreview()">
+
+                <!-- Certificate of Indigency Fields -->
+                <div id="indigencyFields" style="display: none;">
+                    <div class="form-group">
+                        <label>Resident Full Name</label>
+                        <input type="text" id="resNameIndigency" placeholder="Enter full name..." onkeyup="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>Resident Surname</label>
+                        <input type="text" id="resSurname" placeholder="Enter surname..." onkeyup="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>Purpose</label>
+                        <input type="text" id="docPurposeIndigency" placeholder="e.g. Scholarship" onkeyup="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Issue</label>
+                        <input type="date" id="issueDateIndigency" onchange="updatePreview()">
+                    </div>
                 </div>
 
                 <button class="btn-generate" onclick="window.print()">
@@ -322,7 +376,7 @@
                 </button>
             </div>
 
-            <div class="preview-panel">
+<div class="preview-panel">
                 <div class="certificate-page" id="printableCert">
                     <div class="cert-header">
                         <h3>REPUBLIC OF THE PHILIPPINES</h3>
@@ -333,12 +387,25 @@
 
                     <h1 class="cert-title" id="previewTitle">BARANGAY CLEARANCE</h1>
 
-                    <div class="cert-body">
+                    <!-- Clearance Certificate Content -->
+                    <div id="clearanceContent" class="cert-body">
                         <p>TO WHOM IT MAY CONCERN:</p><br>
-                        <p>This is to certify that <strong id="previewName">[RESIDENT NAME]</strong>, of legal age, is a bona fide resident of Barangay Burgos.</p><br>
+                        <p>This is to certify that <strong id="previewName">[RESIDENT NAME]</strong>, of legal age, <span id="previewGender">Male</span>, is a bona fide resident of <span id="previewAddress">[ADDRESS]</span>.</p><br>
+                        <p>Date of Birth: <span id="previewDateOfBirth">[DATE OF BIRTH]</span></p>
+                        <p>Place of Birth: <span id="previewPlaceOfBirth">[PLACE OF BIRTH]</span></p>
+                        <p>Civil Status: <span id="previewCivilStatus">[CIVIL STATUS]</span></p><br>
                         <p>Based on our records, the above-named person has no derogatory records or criminal cases filed against him/her in this office as of this date.</p><br>
                         <p>This certification is being issued upon the request of the interested party for <strong><span id="previewPurpose">[PURPOSE]</span></strong>.</p><br>
                         <p>Issued this <span id="previewDate">[DATE]</span> at Barangay Burgos.</p>
+                    </div>
+
+                    <!-- Indigency Certificate Content (hidden by default) -->
+                    <div id="indigencyContent" class="cert-body" style="display: none;">
+                        <p>TO WHOM IT MAY CONCERN:</p><br>
+                        <p>This is to certify that <strong id="previewNameIndigency">[RESIDENT NAME]</strong> of legal age and a bonafide resident of Purok, Street, Barangay Burgos, San Marcelino, Zambales is categorized that his/her family belongs to an INDIGENT sector of the community.</p><br>
+                        <p>It further certifies that based on our survey that has been conducted the family of <strong><span id="previewSurname">[SURNAME]</span></strong> does not exceed the Annual Regional Poverty Threshold Level as determined by the National Economic & Development Authority and under survival level, and found to be indigent.</p><br>
+                        <p>This certification is being issued upon the request of above-named person as requirement in availing for <strong><span id="previewPurposeIndigency">[PURPOSE]</span></strong>.</p><br>
+                        <p>Issued this <span id="previewDateIndigency">[DATE]</span> at Barangay Burgos, San Marcelino, Zambales.</p>
                     </div>
 
                     <div class="cert-footer">
@@ -477,23 +544,77 @@
         });
         applySessionSidebar();
 
+// Show/hide form fields and preview based on document type
+        function updateFormFields() {
+            const docType = document.getElementById('docType').value;
+            const clearanceFields = document.getElementById('clearanceFields');
+            const indigencyFields = document.getElementById('indigencyFields');
+            const clearanceContent = document.getElementById('clearanceContent');
+            const indigencyContent = document.getElementById('indigencyContent');
+            
+            if (docType === "Barangay Clearance") {
+                clearanceFields.style.display = "block";
+                indigencyFields.style.display = "none";
+                clearanceContent.style.display = "block";
+                indigencyContent.style.display = "none";
+            } else if (docType === "Certificate of Indigency") {
+                clearanceFields.style.display = "none";
+                indigencyFields.style.display = "block";
+                clearanceContent.style.display = "none";
+                indigencyContent.style.display = "block";
+            }
+            updatePreview();
+        }
+
         // Reflect current form values in the printable certificate preview.
         function updatePreview() {
-            document.getElementById('previewTitle').innerText = document.getElementById('docType').value.toUpperCase();
-            document.getElementById('previewName').innerText = document.getElementById('resName').value || "[RESIDENT NAME]";
-            document.getElementById('previewPurpose').innerText = document.getElementById('docPurpose').value || "[PURPOSE]";
+            const docType = document.getElementById('docType').value;
+            document.getElementById('previewTitle').innerText = docType.toUpperCase();
             
-            const dateVal = document.getElementById('issueDate').value;
-            if(dateVal) {
-                const dateObj = new Date(dateVal);
-                document.getElementById('previewDate').innerText = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-            } else {
-                document.getElementById('previewDate').innerText = "[DATE]";
+            if (docType === "Barangay Clearance") {
+                // Update clearance preview fields
+                document.getElementById('previewName').innerText = document.getElementById('resName').value || "[RESIDENT NAME]";
+                document.getElementById('previewAddress').innerText = document.getElementById('resAddress').value || "[ADDRESS]";
+                document.getElementById('previewGender').innerText = document.getElementById('resGender').value || "[GENDER]";
+                
+                // Format date of birth
+                const dobVal = document.getElementById('resDateOfBirth').value;
+                if(dobVal) {
+                    const dobObj = new Date(dobVal);
+                    document.getElementById('previewDateOfBirth').innerText = dobObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                } else {
+                    document.getElementById('previewDateOfBirth').innerText = "[DATE OF BIRTH]";
+                }
+                
+                document.getElementById('previewPlaceOfBirth').innerText = document.getElementById('resPlaceOfBirth').value || "[PLACE OF BIRTH]";
+                document.getElementById('previewCivilStatus').innerText = document.getElementById('resCivilStatus').value || "[CIVIL STATUS]";
+                document.getElementById('previewPurpose').innerText = document.getElementById('docPurpose').value || "[PURPOSE]";
+                
+                const dateVal = document.getElementById('issueDate').value;
+                if(dateVal) {
+                    const dateObj = new Date(dateVal);
+                    document.getElementById('previewDate').innerText = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                } else {
+                    document.getElementById('previewDate').innerText = "[DATE]";
+                }
+            } else if (docType === "Certificate of Indigency") {
+                // Update indigency preview fields
+                document.getElementById('previewNameIndigency').innerText = document.getElementById('resNameIndigency').value || "[RESIDENT NAME]";
+                document.getElementById('previewSurname').innerText = document.getElementById('resSurname').value || "[SURNAME]";
+                document.getElementById('previewPurposeIndigency').innerText = document.getElementById('docPurposeIndigency').value || "[PURPOSE]";
+                
+                const dateVal = document.getElementById('issueDateIndigency').value;
+                if(dateVal) {
+                    const dateObj = new Date(dateVal);
+                    document.getElementById('previewDateIndigency').innerText = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                } else {
+                    document.getElementById('previewDateIndigency').innerText = "[DATE]";
+                }
             }
         }
 
         // Initialize preview
-        window.onload = updatePreview;
+        window.onload = updateFormFields;
     </script>
 </body>
 </html>
