@@ -218,20 +218,36 @@
 
         .btn-primary:hover { background: #4d7a28; }
 
-        .section-heading {
+.section-heading {
             font-size: 1.1rem;
             font-weight: 700;
             color: var(--brand-dark);
             margin-bottom: 1.25rem;
             display: block;
         }
-        
-        /* APPOINTMENT CARDS */
-        .appointments-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1.5rem; }
-        .appointment-card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 1.5rem; position: relative; }
-        .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+
+        /* TABLE STYLES */
+        .content-card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .appointments-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        .appointments-table th { padding: 1.2rem 1rem; text-align: left; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; border-bottom: 2px solid #f8fafc; }
+        .appointments-table td { padding: 1.2rem 1rem; border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; }
+
+        /* STATUS BADGES */
+        .status-badge { padding: 6px 14px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
         .status-confirmed { background: #f0fdf4; color: #16a34a; }
         .status-pending { background: #fff7ed; color: #ea580c; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+        .status-revision { background: #fef3c7; color: #92400e; }
+        .status-revisions { background: #fef3c7; color: #92400e; }
+        .status-ready { background: #f0fdf4; color: #16a34a; }
+        .status-completed { background: #f1f5f9; color: #475569; }
+        .status-rejected { background: #fee2e2; color: #991b1b; }
+
+        /* ACTION BUTTONS */
+        .btn-delete {
+            background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 8px; border-radius: 50%; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center;
+        }
+        .btn-delete:hover { background: #fee2e2; color: #ef4444; }
 
         /* MODAL STYLES */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
@@ -386,8 +402,21 @@
             </button>
         </div>
 
-        <div class="appointments-grid" id="appointmentsGrid">
-            <p style="color:var(--text-muted); font-size:0.9rem;">Loading appointments...</p>
+<div class="content-card">
+            <table class="appointments-table">
+                <thead>
+                    <tr>
+                        <th>Reference ID</th>
+                        <th>Request Title</th>
+                        <th>Date Submitted</th>
+                        <th>Status</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="appointmentsTableBody">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
         </div>
     </main>
 
@@ -462,12 +491,26 @@
             </div>
         </div>
     </div>
-    <div id="feedbackModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
+<div id="feedbackModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
         <div class="modal">
             <h2 id="feedbackModalTitle" style="margin-bottom:0.75rem; font-size:1.1rem;">Notice</h2>
             <p id="feedbackModalText" style="color: var(--text-muted); margin-bottom: 1.25rem;">Operation completed.</p>
             <div style="display:flex; justify-content:flex-end;">
                 <button id="feedbackModalOkBtn" type="button" style="padding:0.65rem 1rem; border-radius:10px; border:none; background:var(--brand-green); color:white; cursor:pointer;">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="deleteModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+        <div class="modal">
+            <div style="width: 64px; height: 64px; background: #fee2e2; color: #ef4444; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem;">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </div>
+            <h2 id="deleteModalTitle" style="text-align:center; margin-bottom:0.75rem; font-size:1.1rem;">Confirm Deletion</h2>
+            <p style="color: var(--text-muted); text-align:center; margin-bottom: 1.5rem;">Are you sure you want to delete this appointment? This action cannot be undone.</p>
+            <div style="display: flex; gap: 12px; justify-content: center;">
+                <button id="cancelDeleteBtn" type="button" style="padding: 0.8rem 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0; background: white; cursor: pointer;">Cancel</button>
+                <button id="confirmDeleteBtn" type="button" style="padding: 0.8rem 1.5rem; border-radius: 8px; border: none; background: #ef4444; color: white; font-weight: 600; cursor: pointer;">Delete</button>
             </div>
         </div>
     </div>
@@ -508,9 +551,14 @@
             if (Number.isNaN(dateObj.getTime())) return "Unknown date";
             return dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
         }
-        function statusBadgeClass(status) {
+function statusBadgeClass(status) {
             const normalized = String(status || "").toLowerCase();
             if (normalized === "confirmed") return "status-confirmed";
+            if (normalized === "approved") return "status-approved";
+            if (normalized === "revisions" || normalized === "revision requested") return "status-revisions";
+            if (normalized === "ready for pickup" || normalized === "ready") return "status-ready";
+            if (normalized === "completed") return "status-completed";
+            if (normalized === "rejected") return "status-rejected";
             return "status-pending";
         }
         function getPurposeLabel(value) {
@@ -537,27 +585,27 @@
             sessionStorage.setItem(RESIDENT_CONTEXT_KEY, JSON.stringify({ residentUserId }));
             return residentUserId;
         }
-        function renderAppointments(appointments) {
-            const appointmentsGrid = document.getElementById("appointmentsGrid");
-            if (!appointmentsGrid) return;
+let appointmentIdToDelete = null;
+
+function renderAppointments(appointments) {
+            const tableBody = document.getElementById("appointmentsTableBody");
+            if (!tableBody) return;
             if (!Array.isArray(appointments) || !appointments.length) {
-                appointmentsGrid.innerHTML = `<p style="color:var(--text-muted); font-size:0.9rem;">No appointments yet. Book your first appointment.</p>`;
+                tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:2rem;">No appointments yet. Book your first appointment.</td></tr>`;
                 return;
             }
-            appointmentsGrid.innerHTML = appointments.map((appointment) => `
-                <div class="appointment-card">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1rem;">
-                        <div>
-                            <h2 style="font-size:1.1rem; margin-bottom:4px;">${getPurposeLabel(appointment.purpose)}</h2>
-                            <p style="color:var(--text-muted); font-size:0.85rem;">ID: #${appointment.referenceNo || "—"}</p>
-                        </div>
-                        <span class="status-badge ${statusBadgeClass(appointment.status)}">${appointment.status || "Pending Review"}</span>
-                    </div>
-                    <div style="display:flex; gap:15px; color:var(--text-muted); font-size:0.9rem;">
-                        <span>📅 ${formatAppointmentDate(appointment.appointmentDate)}</span>
-                        <span>⏰ ${appointment.timeLabel || "Time slot pending"}</span>
-                    </div>
-                </div>
+            tableBody.innerHTML = appointments.map((appointment) => `
+                <tr>
+                    <td><b>#${appointment.referenceNo || "—"}</b></td>
+                    <td>${getPurposeLabel(appointment.purpose)}</td>
+                    <td>${formatAppointmentDate(appointment.appointmentDate)}</td>
+                    <td><span class="status-badge ${statusBadgeClass(appointment.status)}">${appointment.status || "Pending Review"}</span></td>
+                    <td style="text-align: right;">
+                        <button class="btn-delete" onclick="openDeleteModal('${appointment.id}')" title="Delete appointment">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </button>
+                    </td>
+                </tr>
             `).join("");
         }
         async function loadAppointments() {
@@ -570,9 +618,9 @@
                 }
                 renderAppointments(result.appointments);
             } catch (_error) {
-                const appointmentsGrid = document.getElementById("appointmentsGrid");
-                if (appointmentsGrid) {
-                    appointmentsGrid.innerHTML = `<p style="color:#b91c1c; font-size:0.9rem;">Unable to load appointments. Make sure backend is running.</p>`;
+                const tableBody = document.getElementById("appointmentsTableBody");
+                if (tableBody) {
+                    tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#b91c1c; padding:2rem;">Unable to load appointments. Make sure backend is running.</td></tr>`;
                 }
             }
         }
@@ -626,8 +674,46 @@
             if (feedbackModalText) feedbackModalText.textContent = message;
             if (feedbackModal) feedbackModal.style.display = 'flex';
         }
-        function closeFeedbackModal() {
+function closeFeedbackModal() {
             if (feedbackModal) feedbackModal.style.display = 'none';
+        }
+
+        /* DELETE MODAL FUNCTIONS */
+        const deleteModal = document.getElementById("deleteModal");
+        const cancelDeleteBtn = document.getElementById("cancelDeleteBtn");
+        const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
+
+        function openDeleteModal(appointmentId) {
+            appointmentIdToDelete = appointmentId;
+            if (deleteModal) deleteModal.style.display = 'flex';
+        }
+
+        function closeDeleteModal() {
+            if (deleteModal) deleteModal.style.display = 'none';
+            appointmentIdToDelete = null;
+        }
+
+        async function deleteAppointment() {
+            if (!appointmentIdToDelete) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/appointments/${appointmentIdToDelete}`, {
+                    method: "DELETE"
+                });
+                const result = await response.json();
+                if (!response.ok || !result?.ok) {
+                    throw new Error(result?.message || "Unable to delete appointment.");
+                }
+
+                openFeedbackModal(
+                    "Appointment Deleted",
+                    "The appointment has been successfully deleted."
+                );
+                closeDeleteModal();
+                await loadAppointments();
+            } catch (_error) {
+                openFeedbackModal("Delete Failed", "Unable to delete appointment right now. Please try again.");
+            }
         }
 
         /* CHATBOT LOGIC */
@@ -686,10 +772,18 @@
         logoutModal?.addEventListener("click", (event) => {
             if (event.target === logoutModal) closeLogoutModal();
         });
-        feedbackModal?.addEventListener("click", (event) => {
+feedbackModal?.addEventListener("click", (event) => {
             if (event.target === feedbackModal) closeFeedbackModal();
         });
         feedbackModalOkBtn?.addEventListener("click", closeFeedbackModal);
+        
+        /* DELETE MODAL EVENT LISTENERS */
+        cancelDeleteBtn?.addEventListener("click", closeDeleteModal);
+        confirmDeleteBtn?.addEventListener("click", deleteAppointment);
+        deleteModal?.addEventListener("click", (event) => {
+            if (event.target === deleteModal) closeDeleteModal();
+        });
+
         logoutConfirmBtn?.addEventListener("click", () => {
             if (window.APP_NAV?.logout) {
                 window.APP_NAV.logout();

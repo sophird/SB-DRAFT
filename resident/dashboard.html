@@ -236,32 +236,137 @@ color: white;
             margin-top: 0;
         }
 
-        /* CLICKABLE OVERVIEW CARDS */
-        .overview-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1.5rem;
-            margin-bottom: 2.5rem;
+/* CLICKABLE OVERVIEW CARDS */
+.overview-sections {
+            display: table;
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+            margin-bottom: 1.5rem;
+            border-radius: 20px;
+            overflow: hidden;
         }
+
+        .overview-row {
+            display: table-row;
+        }
+
+        .overview-row:nth-child(1) { display: table; table-layout: fixed; width: 100%; }
+        .overview-row:nth-child(2) { display: table; table-layout: fixed; width: 100%; }
+        .overview-row:nth-child(3) { display: table; table-layout: fixed; width: 100%; }
 
         .overview-card {
+            display: table-cell;
             background: var(--white);
-            padding: 1.5rem;
-            border-radius: 16px;
-            border: 1px solid #e2e8f0;
+            padding: 1.25rem 1.5rem;
+            border: 1px solid #94a3b8;
+            border-radius: 20px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
+            vertical-align: middle;
+            text-align: center;
         }
 
+        .overview-row-1 .overview-card { width: 33.333%; }
+        .overview-row-2 .overview-card { width: 33.333%; }
+        .overview-row-3 .overview-card { width: 33.333%; }
+
+        .overview-card:first-child { border-left: none; border-top-left-radius: 18px; border-bottom-left-radius: 18px; }
+        .overview-card:last-child { border-right: none; border-top-right-radius: 18px; border-bottom-right-radius: 18px; }
+        .overview-row:first-child .overview-card { border-top: none; border-top-left-radius: 18px; border-top-right-radius: 18px; }
+        .overview-row:last-child .overview-card { border-bottom: none; border-bottom-left-radius: 18px; border-bottom-right-radius: 18px; }
+
         .overview-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+            background: #f8fafc;
             border-color: var(--brand-green);
         }
 
-        .overview-card h3 { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
-        .overview-card .value { font-size: 1.75rem; font-weight: 700; margin: 0.2rem 0; }
-        .overview-card .trend { font-size: 0.75rem; font-weight: 600; }
+        .overview-card h3 { font-size: 0.75rem; color: var(--text-muted); font-weight: 500; margin-bottom: 0.25rem; }
+        .overview-card .value { font-size: 1.5rem; font-weight: 700; margin: 0.15rem 0; }
+        .overview-card .trend { font-size: 0.7rem; font-weight: 600; display: block; }
+
+        @media (max-width: 900px) {
+            .overview-sections { display: flex; flex-wrap: wrap; }
+            .overview-row { display: flex; flex-wrap: wrap; width: 100%; }
+            .overview-card { flex: 1 1 calc(50% - 1px); min-width: calc(50% - 1px); border-radius: 10px !important; }
+            .overview-card:first-child { border-left: 1px solid #e2e8f0; }
+            .overview-card:last-child { border-right: 1px solid #e2e8f0; }
+            .overview-row:first-child .overview-card { border-top: 1px solid #e2e8f0; }
+            .overview-row:last-child .overview-card { border-bottom: 1px solid #e2e8f0; }
+        }
+        @media (max-width: 500px) {
+            .overview-card { flex: 1 1 100%; min-width: 100%; }
+        }
+
+        /* Navigation Option Modal */
+        .nav-option-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2500;
+            padding: 1rem;
+        }
+
+        .nav-option-modal.show { display: flex; }
+
+        .nav-option-content {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 380px;
+            box-shadow: 0 20px 40px rgba(2, 6, 23, 0.15);
+        }
+
+        .nav-option-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--brand-dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-option-desc {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .nav-option-buttons {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .nav-option-btn {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+        }
+
+        .nav-option-btn-service {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        .nav-option-btn-service:hover { background: #bfdbfe; }
+
+        .nav-option-btn-appointments {
+            background: #f3e8ff;
+            color: #7c3aed;
+        }
+        .nav-option-btn-appointments:hover { background: #e9d5ff; }
+
+        .nav-option-btn-cancel {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        .nav-option-btn-cancel:hover { background: #e2e8f0; }
 
         /* DASHBOARD GRID */
         .dashboard-grid {
@@ -434,26 +539,75 @@ color: white;
             </div>
         </section>
 
-        <div class="overview-grid">
-            <div class="overview-card" onclick="goToResidentPage('serviceRequests')">
-                <h3>Total Requests</h3>
-                <p class="value" id="countTotal" style="color: var(--brand-blue);">0</p>
-                <span class="trend" style="color: var(--brand-blue);">View all</span>
+<div class="overview-sections">
+            <!-- Row 1: Total Request | Total Appointments | Completed -->
+            <div class="overview-row overview-row-1">
+                <div class="overview-card" onclick="goToResidentPage('serviceRequests')">
+                    <h3>Total Request</h3>
+                    <p class="value" id="countTotalRequest" style="color: #2563eb;">0</p>
+                    <span class="trend" style="color: #2563eb;">View all</span>
+                </div>
+                <div class="overview-card" onclick="goToResidentPage('appointments')">
+                    <h3>Total Appointments</h3>
+                    <p class="value" id="countTotalAppointments" style="color: #9333ea;">0</p>
+                    <span class="trend" style="color: #9333ea;">View all</span>
+                </div>
+                <div class="overview-card" onclick="showNavOptionModal('completed')">
+                    <h3>Completed</h3>
+                    <p class="value" id="countCompleted" style="color: #047857;">0</p>
+                    <span class="trend" style="color: #047857;">View</span>
+                </div>
             </div>
-            <div class="overview-card" onclick="goToResidentPage('serviceRequests')">
-                <h3>Pending</h3>
-                <p class="value" id="countPending" style="color:#ea580c">0</p>
-                <span class="trend" style="color: #ea580c;">Awaiting review</span>
+
+            <!-- Row 2: Pending | Processing | Ready for Pickup -->
+            <div class="overview-row overview-row-2">
+                <div class="overview-card" onclick="goToResidentPage('serviceRequests')">
+                    <h3>Pending</h3>
+                    <p class="value" id="countPending" style="color: #ea580c;">0</p>
+                    <span class="trend" style="color: #ea580c;">Awaiting review</span>
+                </div>
+                <div class="overview-card" onclick="goToResidentPage('serviceRequests')">
+                    <h3>Processing</h3>
+                    <p class="value" id="countProcessing" style="color: #16a34a;">0</p>
+                    <span class="trend" style="color: #16a34a;">In progress</span>
+                </div>
+                <div class="overview-card" onclick="showNavOptionModal('ready')">
+                    <h3>Ready for Pickup</h3>
+                    <p class="value" id="countReadyPickup" style="color: #0891b2;">0</p>
+                    <span class="trend" style="color: #0891b2;">View</span>
+                </div>
             </div>
-            <div class="overview-card" onclick="goToResidentPage('serviceRequests')">
-                <h3>In Progress</h3>
-                <p class="value" id="countProgress" style="color:#16a34a">0</p>
-                <span class="trend" style="color: #16a34a;">Processing</span>
+
+            <!-- Row 3: Approved | Revisions | Rejected -->
+            <div class="overview-row overview-row-3">
+                <div class="overview-card" onclick="goToResidentPage('appointments')">
+                    <h3>Approved</h3>
+                    <p class="value" id="countApproved" style="color: #0284c7;">0</p>
+                    <span class="trend" style="color: #0284c7;">View</span>
+                </div>
+                <div class="overview-card" onclick="goToResidentPage('appointments')">
+                    <h3>Revisions</h3>
+                    <p class="value" id="countRevisions" style="color: #d97706;">0</p>
+                    <span class="trend" style="color: #d97706;">View</span>
+                </div>
+                <div class="overview-card" onclick="showNavOptionModal('rejected')">
+                    <h3>Rejected</h3>
+                    <p class="value" id="countRejected" style="color: #dc2626;">0</p>
+                    <span class="trend" style="color: #dc2626;">View</span>
+                </div>
             </div>
-            <div class="overview-card" onclick="goToResidentPage('appointments')">
-                <h3>Appointments</h3>
-                <p class="value" id="countAppointments" style="color: var(--brand-purple);">00</p>
-                <span class="trend" style="color: var(--brand-purple);">Upcoming</span>
+        </div>
+
+        <!-- Navigation Option Modal for "both" destinations -->
+        <div id="navOptionModal" class="nav-option-modal" role="dialog" aria-modal="true">
+            <div class="nav-option-content">
+                <h3 class="nav-option-title" id="navOptionTitle">Choose where to view</h3>
+                <p class="nav-option-desc" id="navOptionDesc">Select which page you want to view this data on:</p>
+                <div class="nav-option-buttons">
+                    <button class="nav-option-btn nav-option-btn-service" onclick="navigateToSelected('service')">Service Requests</button>
+                    <button class="nav-option-btn nav-option-btn-appointments" onclick="navigateToSelected('appointments')">Appointments</button>
+                </div>
+                <button class="nav-option-btn nav-option-btn-cancel" onclick="closeNavOptionModal()" style="width:100%; margin-top:0.75rem;">Cancel</button>
             </div>
         </div>
 
@@ -536,12 +690,55 @@ color: white;
         }
         applyResidentRouteLinks();
 
-        function goToResidentPage(routeKey) {
+function goToResidentPage(routeKey) {
             const target = RESIDENT_ROUTES[routeKey];
             if (target) {
                 window.location.href = target;
             }
         }
+
+        // Navigation Option Modal for "both" destinations
+        let currentNavType = '';
+        const navOptionModal = document.getElementById('navOptionModal');
+
+        function showNavOptionModal(navType) {
+            currentNavType = navType;
+            const titleEl = document.getElementById('navOptionTitle');
+            const descEl = document.getElementById('navOptionDesc');
+            
+            if (navType === 'ready') {
+                titleEl.textContent = 'Ready for Pickup';
+                descEl.textContent = 'Choose where to view items ready for pickup:';
+            } else if (navType === 'completed') {
+                titleEl.textContent = 'Completed';
+                descEl.textContent = 'Choose where to view completed items:';
+            } else if (navType === 'rejected') {
+                titleEl.textContent = 'Rejected';
+                descEl.textContent = 'Choose where to view rejected items:';
+            }
+            
+            if (navOptionModal) navOptionModal.classList.add('show');
+        }
+
+        function closeNavOptionModal() {
+            if (navOptionModal) navOptionModal.classList.remove('show');
+            currentNavType = '';
+        }
+
+        function navigateToSelected(destination) {
+            closeNavOptionModal();
+            if (destination === 'service') {
+                window.location.href = RESIDENT_ROUTES.serviceRequests;
+            } else if (destination === 'appointments') {
+                window.location.href = RESIDENT_ROUTES.appointments;
+            }
+        }
+
+        // Close nav modal on outside click
+        navOptionModal?.addEventListener('click', (event) => {
+            if (event.target === navOptionModal) closeNavOptionModal();
+        });
+
         function openLogoutModal() {
             if (logoutModal) logoutModal.style.display = "flex";
         }
@@ -597,13 +794,24 @@ color: white;
             return residentUserId;
         }
 
-        async function syncDashboardData() {
+async function syncDashboardData() {
             const recentRequestList = document.getElementById('recentRequestList');
             const upcomingAppointmentList = document.getElementById('upcomingAppointmentList');
-            const countTotalEl = document.getElementById('countTotal');
+
+            // Row 1 element IDs
+            const countTotalRequestEl = document.getElementById('countTotalRequest');
+            const countTotalAppointmentsEl = document.getElementById('countTotalAppointments');
+
+            // Row 2 element IDs
             const countPendingEl = document.getElementById('countPending');
-            const countProgressEl = document.getElementById('countProgress');
-            const countAppointmentsEl = document.getElementById('countAppointments');
+            const countProcessingEl = document.getElementById('countProcessing');
+            const countReadyPickupEl = document.getElementById('countReadyPickup');
+            const countCompletedEl = document.getElementById('countCompleted');
+
+            // Row 3 element IDs
+            const countApprovedEl = document.getElementById('countApproved');
+            const countRevisionsEl = document.getElementById('countRevisions');
+            const countRejectedEl = document.getElementById('countRejected');
 
             if (recentRequestList) recentRequestList.innerHTML = `<p style="color:var(--text-muted); font-size:0.9rem;">Loading recent requests...</p>`;
             if (upcomingAppointmentList) upcomingAppointmentList.innerHTML = `<p style="color:var(--text-muted); font-size:0.9rem;">Loading appointments...</p>`;
@@ -629,28 +837,44 @@ color: white;
                 const now = new Date();
                 now.setHours(0, 0, 0, 0);
 
-                const totalCount = requests.length;
+                // Row 1 counts
+                const totalRequestCount = requests.length;
+                const totalAppointmentsCount = appointments.length;
+
+                // Row 2 counts (from requests)
                 const pendingCount = requests.filter((r) => String(r.status || "").toLowerCase() === "pending").length;
-                const progressCount = requests.filter((r) => {
+                const processingCount = requests.filter((r) => {
                     const status = String(r.status || "").toLowerCase();
                     return status === "in progress" || status === "processing";
                 }).length;
-                const appointmentsCount = appointments.filter((appointment) => {
-                    const preferredDate = new Date(appointment.appointmentDate || 0);
-                    const status = String(appointment.status || "").toLowerCase();
-                    return (
-                        !Number.isNaN(preferredDate.getTime()) &&
-                        preferredDate >= now &&
-                        status !== "rejected" &&
-                        status !== "completed" &&
-                        status !== "cancelled"
-                    );
-                }).length;
+                const readyPickupCountRequests = requests.filter((r) => String(r.status || "").toLowerCase() === "ready for pickup").length;
+                const readyPickupCountAppts = appointments.filter((a) => String(a.status || "").toLowerCase() === "ready for pickup").length;
+                const readyPickupCount = readyPickupCountRequests + readyPickupCountAppts;
+                const completedCountRequests = requests.filter((r) => String(r.status || "").toLowerCase() === "completed").length;
+                const completedCountAppts = appointments.filter((a) => String(a.status || "").toLowerCase() === "completed").length;
+                const completedCount = completedCountRequests + completedCountAppts;
 
-                if (countTotalEl) countTotalEl.innerText = String(totalCount).padStart(2, "0");
+                // Row 3 counts (from appointments)
+                const approvedCount = appointments.filter((a) => String(a.status || "").toLowerCase() === "approved").length;
+                const revisionsCount = appointments.filter((a) => String(a.status || "").toLowerCase() === "revisions").length;
+                const rejectedCountRequests = requests.filter((r) => String(r.status || "").toLowerCase() === "rejected").length;
+                const rejectedCountAppts = appointments.filter((a) => String(a.status || "").toLowerCase() === "rejected").length;
+                const rejectedCount = rejectedCountRequests + rejectedCountAppts;
+
+                // Update Row 1
+                if (countTotalRequestEl) countTotalRequestEl.innerText = String(totalRequestCount).padStart(2, "0");
+                if (countTotalAppointmentsEl) countTotalAppointmentsEl.innerText = String(totalAppointmentsCount).padStart(2, "0");
+
+                // Update Row 2
                 if (countPendingEl) countPendingEl.innerText = String(pendingCount).padStart(2, "0");
-                if (countProgressEl) countProgressEl.innerText = String(progressCount).padStart(2, "0");
-                if (countAppointmentsEl) countAppointmentsEl.innerText = String(appointmentsCount).padStart(2, "0");
+                if (countProcessingEl) countProcessingEl.innerText = String(processingCount).padStart(2, "0");
+                if (countReadyPickupEl) countReadyPickupEl.innerText = String(readyPickupCount).padStart(2, "0");
+                if (countCompletedEl) countCompletedEl.innerText = String(completedCount).padStart(2, "0");
+
+                // Update Row 3
+                if (countApprovedEl) countApprovedEl.innerText = String(approvedCount).padStart(2, "0");
+                if (countRevisionsEl) countRevisionsEl.innerText = String(revisionsCount).padStart(2, "0");
+                if (countRejectedEl) countRejectedEl.innerText = String(rejectedCount).padStart(2, "0");
 
                 const sortedByRecent = requests.slice().sort((a, b) => {
                     const aTime = new Date(a.createdAt || a.preferredDate || 0).getTime();

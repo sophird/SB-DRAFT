@@ -871,6 +871,46 @@ app.post("/appointments", async (req, res) => {
   });
 });
 
+app.delete("/appointments/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({
+      ok: false,
+      message: "Invalid appointment id."
+    });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("appointments")
+    .delete()
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to delete appointment.",
+      detail: error.message
+    });
+  }
+
+  if (!data) {
+    return res.status(404).json({
+      ok: false,
+      message: "Appointment not found."
+    });
+  }
+
+  const appointmentRow = normalizeAppointmentRow(data);
+  broadcastAppointmentEvent({ type: "deleted", appointment: appointmentRow });
+
+  return res.json({
+    ok: true,
+    appointment: appointmentRow
+  });
+});
+
 app.patch("/appointments/:id/status", async (req, res) => {
   const id = Number(req.params.id);
   const { status, note } = req.body || {};
