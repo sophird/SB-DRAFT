@@ -423,10 +423,44 @@
                     </div>
                 </div>
 
-            <div class="card" id="reviewActionCard">
+<div class="card" id="reviewActionCard">
                 <div class="card-title">Review Action</div>
-                <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">Select an action to update the status. The resident is notified when you save an update.</p>
-                <div id="reviewActionButtons" class="action-btns" role="group" aria-label="Review actions"></div>
+                <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">Select an action to update the status of this request. This will notify the resident immediately.</p>
+                
+<!-- Action buttons for REQUESTS -->
+                <div class="action-btns request-action-btns" style="display: none;">
+                    <button class="btn btn-processing" data-action="Processing" data-dot="active" style="background: #2563eb; color: white;">
+                        Processing
+                    </button>
+                    <button class="btn btn-pickup" data-action="Ready for Pickup" data-dot="active" style="background: #0ea5e9; color: white;">
+                        Ready for Pickup
+                    </button>
+                    <button class="btn btn-completed" data-action="Completed" data-dot="active" style="background: #16a34a; color: white;">
+                        Completed
+                    </button>
+                    <button class="btn btn-reject" data-action="Rejected" data-dot="danger" style="background: #dc2626; color: white;">
+                        Reject
+                    </button>
+                </div>
+                
+                <!-- Action buttons for APPOINTMENTS -->
+                <div class="action-btns appointment-action-btns" style="display: none;">
+                    <button class="btn btn-approve" data-action="Approved" data-dot="active" style="background: #059669; color: white;">
+                        Approve
+                    </button>
+                    <button class="btn btn-revision" data-action="Revision Requested" data-dot="amber" style="background: #f59e0b; color: white;">
+                        Request Revisions
+                    </button>
+                    <button class="btn btn-pickup" data-action="Ready for Pickup" data-dot="active" style="background: #0ea5e9; color: white;">
+                        Ready for Pickup
+                    </button>
+                    <button class="btn btn-completed" data-action="Completed" data-dot="active" style="background: #16a34a; color: white;">
+                        Completed
+                    </button>
+                    <button class="btn btn-reject" data-action="Rejected" data-dot="danger" style="background: #dc2626; color: white;">
+                        Reject
+                    </button>
+                </div>
                 <div id="revisionBox" class="revision-box">
                     <label for="revisionMessage" class="revision-label">Revision details</label>
                     <textarea id="revisionMessage" class="revision-input" placeholder="Describe what should be updated before approval."></textarea>
@@ -702,14 +736,17 @@
             if (reviewActionCard) {
                 reviewActionCard.style.display = hasReviewActionSelected ? "none" : "block";
             }
-            renderReviewButtons();
-            const revisionBox = document.getElementById("revisionBox");
-            if (revisionBox) revisionBox.style.display = "none";
-            const revisionMessage = document.getElementById("revisionMessage");
-            if (revisionMessage) revisionMessage.value = "";
-            if (selectedAction) {
-                selectedAction.classList.remove("selected");
-                selectedAction = null;
+const revisionActionBtn = document.querySelector('.btn-info');
+            if (revisionActionBtn) {
+                revisionActionBtn.style.display = isAppointment ? "none" : "block";
+            }
+            
+            // Show the correct action buttons based on item type
+            const requestActionBtns = document.querySelector('.request-action-btns');
+            const appointmentActionBtns = document.querySelector('.appointment-action-btns');
+            if (requestActionBtns && appointmentActionBtns) {
+                requestActionBtns.style.display = isAppointment ? "none" : "flex";
+                appointmentActionBtns.style.display = isAppointment ? "flex" : "none";
             }
         }
 

@@ -256,11 +256,7 @@
         #requestSearchInput { flex: 2; }
         #requestStatusFilter { flex: 1; }
 
-.status-badge { padding: 6px 14px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
-        .status-cell-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-        .pickup-appointment-hint { font-size: 0.78rem; color: #64748b; line-height: 1.4; max-width: 280px; }
-        .pickup-appointment-hint a { color: var(--brand-green); font-weight: 600; text-decoration: underline; cursor: pointer; }
-        .pickup-appointment-hint a:hover { color: #15803d; }
+        .status-badge { padding: 6px 14px; border-radius: 30px; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
         .status-pending { background: #ffedd5; color: #ea580c; }
         .status-processing { background: #dcfce7; color: #16a34a; }
         .status-pickup { background: #dbeafe; color: #2563eb; }
@@ -579,10 +575,10 @@
             
             <form id="serviceForm">
                 <div class="form-grid">
-                    <div class="form-group">
+<div class="form-group">
                         <label>Service Type *</label>
                         <select id="reqType" required>
-                            <option value="">Select Service...</option>
+                            <option value="" disabled selected>Select Service...</option>
                             <option>Barangay Clearance</option>
                             <option>Maintenance Request</option>
                             <option>Permit Application</option>
@@ -595,14 +591,10 @@
                     <div class="form-group">
                         <label>Preferred Time Slot *</label>
                         <select id="reqTime" required>
-                            <option value="">Select Time...</option>
+                            <option value="" disabled selected>Select Time...</option>
                             <option>09:00 AM - 10:00 AM</option>
                             <option>10:00 AM - 11:00 AM</option>
                             <option>11:00 AM - 12:00 NN</option>
-                            <option>01:00 PM - 02:00 PM</option>
-                            <option>2:00 PM - 3:00 PM</option>
-                            <option>3:00 PM - 4:00 PM</option>
-                            <option>4:00 PM - 5:00 PM</option>
                         </select>
                     </div>
                 </div>
