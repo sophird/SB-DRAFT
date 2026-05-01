@@ -262,16 +262,23 @@
         .mark-all-btn:hover { background: #dcfce7; color: #166534; }
         .mark-all-btn:active { transform: scale(0.98); }
 
-        /* FILTERS */
-        .filter-tabs { display: flex; gap: 2rem; border-bottom: 1px solid #e2e8f0; margin-bottom: 2rem; }
         .tab { padding-bottom: 1rem; color: var(--text-muted); font-weight: 600; cursor: pointer; position: relative; }
         .tab.active { color: var(--brand-green); }
         .tab.active::after { content: ""; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: var(--brand-green); }
 
-        /* NOTIFICATION LIST */
-        .notification-group h3 { font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 1rem; }
-        .notif-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; display: flex; gap: 1rem; margin-bottom: 1rem; cursor: pointer; transition: 0.2s; position: relative; }
-        .notif-card:hover { border-color: var(--brand-green); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        /* NOTIFICATION LIST — cards are not interactive links */
+        .notif-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            cursor: default;
+            transition: none;
+            position: relative;
+        }
         .notif-card.unread { border-left: 4px solid var(--brand-green); }
         .unread-dot { width: 8px; height: 8px; background: var(--brand-green); border-radius: 50%; position: absolute; top: 1.5rem; right: 1.5rem; }
 
@@ -279,67 +286,39 @@
         .icon-blue { background: #eff6ff; color: var(--brand-blue); }
         .icon-green { background: #f0fdf4; color: var(--brand-green); }
         .icon-red { background: #fef2f2; color: var(--brand-red); }
+        .icon-amber { background: #fffbeb; color: #b45309; }
 
-        .notif-content h4 { font-size: 1rem; margin-bottom: 4px; color: var(--brand-dark); }
-        .notif-content p { font-size: 0.9rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 8px; }
+        .notif-content h4 { font-size: 1rem; margin-bottom: 6px; color: var(--brand-dark); }
+        .notif-content p { font-size: 0.9rem; color: var(--text-muted); line-height: 1.45; margin-bottom: 6px; }
         .notif-time { font-size: 0.8rem; color: #94a3b8; }
 
-        /* MODAL */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; opacity: 0; transition: opacity 0.22s ease; }
-        .modal-overlay.show { display: flex; opacity: 1; }
-        .modal-content { background: white; width: 550px; border-radius: 16px; padding: 2rem; position: relative; }
-        .announcement-modal {
-            width: min(860px, 94vw);
-            max-height: 88vh;
-            border-radius: 18px;
-            padding: 0;
-            overflow: hidden;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 20px 42px rgba(2, 6, 23, 0.28);
-            transform: translateY(8px) scale(0.985);
-            opacity: 0;
-            transition: transform 0.22s ease, opacity 0.22s ease;
-        }
-        .modal-overlay.show .announcement-modal { transform: translateY(0) scale(1); opacity: 1; }
-        .announcement-modal-header {
-            padding: 1.1rem 1.25rem;
-            background: linear-gradient(135deg, #ecfdf5, #f0f9ff);
-            border-bottom: 1px solid #e2e8f0;
-            display: flex;
+        /* Logout confirmation (fullscreen overlay + centered dialog) */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(2px);
+            display: none;
+            justify-content: center;
             align-items: center;
-            justify-content: space-between;
+            z-index: 4000;
+            padding: 1rem;
+            box-sizing: border-box;
         }
-        .announcement-modal-body {
-            padding: 1.25rem;
-            overflow-y: auto;
-            max-height: calc(88vh - 74px);
-        }
-        .announcement-category {
-            display: inline-block;
-            font-size: 0.72rem;
-            font-weight: 700;
-            color: #0369a1;
-            background: #e0f2fe;
-            border-radius: 999px;
-            padding: 0.22rem 0.55rem;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-        .announcement-meta {
-            margin-top: 0.7rem;
-            color: #64748b;
-            font-size: 0.8rem;
+        .modal-overlay.show {
             display: flex;
-            gap: 0.9rem;
-            flex-wrap: wrap;
         }
-        .announcement-copy {
-            margin-top: 1rem;
-            color: #334155;
-            line-height: 1.65;
-            white-space: pre-wrap;
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 1.75rem;
+            border: 1px solid #e2e8f0;
+            max-width: min(440px, 100%);
+            width: 100%;
+            box-shadow: 0 20px 44px rgba(2, 6, 23, 0.25);
         }
-        .close-modal { position: absolute; top: 1.5rem; right: 1.5rem; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); }
 
         /* AI CHATBOT STYLES */
         #chatToggle {
@@ -446,51 +425,26 @@
             </div>
             <div class="welcome-text">
                 <h1>Bulletin Board</h1>
-                <p>Stay updated with the latest community announcements</p>
+                <p>Service and appointment updates from the office, plus community announcements.</p>
             </div>
         </section>
 
         <div class="controls-row">
             <div class="filter-tabs" style="border-bottom: none; margin-bottom: 0;">
-                <div class="tab active" onclick="filterNotifs('all', this)">All Notifications</div>
-                <div class="tab" onclick="filterNotifs('announcement', this)">Announcements</div>
+                <div class="tab active" data-bulletin-tab="all" role="tab" tabindex="0">All Notifications</div>
+                <div class="tab" data-bulletin-tab="announcements" role="tab" tabindex="0">Announcements</div>
             </div>
-            <button class="mark-all-btn" onclick="markAllAsRead()">Mark all as read</button>
+            <button type="button" class="mark-all-btn" onclick="markAllAnnouncementReads()">Mark announcements read</button>
         </div>
 
         <div class="notification-list">
             <section class="notification-group">
-                <h3 style="margin-bottom: 1.25rem; font-size: 1.1rem; font-weight: 700; color: var(--brand-dark); text-transform: none;">Community advisories</h3>
-                <div id="announcementsFeed">
-                    <p style="color:var(--text-muted); font-size:0.9rem;">Loading announcements...</p>
+                <div id="notificationsFeed">
+                    <p style="color:var(--text-muted); font-size:0.9rem;">Loading…</p>
                 </div>
             </section>
         </div>
     </main>
-
-    <div class="modal-overlay" id="detailModal">
-        <div class="modal-content announcement-modal">
-            <div class="announcement-modal-header">
-                <div style="display:flex; align-items:center; gap:0.55rem; color:#0f766e; font-weight:700;">
-                    <span style="font-size:1rem;">📢</span>
-                    <span>Community Advisory</span>
-                </div>
-                <button type="button" onclick="closeDetail()" style="border:none; background:transparent; color:#64748b; font-size:1.35rem; cursor:pointer;">&times;</button>
-            </div>
-            <div class="announcement-modal-body">
-                <span class="announcement-category" id="modalCategory">Advisory</span>
-                <h2 id="modalTitle" style="margin-top:0.7rem; color:var(--brand-dark);"></h2>
-                <div class="announcement-meta">
-                    <span id="modalPostedLabel">Posted recently</span>
-                    <span id="modalPostedBy">Posted by Barangay Office</span>
-                </div>
-                <p id="modalBody" class="announcement-copy"></p>
-                <div style="margin-top: 1.2rem; display: flex; justify-content: flex-end;">
-                    <button class="mark-all-btn" onclick="closeDetail()">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <div id="chatToggle" onclick="toggleChat()">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
@@ -550,17 +504,46 @@
         }
         applyResidentRouteLinks();
 
+        let latestAnnouncementRows = [];
+        let latestActivityCards = [];
+
+        let activeBulletinTab = "all";
+        let requestEventStream = null;
+        let appointmentEventStream = null;
+
+        function normalizeAnnouncementId(raw) {
+            const n = Number(raw);
+            return Number.isInteger(n) && n > 0 ? n : null;
+        }
+
         function loadReadAnnouncementIds() {
             try {
                 const parsed = JSON.parse(sessionStorage.getItem(READ_ANNOUNCEMENT_IDS_KEY) || "[]");
-                return Array.isArray(parsed) ? parsed.map(Number).filter((n) => Number.isInteger(n)) : [];
+                if (!Array.isArray(parsed)) return [];
+                const out = [];
+                const seen = new Set();
+                for (const x of parsed) {
+                    const id = normalizeAnnouncementId(x);
+                    if (id === null || seen.has(id)) continue;
+                    seen.add(id);
+                    out.push(id);
+                }
+                return out;
             } catch (_e) {
                 return [];
             }
         }
 
         function saveReadAnnouncementIds(ids) {
-            sessionStorage.setItem(READ_ANNOUNCEMENT_IDS_KEY, JSON.stringify(ids));
+            const merged = [];
+            const seen = new Set();
+            for (const x of ids || []) {
+                const id = normalizeAnnouncementId(x);
+                if (id === null || seen.has(id)) continue;
+                seen.add(id);
+                merged.push(id);
+            }
+            sessionStorage.setItem(READ_ANNOUNCEMENT_IDS_KEY, JSON.stringify(merged));
         }
 
         function escapeHtml(value) {
@@ -585,115 +568,262 @@
             return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
         }
 
-        let latestAnnouncements = [];
+        async function resolveResidentUserIdCached() {
+            const RES_CTX = "residentContext";
+            try {
+                const parsed = JSON.parse(sessionStorage.getItem(RES_CTX) || "{}");
+                const id = Number(parsed?.residentUserId);
+                if (Number.isInteger(id) && id > 0) return id;
+            } catch (_e) {
+                /* ignore */
+            }
+            const response = await residentApiFetch(`${API_BASE_URL}/resident/context`);
+            const result = await response.json();
+            if (!response.ok || !result?.ok || !Number.isFinite(Number(result.residentUserId))) {
+                throw new Error(result?.message || "Unable to resolve resident.");
+            }
+            const rid = Number(result.residentUserId);
+            sessionStorage.setItem(RES_CTX, JSON.stringify({ residentUserId: rid }));
+            return rid;
+        }
 
-        function renderAnnouncementCards() {
-            const feed = document.getElementById("announcementsFeed");
-            if (!feed) return;
+        function purposeLabelBrief(purpose) {
+            const n = String(purpose || "").toLowerCase();
+            if (n === "in-person") return "document processing appointment";
+            if (n === "pickup") return "document / ID pickup";
+            if (n === "consultation") return "face-to-face consultation";
+            return purpose ? String(purpose) : "your appointment";
+        }
+
+        /** Drop the first timeline entry — it anchors the filing time, not staff action. Show later staff-driven updates only. */
+        function staffFacingTimelineSlices(timeline) {
+            const raw = Array.isArray(timeline) ? timeline.slice() : [];
+            raw.sort((a, b) => new Date(a?.at || 0).getTime() - new Date(b?.at || 0).getTime());
+            return raw.slice(1);
+        }
+
+        function buildActivityCards(requests, appointments) {
+            const out = [];
+
+            for (const r of requests || []) {
+                const ref = String(r.referenceNo || r.id || "").trim();
+                const titlePlain = String(r.title || r.serviceType || "Service request").slice(0, 120);
+                const slices = staffFacingTimelineSlices(r.statusTimeline);
+                for (const e of slices) {
+                    const st = String(e?.status || "Updated").trim();
+                    const iso = e?.at || null;
+                    const sortMs = new Date(iso || 0).getTime();
+                    if (Number.isNaN(sortMs)) continue;
+                    const note = typeof e?.note === "string" && e.note.trim() ? escapeHtml(e.note.trim()) : "";
+                    const headline = escapeHtml(ref ? `#${ref}` : `#${String(r.id || "")}`);
+                    out.push({
+                        feedKey: `service:${String(r?.id ?? "")}:${sortMs}:${escapeHtml(st)}`,
+                        sortMs,
+                        type: "service",
+                        unread: false,
+                        iconClass: "icon-blue",
+                        icon: "📄",
+                        title: headline,
+                        bodyHtml:
+                            `<p>Your service request ${headline} (${escapeHtml(titlePlain)}) is now ` +
+                            `<strong>${escapeHtml(st)}</strong>.</p>` +
+                            (note ? `<p style="margin-top:6px;">Note from the office: ${note}</p>` : ""),
+                        timeLabel: formatRelativeTime(iso)
+                    });
+                }
+            }
+
+            for (const apt of appointments || []) {
+                const ref = String(apt.referenceNo || apt.id || "").trim();
+                const purpose = purposeLabelBrief(apt.purpose);
+                const slices = staffFacingTimelineSlices(apt.statusTimeline);
+                for (const e of slices) {
+                    const st = String(e?.status || "Updated").trim();
+                    const iso = e?.at || null;
+                    const sortMs = new Date(iso || 0).getTime();
+                    if (Number.isNaN(sortMs)) continue;
+                    const note = typeof e?.note === "string" && e.note.trim() ? escapeHtml(e.note.trim()) : "";
+                    const headline = escapeHtml(ref ? `#${ref}` : `#${String(apt.id || "")}`);
+                    const safePurpose = escapeHtml(purpose);
+                    out.push({
+                        feedKey: `apt:${String(apt?.id ?? "")}:${sortMs}:${escapeHtml(st)}`,
+                        sortMs,
+                        type: "appointment",
+                        unread: false,
+                        iconClass: "icon-amber",
+                        icon: "📅",
+                        title: headline,
+                        bodyHtml:
+                            `<p>Your appointment ${headline} (${safePurpose}) is now <strong>${escapeHtml(st)}</strong>.</p>` +
+                            (note ? `<p style="margin-top:6px;">Note from the office: ${note}</p>` : ""),
+                        timeLabel: formatRelativeTime(iso)
+                    });
+                }
+            }
+
+            out.sort((a, b) => b.sortMs - a.sortMs);
+            return out;
+        }
+
+        function buildAnnouncementCards(announcements, options) {
             const readIds = new Set(loadReadAnnouncementIds());
-            if (!latestAnnouncements.length) {
+            const onlyAdmin = options?.onlyAdmin === true;
+            return (announcements || [])
+                .filter((a) => {
+                    if (!onlyAdmin) return true;
+                    return String(a?.postedByRole || "").trim() === "admin";
+                })
+                .map((a) => {
+                    const id = normalizeAnnouncementId(a.id);
+                    const unread = id !== null && !readIds.has(id);
+                    const rawBody = String(a.body || "");
+                    const preview = rawBody.length > 420 ? `${escapeHtml(rawBody.slice(0, 420))}…` : escapeHtml(rawBody);
+                    const sortMs = new Date(a.createdAt || 0).getTime();
+                    const iso = a.createdAt;
+                    return {
+                        feedKey: `announcement:${id ?? "x"}:${sortMs}`,
+                        sortMs,
+                        type: "announcement",
+                        unread,
+                        iconClass: "icon-green",
+                        icon: "📢",
+                        title: escapeHtml(a.title || "Announcement"),
+                        bodyHtml: `
+                            <p><span style="font-size:0.75rem;font-weight:700;color:#64748b;">${escapeHtml(a.category || "Community")}</span></p>
+                            <p>${preview}</p>`,
+                        timeLabel: formatRelativeTime(iso),
+                        announcementId: id
+                    };
+                })
+                .sort((a, b) => b.sortMs - a.sortMs);
+        }
+
+        function renderFeed() {
+            const feed = document.getElementById("notificationsFeed");
+            if (!feed) return;
+
+            const annCards = buildAnnouncementCards(latestAnnouncementRows, {
+                onlyAdmin: activeBulletinTab === "announcements"
+            });
+            const merged =
+                activeBulletinTab === "announcements"
+                    ? annCards.slice()
+                    : [...latestActivityCards, ...buildAnnouncementCards(latestAnnouncementRows, { onlyAdmin: false })].sort(
+                          (x, y) => y.sortMs - x.sortMs
+                      );
+
+            if (!merged.length) {
                 feed.innerHTML =
-                    '<p style="color:var(--text-muted); font-size:0.9rem;">No announcements yet. Check back later.</p>';
+                    '<p style="color:var(--text-muted); font-size:0.9rem;">No entries yet.</p>';
                 return;
             }
-            feed.innerHTML = latestAnnouncements
-                .map((a) => {
-                    const unread = !readIds.has(a.id);
-                    const title = escapeHtml(a.title || "Advisory");
-                    const rawBody = String(a.body || "");
-                    const preview =
-                        rawBody.length > 200 ? `${escapeHtml(rawBody.slice(0, 200))}…` : escapeHtml(rawBody);
-                    const cat = escapeHtml(a.category || "Advisory");
-                    const when = formatRelativeTime(a.createdAt);
+
+            feed.innerHTML = merged
+                .map((row) => {
+                    const unread = row.unread ? " unread" : "";
+                    const dot = row.unread ? '<div class="unread-dot" aria-hidden="true"></div>' : "";
                     return `
-                        <div class="notif-card${unread ? " unread" : ""}" data-type="announcement" data-id="${a.id}" role="button" tabindex="0">
-                            ${unread ? '<div class="unread-dot"></div>' : ""}
-                            <div class="notif-icon icon-blue">📢</div>
+                        <article class="notif-card${unread}" data-feed-key="${escapeHtml(row.feedKey)}" data-unread="${row.unread ? "true" : "false"}">
+                            ${dot}
+                            <div class="notif-icon ${row.iconClass}">${escapeHtml(row.icon)}</div>
                             <div class="notif-content">
-                                <h4>${title}</h4>
-                                <p><span style="font-size:0.75rem;font-weight:600;color:#64748b;">${cat}</span><br>${preview}</p>
-                                <span class="notif-time">${when}</span>
+                                <h4>${row.title}</h4>
+                                ${row.bodyHtml}
+                                <span class="notif-time">${escapeHtml(row.timeLabel)}</span>
                             </div>
-                        </div>`;
+                        </article>`;
                 })
                 .join("");
-            feed.querySelectorAll(".notif-card").forEach((card) => {
-                card.addEventListener("click", () => {
-                    const id = Number(card.getAttribute("data-id"));
-                    const ann = latestAnnouncements.find((item) => Number(item.id) === id);
-                    const ids = loadReadAnnouncementIds();
-                    if (Number.isInteger(id) && !ids.includes(id)) {
-                        ids.push(id);
-                        saveReadAnnouncementIds(ids);
+        }
+
+        async function reloadBulletinData() {
+            const feed = document.getElementById("notificationsFeed");
+            if (!feed) return;
+
+            feed.innerHTML = `<p style="color:var(--text-muted); font-size:0.9rem;">Loading…</p>`;
+
+            try {
+                const residentUserId = await resolveResidentUserIdCached();
+
+                const [reqRes, apptRes, annRes] = await Promise.all([
+                    residentApiFetch(`${API_BASE_URL}/requests?residentUserId=${encodeURIComponent(residentUserId)}`),
+                    residentApiFetch(`${API_BASE_URL}/appointments?residentUserId=${encodeURIComponent(residentUserId)}`),
+                    residentApiFetch(`${API_BASE_URL}/resident/announcements`)
+                ]);
+
+                const reqJson = await reqRes.json().catch(() => ({}));
+                const apJson = await apptRes.json().catch(() => ({}));
+                const annJson = await annRes.json().catch(() => ({}));
+
+                if (!reqRes.ok || !reqJson.ok) throw new Error(reqJson.message || "Unable to load service requests.");
+                if (!apptRes.ok || !apJson.ok) throw new Error(apJson.message || "Unable to load appointments.");
+                if (!annRes.ok || !annJson.ok) throw new Error(annJson.message || "Unable to load announcements.");
+
+                latestActivityCards = buildActivityCards(reqJson.requests || [], apJson.appointments || []);
+                latestAnnouncementRows = annJson.announcements || [];
+
+                renderFeed();
+            } catch (error) {
+                feed.innerHTML = `<p style="color:#b91c1c; font-size:0.9rem;">${escapeHtml(error?.message || "Unable to load bulletin.")}</p>`;
+            }
+        }
+
+        function setBulletinTab(tab) {
+            activeBulletinTab = tab === "announcements" ? "announcements" : "all";
+            document.querySelectorAll("[data-bulletin-tab]").forEach((el) => {
+                el.classList.toggle("active", el.getAttribute("data-bulletin-tab") === activeBulletinTab);
+            });
+            renderFeed();
+        }
+
+        function attachTabHandlers() {
+            document.querySelectorAll("[data-bulletin-tab]").forEach((tab) => {
+                tab.addEventListener("click", () => setBulletinTab(tab.getAttribute("data-bulletin-tab")));
+                tab.addEventListener("keydown", (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setBulletinTab(tab.getAttribute("data-bulletin-tab"));
                     }
-                    card.classList.remove("unread");
-                    const dot = card.querySelector(".unread-dot");
-                    if (dot) dot.remove();
-                    openDetail(ann || { title: "Advisory", body: "" });
                 });
             });
         }
 
-        async function loadAnnouncements() {
-            const feed = document.getElementById("announcementsFeed");
-            if (!feed) return;
-            try {
-                const response = await fetch(`${API_BASE_URL}/announcements`);
-                const result = await response.json();
-                if (!response.ok || !result?.ok || !Array.isArray(result.announcements)) {
-                    throw new Error(result?.message || "Unable to load announcements.");
-                }
-                latestAnnouncements = result.announcements;
-                renderAnnouncementCards();
-            } catch (_err) {
-                feed.innerHTML =
-                    '<p style="color:#b91c1c; font-size:0.9rem;">Unable to load announcements. Make sure the API server is running.</p>';
+        function connectRealtimeFeeds() {
+            if (typeof window.residentSseUrl !== "function") return;
+
+            if (requestEventStream) requestEventStream.close();
+            requestEventStream = new EventSource(residentSseUrl(`${API_BASE_URL}/requests/events`));
+            requestEventStream.addEventListener("request-updated", () => reloadBulletinData());
+            requestEventStream.onerror = () => {
+                /* browser reconnects automatically */
+            };
+
+            if (appointmentEventStream) appointmentEventStream.close();
+            appointmentEventStream = new EventSource(residentSseUrl(`${API_BASE_URL}/appointments/events`));
+            appointmentEventStream.addEventListener("appointment-updated", () => reloadBulletinData());
+            appointmentEventStream.onerror = () => {
+                /* browser reconnects automatically */
+            };
+        }
+
+        function markAllAnnouncementReads() {
+            const fromRows = [];
+            const seenRow = new Set();
+            for (const a of latestAnnouncementRows || []) {
+                const id = normalizeAnnouncementId(a?.id);
+                if (id === null || seenRow.has(id)) continue;
+                seenRow.add(id);
+                fromRows.push(id);
             }
+            const merged = [...new Set([...loadReadAnnouncementIds(), ...fromRows])];
+            saveReadAnnouncementIds(merged);
+            renderFeed();
         }
 
-        function markAllAsRead() {
-            const ids = latestAnnouncements.map((a) => a.id).filter((id) => Number.isInteger(Number(id)));
-            saveReadAnnouncementIds(ids);
-            renderAnnouncementCards();
-        }
+        attachTabHandlers();
+        reloadBulletinData();
+        connectRealtimeFeeds();
 
-        function filterNotifs(type, element) {
-            document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-            element.classList.add("active");
-
-            const cards = document.querySelectorAll("#announcementsFeed .notif-card");
-            cards.forEach((card) => {
-                if (type === "all") {
-                    card.style.display = "flex";
-                } else {
-                    card.style.display = card.getAttribute("data-type") === type ? "flex" : "none";
-                }
-            });
-
-            document.querySelectorAll(".notification-group").forEach((group) => {
-                const allCards = group.querySelectorAll(".notif-card");
-                const hasVisible = Array.from(allCards).some((c) => c.style.display !== "none");
-                group.style.display = hasVisible ? "block" : "none";
-            });
-        }
-
-        function openDetail(announcement) {
-            const title = announcement?.title || "Advisory";
-            const body = announcement?.body || "";
-            const category = announcement?.category || "Advisory";
-            const postedAt = announcement?.createdAt ? formatRelativeTime(announcement.createdAt) : "Just now";
-            document.getElementById("modalTitle").innerText = title;
-            document.getElementById("modalBody").innerText = body;
-            document.getElementById("modalCategory").innerText = category;
-            document.getElementById("modalPostedLabel").innerText = `Posted ${postedAt}`;
-            document.getElementById("detailModal").classList.add("show");
-        }
-
-        loadAnnouncements();
-
-        function closeDetail() {
-            document.getElementById('detailModal').classList.remove("show");
-        }
         function openLogoutModal() {
             if (logoutModal) logoutModal.classList.add("show");
         }
@@ -701,10 +831,9 @@
             if (logoutModal) logoutModal.classList.remove("show");
         }
 
-        window.onclick = function(e) {
-            if (e.target.id === 'detailModal') closeDetail();
+        window.onclick = function (e) {
             if (e.target === logoutModal) closeLogoutModal();
-        }
+        };
 
         function handleLogout(event) {
             event.preventDefault();

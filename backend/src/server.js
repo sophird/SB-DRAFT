@@ -82,7 +82,7 @@ const faqChatLimiter = rateLimit({
 
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
 );
 const supabaseAuth = createClient(
   process.env.SUPABASE_URL || "",
@@ -401,7 +401,8 @@ function normalizeAnnouncementRow(row) {
     title: row.title,
     body: row.body,
     isActive: row.is_active,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    postedByRole: row.posted_by_role ?? null
   };
 }
 
@@ -923,6 +924,8 @@ function normalizeRequestRow(row) {
     residentUserId: row.resident_user_id ?? null,
     title: row.title,
     serviceType: row.service_type,
+    description: row.description ?? null,
+    purpose: row.purpose ?? null,
     preferredDate: row.preferred_date,
     preferredTimeSlot: row.preferred_time_slot,
     status: row.status,
@@ -937,6 +940,7 @@ function normalizeAppointmentRow(row) {
     referenceNo: row.reference_no,
     residentUserId: row.resident_user_id ?? null,
     purpose: row.purpose,
+    notes: row.notes ?? null,
     appointmentDate: row.appointment_date,
     slotId: row.slot_id || null,
     timeLabel: row.appointment_slots?.label || null,
@@ -2368,6 +2372,29 @@ app.get("/announcements", async (_req, res) => {
   });
 });
 
+app.get("/resident/announcements", async (req, res) => {
+  const auth = await requireResidentPortalUser(req, res);
+  if (!auth) return;
+
+  let query = supabaseAdmin.from("community_announcements").select("*").eq("is_active", true);
+  const filterRole = String(req.query?.postedByRole ?? "").trim();
+  if (filterRole === "admin") query = query.eq("posted_by_role", "admin");
+  query = query.order("created_at", { ascending: false });
+
+  const { data, error } = await query;
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load announcements.",
+      detail: error.message
+    });
+  }
+  return res.json({
+    ok: true,
+    announcements: (data || []).map(normalizeAnnouncementRow)
+  });
+});
+
 app.post("/admin/announcements", async (req, res) => {
   const auth = await requireStaffPortalUser(req, res);
   if (!auth) return;
@@ -2388,7 +2415,8 @@ app.post("/admin/announcements", async (req, res) => {
     category: safeCategory || "Community News",
     title: safeTitle,
     body: safeBody,
-    is_active: true
+    is_active: true,
+    posted_by_role: auth.profile?.role ?? null
   };
 
   const { data, error } = await supabaseAdmin

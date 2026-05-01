@@ -383,9 +383,9 @@ color: white;
             </section>
 
             <div class="user-profile">
-                <div class="user-avatar" id="topbarUserAvatar">ST</div>
+                <div class="user-avatar" id="topbarUserAvatar">BS</div>
                 <div style="line-height: 1.2;">
-                    <p id="topbarUserName" style="font-weight: 700; font-size: 0.85rem;">Staff</p>
+                    <p id="topbarUserName" style="font-weight: 700; font-size: 0.85rem;">Barangay Staff</p>
                     <p id="topbarUserRole" style="font-size: 0.75rem; color: var(--text-muted);">Personnel</p>
                 </div>
             </div>
@@ -616,13 +616,15 @@ color: white;
                 referenceNo: request?.referenceNo || "",
                 title: request?.title || "",
                 serviceType: request?.serviceType || "",
+                description: request?.description || "",
                 status: request?.status || "Pending",
                 createdAt: request?.createdAt || null,
                 preferredDate: request?.preferredDate || null,
                 preferredTimeSlot: request?.preferredTimeSlot || "",
                 appointmentDate: request?.appointmentDate || null,
                 timeLabel: request?.timeLabel || null,
-                purpose: request?.purpose || ""
+                purpose: request?.purpose || "",
+                notes: request?.notes || ""
             };
             sessionStorage.setItem("selectedRequest", JSON.stringify(payload));
 

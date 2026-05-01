@@ -233,13 +233,16 @@
         .info-item p { font-size: 0.95rem; color: var(--text-main); font-weight: 500; }
         .info-item--span-full {
             grid-column: 1 / -1;
+            min-width: 0;
         }
-        #fieldSubject {
+        .info-item--multiline p {
             white-space: pre-wrap;
             word-break: break-word;
             overflow-wrap: anywhere;
             line-height: 1.5;
             max-width: 100%;
+        }
+        #fieldSubject {
             font-size: 0.95rem;
             color: var(--text-main);
             font-weight: 500;
@@ -402,9 +405,9 @@
             </div>
 
             <div class="user-profile">
-                <div class="user-avatar" id="topbarUserAvatar">ST</div>
+                <div class="user-avatar" id="topbarUserAvatar">BS</div>
                 <div style="line-height: 1.2;">
-                    <p id="topbarUserName" style="font-weight: 700; font-size: 0.85rem;">Staff</p>
+                    <p id="topbarUserName" style="font-weight: 700; font-size: 0.85rem;">Barangay Staff</p>
                     <p id="topbarUserRole" style="font-size: 0.75rem; color: var(--text-muted);">Personnel</p>
                 </div>
             </div>
@@ -416,8 +419,8 @@
                 <div class="info-group">
                     <div class="info-item"><label>Status</label><span class="status-badge" id="statusBadge">Loading…</span></div>
                     <div class="info-item"><label>Date Filed</label><p id="fieldDateFiled">Loading…</p></div>
-                    <div class="info-item info-item--span-full"><label>Resident Name</label><p id="fieldResident">Loading…</p></div>
-                    <div class="info-item info-item--span-full"><label>Subject</label><p id="fieldSubject">Loading…</p></div>
+                    <div class="info-item info-item--span-full info-item--multiline"><label>Resident Name</label><p id="fieldResident">Loading…</p></div>
+                    <div class="info-item info-item--span-full info-item--multiline"><label>Subject</label><p id="fieldSubject">Loading…</p></div>
                 </div>
             </div>
 
@@ -757,12 +760,62 @@
             });
         }
 
+        function appointmentPurposeStaffLabel(raw) {
+            const n = String(raw || "").toLowerCase().trim();
+            if (n === "in-person") return "In-person document processing";
+            if (n === "pickup") return "Document / ID pickup";
+            if (n === "consultation") return "Face-to-face consultation";
+            const s = String(raw || "").trim();
+            return s || "Appointment";
+        }
+
+        function composeServiceRequestSubject(req) {
+            const displaySubject = String(req.displaySubject || "").trim();
+            if (displaySubject) return displaySubject;
+
+            const title = String(req.title || "").trim();
+            const serviceType = String(req.serviceType || "").trim();
+            const description = String(req.description || "").trim();
+            const purpose = String(req.purpose || "").trim();
+
+            const seen = new Set();
+            const parts = [];
+
+            function addPart(value) {
+                const chunk = String(value || "").trim();
+                if (!chunk || seen.has(chunk)) return;
+                seen.add(chunk);
+                parts.push(chunk);
+            }
+
+            if (title && serviceType && title !== serviceType) {
+                addPart(title);
+                addPart(serviceType);
+            } else {
+                addPart(title || serviceType || "Service request");
+            }
+
+            addPart(purpose);
+            addPart(description);
+
+            return parts.length ? parts.join("\n\n") : "Service request";
+        }
+
+        function composeAppointmentSubject(req) {
+            const displaySubject = String(req.displaySubject || "").trim();
+            if (displaySubject) return displaySubject;
+            const purposeLine = appointmentPurposeStaffLabel(req.purpose);
+            const notes = String(req.notes || "").trim();
+            if (notes && notes !== purposeLine) {
+                return `${purposeLine}\n\n${notes}`;
+            }
+            return purposeLine || "Appointment";
+        }
+
         function applyRequestToUI(request, itemType = "request") {
             if (!request) return;
             const isAppointment = itemType === "appointment";
-            const subject = isAppointment
-                ? (request.displaySubject || request.purpose || "Appointment")
-                : (request.displaySubject || request.title || request.serviceType || "Service request");
+            const subject = isAppointment ? composeAppointmentSubject(request) : composeServiceRequestSubject(request);
             const currentStatus = request.status || (isAppointment ? "Pending Review" : "Pending");
             const filedAt = request.createdAt || request.appointmentDate || request.preferredDate;
             const referenceNo = formatReferenceLine(request.referenceNo, request.id);
