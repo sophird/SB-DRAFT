@@ -9,8 +9,8 @@
     fallbackLogin;
 
   const roleHomes = {
-    staff: routes.staff?.dashboard || "../staff/staff-dashboard.html",
-    admin: routes.admin?.dashboard || "../admin/service-req.html",
+staff: routes.staff?.dashboard || "../staff/staff-dashboard.html",
+    admin: routes.admin?.dashboard || "../admin/service-mngmt.html",
     "system-admin": routes.systemAdmin?.dashboard || "../system-admin/sysad-dashboard.html"
   };
 

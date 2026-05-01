@@ -29,9 +29,9 @@
       login: `${rootPrefix}admin-login.html`,
       dashboard: `${rootPrefix}staff/staff-dashboard.html`
     },
-    admin: {
+admin: {
       login: `${rootPrefix}admin-login.html`,
-      dashboard: `${rootPrefix}admin/service-req.html`
+      dashboard: `${rootPrefix}admin/service-mngmt.html`
     },
     systemAdmin: {
       login: `${rootPrefix}admin-login.html`,
