@@ -11,7 +11,7 @@
   const roleHomes = {
     staff: routes.staff?.dashboard || "../staff/staff-dashboard.html",
     admin: routes.admin?.dashboard || "../admin/service-req.html",
-    "system-admin": routes.systemAdmin?.dashboard || "../system-admin/sysad-dashboard.html"
+    "system-admin": routes.systemAdmin?.dashboard || "../system-admin/sys-config.html"
   };
 
   function parseSession() {

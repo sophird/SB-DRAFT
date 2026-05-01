@@ -23,7 +23,6 @@ To reach Barangay Burgos, please use the following channels:
 
 RESIDENT LOGIN
 Make a function where users can put their own email and password (saved in the data), same thing to Register New Account.
-Make a function for Forgot Password.
 
 RESIDENTS PORTAL 
 - All of them needs a real time input and update
@@ -61,7 +60,6 @@ Again make this automaded depending on what name the user typed. User avatar sho
 
 BARANGAY STAFF LOGIN
 Make a function where admins can put their designated email and password (saved in the data)
-Make a function for Forgot Password.
 
 STAFF PORTAL
 - All of them needs a real time input and update

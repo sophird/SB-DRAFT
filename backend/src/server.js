@@ -3,6 +3,8 @@ require("dotenv").config();
 const http = require("http");
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const { createClient } = require("@supabase/supabase-js");
 
 let intentionalShutdown = false;
@@ -33,6 +35,7 @@ process.on("exit", (code) => {
 const app = express();
 const port = Number(process.env.PORT) || 4000;
 
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(
   cors({
     origin: (() => {
@@ -43,7 +46,23 @@ app.use(
     })()
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: "48kb" }));
+
+const authResidentRegisterLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, message: "Too many registration attempts. Please try again later." }
+});
+
+const authResidentLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, message: "Too many login attempts. Please try again later." }
+});
 
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
@@ -56,6 +75,33 @@ const supabaseAuth = createClient(
 
 const requestEventClients = new Set();
 const appointmentEventClients = new Set();
+
+const MAX_EMAIL_LEN = 254;
+const MAX_FULL_NAME_LEN = 120;
+const MAX_PASSWORD_LEN = 128;
+
+function normalizeEmail(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .slice(0, MAX_EMAIL_LEN);
+}
+
+function isValidEmailFormat(email) {
+  if (!email || email.length > MAX_EMAIL_LEN) return false;
+  const basic =
+    /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
+  return basic.test(String(email).trim());
+}
+
+function sanitizeFullNameForStorage(raw) {
+  let s = String(raw || "")
+    .trim()
+    .replace(/[\x00-\x1f\x7f]/g, "");
+  if (s.length > MAX_FULL_NAME_LEN) s = s.slice(0, MAX_FULL_NAME_LEN);
+  s = s.replace(/[<>]/g, "");
+  return s.trim();
+}
 
 function getBearerToken(req) {
   const authHeader = req.headers.authorization || "";
@@ -155,6 +201,23 @@ app.get("/supabase/health", async (_req, res) => {
   const clientReady =
     typeof supabaseAdmin.from === "function" && typeof supabaseAuth.auth?.signInWithPassword === "function";
   return res.json({ ok: configured && clientReady });
+});
+
+app.get("/auth/config", async (_req, res) => {
+  const supabaseUrl = String(process.env.SUPABASE_URL || "").trim();
+  const supabaseAnonKey = String(process.env.SUPABASE_ANON_KEY || "").trim();
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return res.status(500).json({
+      ok: false,
+      message: "Supabase public config is not available."
+    });
+  }
+
+  return res.json({
+    ok: true,
+    supabaseUrl,
+    supabaseAnonKey
+  });
 });
 
 // Authenticate an admin account and return auth session details.
@@ -287,6 +350,32 @@ function normalizeAppointmentRow(row) {
   };
 }
 
+async function getResidentDisplayNameForStaff(residentUserId) {
+  const id = parseResidentUserId(residentUserId);
+  if (!id) return "Unknown resident";
+  const { data: userRow, error: userErr } = await supabaseAdmin.from("users").select("email").eq("id", id).maybeSingle();
+  if (userErr || !userRow?.email) {
+    return `Resident #${id}`;
+  }
+  const email = String(userRow.email).trim();
+  const { data: prof } = await supabaseAdmin.from("profiles").select("full_name").eq("email", email).maybeSingle();
+  const fullName = String(prof?.full_name || "").trim();
+  if (fullName) return fullName;
+  return email;
+}
+
+async function normalizeRequestRowWithResident(row) {
+  const base = normalizeRequestRow(row);
+  const residentName = await getResidentDisplayNameForStaff(row?.resident_user_id);
+  return { ...base, residentName };
+}
+
+async function normalizeAppointmentRowWithResident(row) {
+  const base = normalizeAppointmentRow(row);
+  const residentName = await getResidentDisplayNameForStaff(row?.resident_user_id);
+  return { ...base, residentName };
+}
+
 function broadcastRequestEvent(payload) {
   const packet = `event: request-updated\ndata: ${JSON.stringify(payload)}\n\n`;
   for (const client of requestEventClients) {
@@ -347,6 +436,61 @@ async function resolveFallbackResidentUserId() {
   }
 }
 
+async function ensureResidentUserRow(email) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
+
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("users")
+    .select("id")
+    .eq("email", normalizedEmail)
+    .maybeSingle();
+
+  if (!existingError && existing?.id) return existing.id;
+
+  const { data: inserted, error: insertError } = await supabaseAdmin
+    .from("users")
+    .insert({
+      email: normalizedEmail,
+      role: "resident",
+      auth_provider: "local",
+      is_active: true
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (!insertError && inserted?.id) return inserted.id;
+
+  const { data: fallbackByEmail } = await supabaseAdmin
+    .from("users")
+    .select("id")
+    .eq("email", normalizedEmail)
+    .maybeSingle();
+
+  return fallbackByEmail?.id || null;
+}
+
+async function upsertResidentProfile({ email, fullName }) {
+  const normalizedEmail = normalizeEmail(email);
+  const safeFullName = String(fullName || "").trim();
+  if (!normalizedEmail || !safeFullName) {
+    return { ok: false, message: "Email and full name are required." };
+  }
+
+  const upsertPayload = {
+    email: normalizedEmail,
+    full_name: safeFullName,
+    role: "resident"
+  };
+
+  const { error } = await supabaseAdmin.from("profiles").upsert(upsertPayload, { onConflict: "email" });
+  if (error) {
+    return { ok: false, message: "Unable to save resident profile.", detail: error.message };
+  }
+
+  return { ok: true };
+}
+
 function parseResidentUserId(rawValue) {
   if (rawValue === undefined || rawValue === null || rawValue === "") return null;
   const parsed = Number(rawValue);
@@ -354,7 +498,211 @@ function parseResidentUserId(rawValue) {
   return parsed;
 }
 
-app.get("/resident/context", async (_req, res) => {
+app.post("/auth/resident/register", authResidentRegisterLimiter, async (req, res) => {
+  const { fullName, email, password } = req.body || {};
+  const normalizedEmail = normalizeEmail(email);
+  const safeFullName = sanitizeFullNameForStorage(fullName);
+  const safePassword = String(password || "");
+
+  if (!safeFullName || !normalizedEmail || !safePassword) {
+    return res.status(400).json({
+      ok: false,
+      message: "fullName, email, and password are required."
+    });
+  }
+
+  if (!isValidEmailFormat(normalizedEmail)) {
+    return res.status(400).json({
+      ok: false,
+      message: "Please enter a valid email address."
+    });
+  }
+
+  if (safePassword.length < 8) {
+    return res.status(400).json({
+      ok: false,
+      message: "Password must be at least 8 characters long."
+    });
+  }
+
+  if (safePassword.length > MAX_PASSWORD_LEN) {
+    return res.status(400).json({
+      ok: false,
+      message: `Password must be at most ${MAX_PASSWORD_LEN} characters.`
+    });
+  }
+
+  // Password hashing and storage are handled by Supabase Auth (auth.users). Application tables
+  // never store plaintext passwords. Database access uses parameterized Supabase APIs (SQL injection safe).
+
+  const { data: signUpData, error: signUpError } = await supabaseAuth.auth.signUp({
+    email: normalizedEmail,
+    password: safePassword,
+    options: {
+      data: {
+        full_name: safeFullName,
+        role: "resident"
+      }
+    }
+  });
+
+  if (signUpError) {
+    return res.status(400).json({
+      ok: false,
+      message: signUpError.message || "Unable to register resident account."
+    });
+  }
+
+  const profileResult = await upsertResidentProfile({
+    email: normalizedEmail,
+    fullName: safeFullName
+  });
+  if (!profileResult.ok) {
+    return res.status(500).json({
+      ok: false,
+      message: profileResult.message,
+      detail: profileResult.detail
+    });
+  }
+
+  const residentUserId = await ensureResidentUserRow(normalizedEmail);
+  if (!residentUserId) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to link resident account to internal user record."
+    });
+  }
+
+  return res.status(201).json({
+    ok: true,
+    message: "Resident account created.",
+    stored: true,
+    user: {
+      email: normalizedEmail,
+      fullName: safeFullName,
+      role: "resident",
+      residentUserId
+    }
+  });
+});
+
+app.post("/auth/resident/login", authResidentLoginLimiter, async (req, res) => {
+  const { email, password } = req.body || {};
+  const normalizedEmail = normalizeEmail(email);
+  const safePassword = String(password || "");
+
+  if (!normalizedEmail || !safePassword) {
+    return res.status(400).json({
+      ok: false,
+      message: "Email and password are required."
+    });
+  }
+
+  if (!isValidEmailFormat(normalizedEmail) || safePassword.length > MAX_PASSWORD_LEN) {
+    return res.status(400).json({
+      ok: false,
+      message: "Invalid email or password."
+    });
+  }
+
+  const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({
+    email: normalizedEmail,
+    password: safePassword
+  });
+
+  if (authError || !authData?.user) {
+    return res.status(401).json({
+      ok: false,
+      message: "Invalid email or password."
+    });
+  }
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .select("email, full_name, role")
+    .eq("email", normalizedEmail)
+    .maybeSingle();
+
+  if (profileError) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load resident profile."
+    });
+  }
+
+  if (!profile || profile.role !== "resident") {
+    await supabaseAuth.auth.signOut();
+    return res.status(403).json({
+      ok: false,
+      message: "Access denied. Resident portal account required."
+    });
+  }
+
+  const residentUserId = await ensureResidentUserRow(normalizedEmail);
+  if (!residentUserId) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to link resident account to internal user record."
+    });
+  }
+
+  return res.json({
+    ok: true,
+    message: "Login successful.",
+    user: {
+      email: profile.email,
+      fullName: profile.full_name,
+      role: profile.role,
+      residentUserId
+    },
+    session: {
+      accessToken: authData.session?.access_token || null,
+      refreshToken: authData.session?.refresh_token || null,
+      expiresAt: authData.session?.expires_at || null
+    }
+  });
+});
+
+app.get("/auth/resident/authorize", async (req, res) => {
+  const { profile, error } = await resolveProfileFromToken(req);
+  if (error) {
+    return res.status(error.status).json({ ok: false, message: error.message });
+  }
+  if (profile.role !== "resident") {
+    return res.status(403).json({ ok: false, message: "Resident portal access required." });
+  }
+
+  const residentUserId = await ensureResidentUserRow(profile.email);
+  if (!residentUserId) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to resolve resident account."
+    });
+  }
+
+  return res.json({
+    ok: true,
+    user: {
+      email: profile.email,
+      fullName: profile.full_name,
+      role: profile.role,
+      residentUserId
+    }
+  });
+});
+
+app.get("/resident/context", async (req, res) => {
+  const { profile } = await resolveProfileFromToken(req);
+  if (profile?.role === "resident" && profile?.email) {
+    const residentUserId = await ensureResidentUserRow(profile.email);
+    if (residentUserId) {
+      return res.json({
+        ok: true,
+        residentUserId
+      });
+    }
+  }
+
   const residentUserId = await resolveFallbackResidentUserId();
   if (!residentUserId) {
     return res.status(500).json({
@@ -513,9 +861,10 @@ app.get("/requests/:id", async (req, res) => {
     });
   }
 
+  const requestRow = await normalizeRequestRowWithResident(data);
   return res.json({
     ok: true,
-    request: normalizeRequestRow(data)
+    request: requestRow
   });
 });
 
@@ -549,9 +898,10 @@ app.get("/requests/by-reference/:referenceNo", async (req, res) => {
     });
   }
 
+  const requestRow = await normalizeRequestRowWithResident(data);
   return res.json({
     ok: true,
-    request: normalizeRequestRow(data)
+    request: requestRow
   });
 });
 
@@ -604,7 +954,7 @@ app.patch("/requests/:id/status", async (req, res) => {
     });
   }
 
-  const requestRow = normalizeRequestRow(data);
+  const requestRow = await normalizeRequestRowWithResident(data);
   broadcastRequestEvent({
     type: "status-updated",
     request: requestRow,
@@ -767,9 +1117,10 @@ app.get("/appointments/:id", async (req, res) => {
     });
   }
 
+  const appointmentRow = await normalizeAppointmentRowWithResident(data);
   return res.json({
     ok: true,
-    appointment: normalizeAppointmentRow(data)
+    appointment: appointmentRow
   });
 });
 
@@ -803,9 +1154,10 @@ app.get("/appointments/by-reference/:referenceNo", async (req, res) => {
     });
   }
 
+  const appointmentRowByRef = await normalizeAppointmentRowWithResident(data);
   return res.json({
     ok: true,
-    appointment: normalizeAppointmentRow(data)
+    appointment: appointmentRowByRef
   });
 });
 
@@ -871,46 +1223,6 @@ app.post("/appointments", async (req, res) => {
   });
 });
 
-app.delete("/appointments/:id", async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return res.status(400).json({
-      ok: false,
-      message: "Invalid appointment id."
-    });
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from("appointments")
-    .delete()
-    .eq("id", id)
-    .select("*")
-    .maybeSingle();
-
-  if (error) {
-    return res.status(500).json({
-      ok: false,
-      message: "Unable to delete appointment.",
-      detail: error.message
-    });
-  }
-
-  if (!data) {
-    return res.status(404).json({
-      ok: false,
-      message: "Appointment not found."
-    });
-  }
-
-  const appointmentRow = normalizeAppointmentRow(data);
-  broadcastAppointmentEvent({ type: "deleted", appointment: appointmentRow });
-
-  return res.json({
-    ok: true,
-    appointment: appointmentRow
-  });
-});
-
 app.patch("/appointments/:id/status", async (req, res) => {
   const id = Number(req.params.id);
   const { status, note } = req.body || {};
@@ -966,7 +1278,7 @@ app.patch("/appointments/:id/status", async (req, res) => {
     });
   }
 
-  const appointmentRow = normalizeAppointmentRow(data);
+  const appointmentRow = await normalizeAppointmentRowWithResident(data);
   broadcastAppointmentEvent({
     type: "status-updated",
     appointment: appointmentRow,
