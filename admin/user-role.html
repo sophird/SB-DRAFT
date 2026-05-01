@@ -270,7 +270,7 @@
         .form-group { margin-bottom: 1.2rem; }
         .form-group label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; }
 
-        .permission-grid {
+.permission-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
@@ -278,6 +278,26 @@
             padding: 10px;
             border-radius: 8px;
             border: 1px solid #e2e8f0;
+        }
+
+        .permission-grid-staff {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            background: #f0fdf4;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #16a34a;
+        }
+
+        .permission-grid-resident {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            background: #e0f2fe;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #0ea5e9;
         }
 
         .permission-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
@@ -377,47 +397,43 @@
             <div class="table-container">
                 <table>
                     <thead>
-                        <tr>
+<tr>
                             <th>User Name</th>
                             <th>Email Address</th>
-                            <th>Assigned Role</th>
                             <th>Permissions</th>
                             <th>Account Status</th>
                             <th>Action</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <tr>
-                            <td style="font-weight: 600;">Jane Doe</td>
-                            <td>jane@serbisyoburgos.com</td>
-                            <td><span style="font-weight: 600; color: var(--brand-dark);">Staff</span></td>
-                            <td><small>Edit Services, Post Announcements</small></td>
+<tbody>
+<tr id="row-1">
+                            <td style="font-weight: 600;">Staff 1</td>
+                            <td>staff@serbisyoburgos.com</td>
+                            <td><small>Dashboard, Request Processing</small></td>
                             <td><span class="status-badge" style="background: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Active</span></td>
                             <td>
-                                <button class="btn-config" onclick="openUserManage('Jane Doe', 'Staff', 'Active')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
-                                <button class="btn-archive" onclick="archiveUser('row-1')" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Archive</button>
+                                <button class="btn-config" onclick="openUserManage('Staff 1', 'Staff', 'Active')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
+                                <button class="btn-delete" onclick="deleteUser('row-1')" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Delete</button>
                             </td>
                         </tr>
                         <tr id="row-2">
-                            <td style="font-weight: 600;">John Smith</td>
-                            <td>john.s@gmail.com</td>
-                            <td><span style="font-weight: 600; color: var(--text-muted);">Resident</span></td>
+                            <td style="font-weight: 600;">Sophia Dumayas</td>
+                            <td>user@gmail.com</td>
                             <td><small>Request Services, View News</small></td>
                             <td><span class="status-badge" style="background: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Active</span></td>
                             <td>
-                                <button class="btn-config" onclick="openUserManage('John Smith', 'Resident', 'Active')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
-                                <button class="btn-archive" onclick="archiveUser('row-2')" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Archive</button>
+                                <button class="btn-config" onclick="openUserManage('Sophia Dumayas', 'Resident', 'Active')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
+                                <button class="btn-delete" onclick="deleteUser('row-2')" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Delete</button>
                             </td>
                         </tr>
-                        <tr id="row-3">
-                            <td style="font-weight: 600;">Mark Wilson</td>
-                            <td>mark.w@serbisyoburgos.com</td>
-                            <td><span style="font-weight: 600; color: var(--brand-dark);">Staff</span></td>
-                            <td><small>Analytics View Only</small></td>
+<tr id="row-3">
+                            <td style="font-weight: 600;">Staff 2</td>
+                            <td>staff@serbisyoburgos.com</td>
+                            <td><small>Appointment Scheduling, Document Generator</small></td>
                             <td><span class="status-badge" style="background: #fff7ed; color: #ea580c; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Suspended</span></td>
                             <td>
-                                <button class="btn-config" onclick="openUserManage('Mark Wilson', 'Staff', 'Suspended')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
-                                <button class="btn-archive" onclick="archiveUser('row-3')" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Archive</button>
+                                <button class="btn-config" onclick="openUserManage('Staff 2', 'Staff', 'Suspended')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
+                                <button class="btn-delete" onclick="deleteUser('row-3')" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Delete</button>
                             </td>
                         </tr>
                     </tbody>
@@ -432,16 +448,7 @@
                     <button onclick="closeUserModal()" style="background:none; border:none; font-size: 1.5rem; cursor:pointer;">&times;</button>
                 </div>
 
-                <div class="form-group">
-                    <label>Assigned Role</label>
-                    <select id="userRoleSelect" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px;">
-                        <option value="Resident">Resident</option>
-                        <option value="Staff">Staff</option>
-                        <option value="Admin">Admin</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
+<div class="form-group">
                     <label>Account Status</label>
                     <select id="userStatusSelect" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px;">
                         <option value="Active">Active</option>
@@ -450,13 +457,13 @@
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label>Permissions</label>
-                    <div class="permission-grid">
-                        <div class="permission-item"><input type="checkbox" checked> View Reports</div>
-                        <div class="permission-item"><input type="checkbox"> Edit Services</div>
-                        <div class="permission-item"><input type="checkbox" checked> Announcements</div>
-                        <div class="permission-item"><input type="checkbox"> Manage Users</div>
+<div class="form-group" id="permissionGroupStaff">
+                    <label>Staff Permissions</label>
+                    <div class="permission-grid-staff">
+                        <div class="permission-item"><input type="checkbox"> Dashboard</div>
+                        <div class="permission-item"><input type="checkbox"> Appointment Scheduling</div>
+                        <div class="permission-item"><input type="checkbox"> Request Processing</div>
+                        <div class="permission-item"><input type="checkbox"> Document Generator</div>
                     </div>
                 </div>
 
@@ -554,10 +561,9 @@
             });
         }
 
-        function openUserManage(userName, currentRole, currentStatus, rowId) {
+function openUserManage(userName, currentRole, currentStatus, rowId) {
             targetUserRow = rowId;
             document.getElementById('manageUserTitle').innerText = "Manage: " + userName;
-            document.getElementById('userRoleSelect').value = currentRole;
             document.getElementById('userStatusSelect').value = currentStatus;
             
             document.getElementById('userManageModal').style.display = 'flex';
@@ -567,34 +573,42 @@
             document.getElementById('userManageModal').style.display = 'none';
         }
 
-        async function saveUserChanges() {
+async function saveUserChanges() {
             // Logic to update the UI table row instantly
-            const newRole = document.getElementById('userRoleSelect').value;
             await showDialog({
                 title: "User Updated",
-                message: "User account has been updated to " + newRole + ".",
+                message: "User account has been updated.",
                 confirmLabel: "OK"
             });
             
             closeUserModal();
         }
 
-        // Function for Archive User (destructive action)
-        async function archiveUser(userName) {
+// Function for Delete User (destructive action)
+        async function deleteUser(rowId) {
+            const rowToDelete = document.getElementById(rowId);
+            if (!rowToDelete) return;
+            
+            const userNameCell = rowToDelete.querySelector('td:first-child');
+            const userName = userNameCell ? userNameCell.textContent : "this user";
+            
             const confirmed = await showDialog({
-                title: "Archive User",
-                message: "Are you sure you want to archive " + userName + "? This will revoke all system access immediately.",
-                confirmLabel: "Archive",
+                title: "Delete User",
+                message: "Are you sure you want to delete " + userName + "? This action cannot be undone.",
+                confirmLabel: "Delete",
                 cancelLabel: "Cancel",
                 danger: true
             });
             if (!confirmed) return;
+            
+            // Remove the row from the table
+            rowToDelete.remove();
+            
             await showDialog({
-                title: "User Archived",
-                message: userName + " has been moved to archives.",
+                title: "User Deleted",
+                message: userName + " has been deleted from the system.",
                 confirmLabel: "OK"
             });
-            // Code to remove row from table would go here
         }
 
         function handleLogout(event) {
