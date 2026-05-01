@@ -1,7 +1,7 @@
 require("dotenv").config();
 
 const required = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"];
-const optional = ["PORT", "CLIENT_ORIGIN"];
+const optional = ["PORT", "CLIENT_ORIGIN", "GROQ_API_KEY", "GROQ_MODEL"];
 
 let hasMissing = false;
 

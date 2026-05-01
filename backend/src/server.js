@@ -64,6 +64,22 @@ const authResidentLoginLimiter = rateLimit({
   message: { ok: false, message: "Too many login attempts. Please try again later." }
 });
 
+const faqSearchLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, message: "Too many FAQ searches. Please try again later." }
+});
+
+const faqChatLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, message: "Too many chat messages. Please try again later." }
+});
+
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
@@ -140,6 +156,187 @@ async function resolveProfileFromToken(req) {
 
 const STAFF_PORTAL_ROLES = new Set(["admin", "staff", "system-admin"]);
 
+async function requireResidentPortalUser(req, res) {
+  const { profile, error } = await resolveProfileFromToken(req);
+  if (error) {
+    res.status(error.status).json({ ok: false, message: error.message });
+    return null;
+  }
+  if (profile.role !== "resident") {
+    res.status(403).json({ ok: false, message: "Resident portal access required." });
+    return null;
+  }
+  const residentUserId = await ensureResidentUserRow(profile.email);
+  if (!residentUserId) {
+    res.status(500).json({ ok: false, message: "Unable to resolve resident account." });
+    return null;
+  }
+  return { profile, residentUserId };
+}
+
+async function requireStaffOrAuthenticatedResident(req, res) {
+  const { profile, error } = await resolveProfileFromToken(req);
+  if (error) {
+    res.status(error.status).json({ ok: false, message: error.message });
+    return null;
+  }
+  if (STAFF_PORTAL_ROLES.has(profile.role)) {
+    return { portal: "staff", profile };
+  }
+  if (profile.role === "resident") {
+    const residentUserId = await ensureResidentUserRow(profile.email);
+    if (!residentUserId) {
+      res.status(500).json({ ok: false, message: "Unable to resolve resident account." });
+      return null;
+    }
+    return { portal: "resident", profile, residentUserId };
+  }
+  res.status(403).json({ ok: false, message: "Access denied." });
+  return null;
+}
+
+async function validateSseAccess(req) {
+  const token = getBearerToken(req) || String(req.query?.access_token || "").trim();
+  if (!token) return { ok: false, status: 401, message: "Authentication required." };
+  const { data: authUserData, error: authUserError } = await supabaseAuth.auth.getUser(token);
+  if (authUserError || !authUserData?.user?.email) {
+    return { ok: false, status: 401, message: "Invalid or expired session token." };
+  }
+  const userEmail = authUserData.user.email;
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .select("email, role")
+    .eq("email", userEmail)
+    .maybeSingle();
+  if (profileError || !profile) {
+    return { ok: false, status: 403, message: "Profile record not found." };
+  }
+  if (profile.role !== "resident" && !STAFF_PORTAL_ROLES.has(profile.role)) {
+    return { ok: false, status: 403, message: "Access denied." };
+  }
+  return { ok: true, profile };
+}
+
+const MAX_REQUEST_TITLE_LEN = 200;
+const MAX_SERVICE_TYPE_LEN = 120;
+const MAX_TIME_SLOT_LEN = 80;
+const MAX_APPOINTMENT_PURPOSE_LEN = 200;
+const MAX_STATUS_NOTE_LEN = 2000;
+const MAX_ANNOUNCEMENT_TITLE_LEN = 200;
+const MAX_ANNOUNCEMENT_BODY_LEN = 8000;
+const MAX_ANNOUNCEMENT_CATEGORY_LEN = 80;
+const MAX_FAQ_SEARCH_QUERY_LEN = 800;
+const FAQ_SEARCH_MIN_SCORE = 4;
+const FAQ_SEARCH_TOP_LIMIT_DEFAULT = 3;
+const FAQ_SEARCH_TOP_LIMIT_MAX = 8;
+const FAQ_CHAT_CONTEXT_MAX = 5;
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_CHAT_DEFAULT_MODEL = "llama-3.3-70b-versatile";
+const MAX_GROQ_REPLY_CHARS = 4000;
+const FAQ_SEARCH_TOKEN_STOPWORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "but",
+  "by",
+  "can",
+  "did",
+  "do",
+  "does",
+  "for",
+  "from",
+  "had",
+  "has",
+  "have",
+  "how",
+  "i",
+  "if",
+  "in",
+  "into",
+  "is",
+  "it",
+  "its",
+  "me",
+  "my",
+  "not",
+  "of",
+  "on",
+  "or",
+  "our",
+  "see",
+  "so",
+  "than",
+  "that",
+  "the",
+  "their",
+  "them",
+  "then",
+  "there",
+  "these",
+  "they",
+  "this",
+  "those",
+  "to",
+  "too",
+  "use",
+  "was",
+  "we",
+  "were",
+  "what",
+  "when",
+  "where",
+  "which",
+  "who",
+  "whose",
+  "why",
+  "will",
+  "with",
+  "you",
+  "your",
+  // Common Filipino fillers (queries may mix languages)
+  "po",
+  "opo",
+  "ba",
+  "lang",
+  "lng",
+  "ko",
+  "mo",
+  "na"
+]);
+
+// Stored FAQ keywords this short or this generic are ignored for substring matching (avoid ranking noise).
+const FAQ_SEARCH_IGNORED_KEYWORD_SUBSTRINGS = new Set([
+  "how",
+  "why",
+  "when",
+  "who",
+  "what",
+  "which",
+  "where",
+  "there",
+  "here"
+]);
+
+function sanitizePlainTextField(raw, maxLen) {
+  let s = String(raw || "")
+    .trim()
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");
+  if (s.length > maxLen) s = s.slice(0, maxLen);
+  return s.replace(/[<>]/g, "").trim();
+}
+
+function parseLocalDateString(value) {
+  const s = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const d = new Date(`${s}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  return s;
+}
+
 async function requireStaffPortalUser(req, res) {
   const { profile, error } = await resolveProfileFromToken(req);
   if (error) {
@@ -177,6 +374,213 @@ function normalizeServiceCatalogRow(row) {
   };
 }
 
+function normalizeFaqSearchText(raw) {
+  return String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");
+}
+
+function tokenizeForFaqSearch(normalizedLower) {
+  return normalizedLower
+    .split(/[^\p{L}\p{N}]+/u)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2);
+}
+
+function significantFaqTokensFromField(text) {
+  const bag = new Set();
+  for (const t of tokenizeForFaqSearch(normalizeFaqSearchText(text))) {
+    if (t.length < 2 || FAQ_SEARCH_TOKEN_STOPWORDS.has(t)) continue;
+    bag.add(t);
+  }
+  return bag;
+}
+
+function scoreFaqEntry(normalizedMessage, tokens, row) {
+  let score = 0;
+  const reasons = [];
+  const keywords = Array.isArray(row.keywords) ? row.keywords : [];
+
+  for (const kw of keywords) {
+    const k = normalizeFaqSearchText(kw);
+    if (k.length < 3 || FAQ_SEARCH_IGNORED_KEYWORD_SUBSTRINGS.has(k)) continue;
+    if (normalizedMessage.includes(k)) {
+      score += 6;
+      reasons.push(`keyword:${k.slice(0, 64)}`);
+    }
+  }
+
+  const questionTok = significantFaqTokensFromField(row.question);
+  const answerTok = significantFaqTokensFromField(row.answer);
+
+  for (const t of tokens) {
+    if (t.length < 2 || FAQ_SEARCH_TOKEN_STOPWORDS.has(t)) continue;
+    if (questionTok.has(t)) {
+      score += 3;
+      reasons.push(`question:${t}`);
+    } else if (answerTok.has(t)) {
+      score += 1;
+      reasons.push(`answer:${t}`);
+    }
+  }
+
+  return { score, reasons: [...new Set(reasons)].slice(0, 12) };
+}
+
+function normalizeFaqMatch(row, score, reasons) {
+  return {
+    id: row.id,
+    category: row.category,
+    question: row.question,
+    answer: row.answer,
+    score,
+    matchReasons: reasons,
+    sortOrder: row.sort_order
+  };
+}
+
+async function retrieveFaqMatchesInternal(query, limit) {
+  const { data, error } = await supabaseAdmin
+    .from("faq_entries")
+    .select("id,category,question,answer,keywords,sort_order")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    return {
+      ok: false,
+      message: "Unable to load FAQs.",
+      detail: error.message
+    };
+  }
+
+  const normalizedMessage = normalizeFaqSearchText(query);
+  const tokens = tokenizeForFaqSearch(normalizedMessage);
+
+  const scored = (data || [])
+    .map((row) => {
+      const { score, reasons } = scoreFaqEntry(normalizedMessage, tokens, row);
+      return { row, score, reasons };
+    })
+    .filter((x) => x.score >= FAQ_SEARCH_MIN_SCORE)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return (a.row.sort_order ?? 0) - (b.row.sort_order ?? 0);
+    })
+    .slice(0, limit);
+
+  const bestScore = scored.length ? scored[0].score : 0;
+  let confidence = "none";
+  if (bestScore >= 12) confidence = "high";
+  else if (bestScore >= FAQ_SEARCH_MIN_SCORE) confidence = "low";
+
+  return {
+    ok: true,
+    query,
+    matches: scored.map(({ row, score, reasons }) => normalizeFaqMatch(row, score, reasons)),
+    bestScore,
+    confidence
+  };
+}
+
+function buildFaqContextBlock(matches) {
+  return matches
+    .map((m, i) => {
+      return `[${i + 1}] (${m.category})\nQ: ${m.question}\nA: ${m.answer}`;
+    })
+    .join("\n\n");
+}
+
+function sanitizeChatReply(raw) {
+  let s = String(raw || "")
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
+    .trim();
+  if (s.length > MAX_GROQ_REPLY_CHARS) s = s.slice(0, MAX_GROQ_REPLY_CHARS).trim();
+  return s.replace(/[<>]/g, "");
+}
+
+async function rewriteFaqWithGroq(userQuestion, matches) {
+  const apiKey = String(process.env.GROQ_API_KEY || "").trim();
+  if (!apiKey) {
+    return { ok: false, reason: "no_api_key" };
+  }
+
+  const model = String(process.env.GROQ_MODEL || "").trim() || GROQ_CHAT_DEFAULT_MODEL;
+  const excerpts = buildFaqContextBlock(matches);
+
+  const systemPrompt = [
+    "You are a Philippine barangay resident assistant answering questions using ONLY the FAQ excerpts provided by the user message.",
+    "Understand the user's question whether it is in English, Tagalog, Taglish, or mixed—then reply in CLEAR, EASY-TO-READ English suited for non-technical residents.",
+    "Rewrite faithfully: simplify wording and sentence length, prefer short bullets when helpful, but do NOT remove required steps, conditions, statuses, dashboard names, or fees that appear in the excerpts.",
+    "Keep these exact phrases when referring to portals (capitalization as in excerpts): \"Service Requests\", \"Recent Service Requests\", and \"Request History\"—these may become clickable links in the app.",
+    "Do not invent requirements, deadlines, contacts, URLs, offices, amounts, fees, portal names, or processes that are not in the excerpts.",
+    "If excerpts do not cover part of the question, say clearly in simple English what is unknown and advise visiting/contacting the barangay.",
+    "Do not prefix answers like \"FAQ 1\". No markdown/HTML."
+  ].join("\n");
+
+  const userPayload = [
+    "Do this:",
+    "1) Read the RESIDENT QUESTION below (English/Tagalog/Taglish acceptable). Understand intent.",
+    "2) Decide which excerpt(s) apply.",
+    "3) Answer in SIMPLE English using ONLY excerpt facts.",
+    "",
+    `RESIDENT QUESTION:\n${userQuestion}`,
+    "",
+    `OFFICIAL FAQ EXCERPTS:\n${excerpts}`
+  ].join("\n");
+
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 45000);
+
+  try {
+    const res = await fetch(GROQ_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPayload }
+        ],
+        temperature: 0.2,
+        max_tokens: 700
+      }),
+      signal: ac.signal
+    });
+
+    const rawText = await res.text();
+    let json;
+    try {
+      json = JSON.parse(rawText);
+    } catch {
+      return { ok: false, reason: "bad_response", status: res.status, detail: rawText.slice(0, 400) };
+    }
+
+    if (!res.ok) {
+      const msg = json?.error?.message || rawText.slice(0, 400);
+      return { ok: false, reason: "groq_http", status: res.status, detail: msg };
+    }
+
+    const text = sanitizeChatReply(json?.choices?.[0]?.message?.content);
+    if (!text) {
+      return { ok: false, reason: "empty_content" };
+    }
+
+    return { ok: true, text, model };
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      return { ok: false, reason: "timeout" };
+    }
+    return { ok: false, reason: "network", detail: String(err?.message || err).slice(0, 400) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Return basic API status and whether Supabase env vars are present.
 app.get("/health", async (_req, res) => {
   // Lightweight check that API server is up and env is loaded.
@@ -184,11 +588,13 @@ app.get("/health", async (_req, res) => {
     process.env.SUPABASE_URL &&
       (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY)
   );
+  const groqConfigured = Boolean(String(process.env.GROQ_API_KEY || "").trim());
 
   res.json({
     ok: true,
     service: "backend",
-    supabaseConfigured: hasSupabaseConfig
+    supabaseConfigured: hasSupabaseConfig,
+    groqConfigured
   });
 });
 
@@ -398,44 +804,6 @@ function broadcastAppointmentEvent(payload) {
   }
 }
 
-async function resolveFallbackResidentUserId() {
-  try {
-    const { data: existing, error: existingError } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("role", "resident")
-      .limit(1);
-
-    if (!existingError && existing?.length) {
-      return existing[0].id;
-    }
-
-    const demoEmail = "resident-demo@serbisyoburgos.local";
-    const { data: inserted, error: insertError } = await supabaseAdmin
-      .from("users")
-      .insert({
-        email: demoEmail,
-        role: "resident",
-        auth_provider: "local",
-        is_active: true
-      })
-      .select("id")
-      .single();
-
-    if (!insertError && inserted?.id) return inserted.id;
-
-    const { data: fallbackByEmail } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("email", demoEmail)
-      .maybeSingle();
-
-    return fallbackByEmail?.id || null;
-  } catch (_error) {
-    return null;
-  }
-}
-
 async function ensureResidentUserRow(email) {
   const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail) return null;
@@ -472,7 +840,7 @@ async function ensureResidentUserRow(email) {
 
 async function upsertResidentProfile({ email, fullName }) {
   const normalizedEmail = normalizeEmail(email);
-  const safeFullName = String(fullName || "").trim();
+  const safeFullName = sanitizeFullNameForStorage(fullName);
   if (!normalizedEmail || !safeFullName) {
     return { ok: false, message: "Email and full name are required." };
   }
@@ -692,39 +1060,19 @@ app.get("/auth/resident/authorize", async (req, res) => {
 });
 
 app.get("/resident/context", async (req, res) => {
-  const { profile } = await resolveProfileFromToken(req);
-  if (profile?.role === "resident" && profile?.email) {
-    const residentUserId = await ensureResidentUserRow(profile.email);
-    if (residentUserId) {
-      return res.json({
-        ok: true,
-        residentUserId
-      });
-    }
-  }
-
-  const residentUserId = await resolveFallbackResidentUserId();
-  if (!residentUserId) {
-    return res.status(500).json({
-      ok: false,
-      message: "Unable to resolve resident context."
-    });
-  }
+  const auth = await requireResidentPortalUser(req, res);
+  if (!auth) return;
   return res.json({
     ok: true,
-    residentUserId
+    residentUserId: auth.residentUserId
   });
 });
 
 // Combined service requests + appointments for a resident, newest activity first.
 app.get("/resident/history", async (req, res) => {
-  const residentUserId = parseResidentUserId(req.query?.residentUserId);
-  if (!residentUserId) {
-    return res.status(400).json({
-      ok: false,
-      message: "residentUserId query parameter is required."
-    });
-  }
+  const auth = await requireResidentPortalUser(req, res);
+  if (!auth) return;
+  const residentUserId = auth.residentUserId;
 
   const [requestsResult, appointmentsResult] = await Promise.all([
     supabaseAdmin.from("service_requests").select("*").eq("resident_user_id", residentUserId),
@@ -775,7 +1123,12 @@ app.get("/resident/history", async (req, res) => {
   });
 });
 
-app.get("/requests/events", (req, res) => {
+app.get("/requests/events", async (req, res) => {
+  const gate = await validateSseAccess(req);
+  if (!gate.ok) {
+    res.status(gate.status).setHeader("Content-Type", "text/plain").send(gate.message);
+    return;
+  }
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
@@ -789,7 +1142,12 @@ app.get("/requests/events", (req, res) => {
   });
 });
 
-app.get("/appointments/events", (req, res) => {
+app.get("/appointments/events", async (req, res) => {
+  const gate = await validateSseAccess(req);
+  if (!gate.ok) {
+    res.status(gate.status).setHeader("Content-Type", "text/plain").send(gate.message);
+    return;
+  }
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
@@ -804,11 +1162,19 @@ app.get("/appointments/events", (req, res) => {
 });
 
 app.get("/requests", async (req, res) => {
-  const requestedResidentUserId = parseResidentUserId(req.query?.residentUserId);
+  const actor = await requireStaffOrAuthenticatedResident(req, res);
+  if (!actor) return;
+
   let query = supabaseAdmin.from("service_requests").select("*");
-  if (requestedResidentUserId) {
-    query = query.eq("resident_user_id", requestedResidentUserId);
+  if (actor.portal === "resident") {
+    query = query.eq("resident_user_id", actor.residentUserId);
+  } else {
+    const requestedResidentUserId = parseResidentUserId(req.query?.residentUserId);
+    if (requestedResidentUserId) {
+      query = query.eq("resident_user_id", requestedResidentUserId);
+    }
   }
+
   const { data, error } = await query;
 
   if (error) {
@@ -840,6 +1206,9 @@ app.get("/requests/:id", async (req, res) => {
     });
   }
 
+  const actor = await requireStaffOrAuthenticatedResident(req, res);
+  if (!actor) return;
+
   const { data, error } = await supabaseAdmin
     .from("service_requests")
     .select("*")
@@ -861,6 +1230,16 @@ app.get("/requests/:id", async (req, res) => {
     });
   }
 
+  if (actor.portal === "resident") {
+    const ownerId = parseResidentUserId(data.resident_user_id);
+    if (!ownerId || ownerId !== actor.residentUserId) {
+      return res.status(403).json({
+        ok: false,
+        message: "You do not have access to this request."
+      });
+    }
+  }
+
   const requestRow = await normalizeRequestRowWithResident(data);
   return res.json({
     ok: true,
@@ -869,13 +1248,16 @@ app.get("/requests/:id", async (req, res) => {
 });
 
 app.get("/requests/by-reference/:referenceNo", async (req, res) => {
-  const referenceNo = String(req.params.referenceNo || "").trim();
-  if (!referenceNo) {
+  const referenceNo = sanitizePlainTextField(req.params.referenceNo, 40);
+  if (!referenceNo || referenceNo.length < 3) {
     return res.status(400).json({
       ok: false,
       message: "Invalid reference number."
     });
   }
+
+  const actor = await requireStaffOrAuthenticatedResident(req, res);
+  if (!actor) return;
 
   const { data, error } = await supabaseAdmin
     .from("service_requests")
@@ -898,6 +1280,16 @@ app.get("/requests/by-reference/:referenceNo", async (req, res) => {
     });
   }
 
+  if (actor.portal === "resident") {
+    const ownerId = parseResidentUserId(data.resident_user_id);
+    if (!ownerId || ownerId !== actor.residentUserId) {
+      return res.status(404).json({
+        ok: false,
+        message: "Request not found."
+      });
+    }
+  }
+
   const requestRow = await normalizeRequestRowWithResident(data);
   return res.json({
     ok: true,
@@ -906,8 +1298,13 @@ app.get("/requests/by-reference/:referenceNo", async (req, res) => {
 });
 
 app.patch("/requests/:id/status", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+
   const id = Number(req.params.id);
   const { status, note } = req.body || {};
+  const safeNote =
+    typeof note === "string" && note.trim() ? sanitizePlainTextField(note, MAX_STATUS_NOTE_LEN) : null;
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({
       ok: false,
@@ -958,7 +1355,7 @@ app.patch("/requests/:id/status", async (req, res) => {
   broadcastRequestEvent({
     type: "status-updated",
     request: requestRow,
-    note: note ? String(note) : null
+    note: safeNote
   });
 
   return res.json({
@@ -968,25 +1365,31 @@ app.patch("/requests/:id/status", async (req, res) => {
 });
 
 app.post("/requests", async (req, res) => {
-  const { title, serviceType, preferredDate, preferredTimeSlot, residentUserId } = req.body || {};
+  const auth = await requireResidentPortalUser(req, res);
+  if (!auth) return;
 
-  if (!title || !serviceType || !preferredDate || !preferredTimeSlot) {
+  const { title, serviceType, preferredDate, preferredTimeSlot } = req.body || {};
+
+  const safeTitle = sanitizePlainTextField(title, MAX_REQUEST_TITLE_LEN);
+  const safeServiceType = sanitizePlainTextField(serviceType, MAX_SERVICE_TYPE_LEN);
+  const safePreferredDate = parseLocalDateString(preferredDate);
+  const safeTimeSlot = sanitizePlainTextField(preferredTimeSlot, MAX_TIME_SLOT_LEN);
+
+  if (!safeTitle || !safeServiceType || !safePreferredDate || !safeTimeSlot) {
     return res.status(400).json({
       ok: false,
-      message: "title, serviceType, preferredDate, and preferredTimeSlot are required."
+      message: "title, serviceType, preferredDate, and preferredTimeSlot are required. Use YYYY-MM-DD for dates."
     });
   }
 
   const referenceNo = `REQ-${Math.floor(1000 + Math.random() * 9000)}`;
-  const fallbackResidentUserId = await resolveFallbackResidentUserId();
-  const requestedResidentUserId = parseResidentUserId(residentUserId);
-  const resolvedResidentUserId = requestedResidentUserId || fallbackResidentUserId;
+  const resolvedResidentUserId = auth.residentUserId;
   const insertPayload = {
     reference_no: referenceNo,
-    title: String(title).trim(),
-    service_type: String(serviceType).trim(),
-    preferred_date: preferredDate,
-    preferred_time_slot: String(preferredTimeSlot).trim(),
+    title: safeTitle,
+    service_type: safeServiceType,
+    preferred_date: safePreferredDate,
+    preferred_time_slot: safeTimeSlot,
     status: "Pending"
   };
   if (resolvedResidentUserId) {
@@ -1022,12 +1425,46 @@ app.post("/requests", async (req, res) => {
 });
 
 app.delete("/requests/:id", async (req, res) => {
+  const actor = await requireStaffOrAuthenticatedResident(req, res);
+  if (!actor) return;
+
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({
       ok: false,
       message: "Invalid request id."
     });
+  }
+
+  const { data: existing, error: loadError } = await supabaseAdmin
+    .from("service_requests")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (loadError) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to delete request.",
+      detail: loadError.message
+    });
+  }
+
+  if (!existing) {
+    return res.status(404).json({
+      ok: false,
+      message: "Request not found."
+    });
+  }
+
+  if (actor.portal === "resident") {
+    const ownerId = parseResidentUserId(existing.resident_user_id);
+    if (!ownerId || ownerId !== actor.residentUserId) {
+      return res.status(403).json({
+        ok: false,
+        message: "You do not have access to this request."
+      });
+    }
   }
 
   const { data, error } = await supabaseAdmin
@@ -1062,14 +1499,21 @@ app.delete("/requests/:id", async (req, res) => {
 });
 
 app.get("/appointments", async (req, res) => {
-  const requestedResidentUserId = parseResidentUserId(req.query?.residentUserId);
+  const actor = await requireStaffOrAuthenticatedResident(req, res);
+  if (!actor) return;
+
   let query = supabaseAdmin
     .from("appointments")
     .select("*, appointment_slots(label)")
     .order("appointment_date", { ascending: true })
     .order("created_at", { ascending: false });
-  if (requestedResidentUserId) {
-    query = query.eq("resident_user_id", requestedResidentUserId);
+  if (actor.portal === "resident") {
+    query = query.eq("resident_user_id", actor.residentUserId);
+  } else {
+    const requestedResidentUserId = parseResidentUserId(req.query?.residentUserId);
+    if (requestedResidentUserId) {
+      query = query.eq("resident_user_id", requestedResidentUserId);
+    }
   }
   const { data, error } = await query;
 
@@ -1096,6 +1540,9 @@ app.get("/appointments/:id", async (req, res) => {
     });
   }
 
+  const actor = await requireStaffOrAuthenticatedResident(req, res);
+  if (!actor) return;
+
   const { data, error } = await supabaseAdmin
     .from("appointments")
     .select("*, appointment_slots(label)")
@@ -1117,6 +1564,16 @@ app.get("/appointments/:id", async (req, res) => {
     });
   }
 
+  if (actor.portal === "resident") {
+    const ownerId = parseResidentUserId(data.resident_user_id);
+    if (!ownerId || ownerId !== actor.residentUserId) {
+      return res.status(403).json({
+        ok: false,
+        message: "You do not have access to this appointment."
+      });
+    }
+  }
+
   const appointmentRow = await normalizeAppointmentRowWithResident(data);
   return res.json({
     ok: true,
@@ -1125,13 +1582,16 @@ app.get("/appointments/:id", async (req, res) => {
 });
 
 app.get("/appointments/by-reference/:referenceNo", async (req, res) => {
-  const referenceNo = String(req.params.referenceNo || "").trim();
-  if (!referenceNo) {
+  const referenceNo = sanitizePlainTextField(req.params.referenceNo, 40);
+  if (!referenceNo || referenceNo.length < 3) {
     return res.status(400).json({
       ok: false,
       message: "Invalid appointment reference number."
     });
   }
+
+  const actor = await requireStaffOrAuthenticatedResident(req, res);
+  if (!actor) return;
 
   const { data, error } = await supabaseAdmin
     .from("appointments")
@@ -1154,6 +1614,16 @@ app.get("/appointments/by-reference/:referenceNo", async (req, res) => {
     });
   }
 
+  if (actor.portal === "resident") {
+    const ownerId = parseResidentUserId(data.resident_user_id);
+    if (!ownerId || ownerId !== actor.residentUserId) {
+      return res.status(404).json({
+        ok: false,
+        message: "Appointment not found."
+      });
+    }
+  }
+
   const appointmentRowByRef = await normalizeAppointmentRowWithResident(data);
   return res.json({
     ok: true,
@@ -1162,9 +1632,15 @@ app.get("/appointments/by-reference/:referenceNo", async (req, res) => {
 });
 
 app.post("/appointments", async (req, res) => {
-  const { purpose, appointmentDate, slotId, residentUserId } = req.body || {};
+  const auth = await requireResidentPortalUser(req, res);
+  if (!auth) return;
 
-  if (!purpose || !appointmentDate || !slotId) {
+  const { purpose, appointmentDate, slotId } = req.body || {};
+
+  const safePurpose = sanitizePlainTextField(purpose, MAX_APPOINTMENT_PURPOSE_LEN);
+  const safeAppointmentDate = parseLocalDateString(appointmentDate);
+
+  if (!safePurpose || !safeAppointmentDate || slotId === undefined || slotId === null || slotId === "") {
     return res.status(400).json({
       ok: false,
       message: "purpose, appointmentDate, and slotId are required."
@@ -1179,22 +1655,14 @@ app.post("/appointments", async (req, res) => {
     });
   }
 
-  const fallbackResidentUserId = await resolveFallbackResidentUserId();
-  const requestedResidentUserId = parseResidentUserId(residentUserId);
-  const resolvedResidentUserId = requestedResidentUserId || fallbackResidentUserId;
-  if (!resolvedResidentUserId) {
-    return res.status(500).json({
-      ok: false,
-      message: "Unable to resolve resident account for appointment booking."
-    });
-  }
+  const resolvedResidentUserId = auth.residentUserId;
 
   const referenceNo = `APT-${Math.floor(1000 + Math.random() * 9000)}`;
   const insertPayload = {
     reference_no: referenceNo,
     resident_user_id: resolvedResidentUserId,
-    purpose: String(purpose).trim(),
-    appointment_date: appointmentDate,
+    purpose: safePurpose,
+    appointment_date: safeAppointmentDate,
     slot_id: parsedSlotId,
     status: "Pending Review"
   };
@@ -1224,8 +1692,13 @@ app.post("/appointments", async (req, res) => {
 });
 
 app.patch("/appointments/:id/status", async (req, res) => {
+  const staffAuth = await requireStaffPortalUser(req, res);
+  if (!staffAuth) return;
+
   const id = Number(req.params.id);
   const { status, note } = req.body || {};
+  const safeNote =
+    typeof note === "string" && note.trim() ? sanitizePlainTextField(note, MAX_STATUS_NOTE_LEN) : "";
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({
       ok: false,
@@ -1253,8 +1726,8 @@ app.patch("/appointments/:id/status", async (req, res) => {
   }
 
   const updatePayload = { status: mappedStatus };
-  if (typeof note === "string" && note.trim()) {
-    updatePayload.notes = note.trim();
+  if (safeNote) {
+    updatePayload.notes = safeNote;
   }
 
   const { data, error } = await supabaseAdmin
@@ -1282,12 +1755,181 @@ app.patch("/appointments/:id/status", async (req, res) => {
   broadcastAppointmentEvent({
     type: "status-updated",
     appointment: appointmentRow,
-    note: note ? String(note) : null
+    note: safeNote || null
   });
 
   return res.json({
     ok: true,
     appointment: appointmentRow
+  });
+});
+
+app.delete("/appointments/:id", async (req, res) => {
+  const actor = await requireStaffOrAuthenticatedResident(req, res);
+  if (!actor) return;
+
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({
+      ok: false,
+      message: "Invalid appointment id."
+    });
+  }
+
+  const { data: existing, error: loadError } = await supabaseAdmin
+    .from("appointments")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (loadError) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to delete appointment.",
+      detail: loadError.message
+    });
+  }
+
+  if (!existing) {
+    return res.status(404).json({
+      ok: false,
+      message: "Appointment not found."
+    });
+  }
+
+  if (actor.portal === "resident") {
+    const ownerId = parseResidentUserId(existing.resident_user_id);
+    if (!ownerId || ownerId !== actor.residentUserId) {
+      return res.status(403).json({
+        ok: false,
+        message: "You do not have access to this appointment."
+      });
+    }
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("appointments")
+    .delete()
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to delete appointment.",
+      detail: error.message
+    });
+  }
+
+  if (!data) {
+    return res.status(404).json({
+      ok: false,
+      message: "Appointment not found."
+    });
+  }
+
+  const appointmentRow = normalizeAppointmentRow(data);
+  broadcastAppointmentEvent({ type: "deleted", appointment: appointmentRow });
+
+  return res.json({
+    ok: true,
+    appointment: appointmentRow
+  });
+});
+
+// --- FAQ retrieval + Groq rewrite (resident chatbot) ---
+
+app.post("/faq/search", faqSearchLimiter, async (req, res) => {
+  const rawQuery = req.body?.query ?? req.body?.message ?? "";
+  const query = sanitizePlainTextField(rawQuery, MAX_FAQ_SEARCH_QUERY_LEN);
+  if (!query) {
+    return res.status(400).json({ ok: false, message: "Query is required." });
+  }
+
+  let limit = Number(req.body?.limit);
+  if (!Number.isInteger(limit) || limit <= 0) {
+    limit = FAQ_SEARCH_TOP_LIMIT_DEFAULT;
+  }
+  limit = Math.min(limit, FAQ_SEARCH_TOP_LIMIT_MAX);
+
+  const result = await retrieveFaqMatchesInternal(query, limit);
+  if (!result.ok) {
+    return res.status(500).json({
+      ok: false,
+      message: result.message,
+      detail: result.detail
+    });
+  }
+
+  return res.json({
+    ok: true,
+    query,
+    matches: result.matches,
+    bestScore: result.bestScore,
+    confidence: result.confidence,
+    minScoreUsed: FAQ_SEARCH_MIN_SCORE
+  });
+});
+
+app.post("/faq/chat", faqChatLimiter, async (req, res) => {
+  const rawQuery = req.body?.query ?? req.body?.message ?? "";
+  const query = sanitizePlainTextField(rawQuery, MAX_FAQ_SEARCH_QUERY_LEN);
+  if (!query) {
+    return res.status(400).json({ ok: false, message: "Query is required." });
+  }
+
+  let limit = Number(req.body?.limit ?? req.body?.contextLimit);
+  if (!Number.isInteger(limit) || limit <= 0) {
+    limit = FAQ_SEARCH_TOP_LIMIT_DEFAULT;
+  }
+  limit = Math.min(limit, FAQ_CHAT_CONTEXT_MAX);
+
+  const retrieved = await retrieveFaqMatchesInternal(query, limit);
+  if (!retrieved.ok) {
+    return res.status(500).json({
+      ok: false,
+      message: retrieved.message,
+      detail: retrieved.detail
+    });
+  }
+
+  const noMatchMessage =
+    "I don't have the right answer to your question. Visit the barangay hall during office hours or contact the barangay for accurate information.";
+
+  if (!retrieved.matches.length) {
+    return res.json({
+      ok: true,
+      reply: noMatchMessage,
+      mode: "no_match",
+      confidence: retrieved.confidence,
+      sources: []
+    });
+  }
+
+  const groq = await rewriteFaqWithGroq(query, retrieved.matches);
+  const sources = retrieved.matches.map((m) => ({ id: m.id, question: m.question, category: m.category }));
+
+  if (groq.ok) {
+    return res.json({
+      ok: true,
+      reply: groq.text,
+      mode: "groq",
+      model: groq.model,
+      confidence: retrieved.confidence,
+      sources
+    });
+  }
+
+  const topAnswer = retrieved.matches[0].answer;
+  const fallbackReply = sanitizeChatReply(topAnswer);
+  return res.json({
+    ok: true,
+    reply: fallbackReply,
+    mode: "verbatim_fallback",
+    groqUnavailable: groq.reason,
+    confidence: retrieved.confidence,
+    sources
   });
 });
 
@@ -1319,17 +1961,21 @@ app.post("/admin/announcements", async (req, res) => {
   if (!auth) return;
 
   const { category, title, body } = req.body || {};
-  if (!title || !String(title).trim()) {
+  const safeTitle = sanitizePlainTextField(title, MAX_ANNOUNCEMENT_TITLE_LEN);
+  const safeBody = sanitizePlainTextField(body, MAX_ANNOUNCEMENT_BODY_LEN);
+  const safeCategory = sanitizePlainTextField(category || "Community News", MAX_ANNOUNCEMENT_CATEGORY_LEN);
+
+  if (!safeTitle) {
     return res.status(400).json({ ok: false, message: "Title is required." });
   }
-  if (!body || !String(body).trim()) {
+  if (!safeBody) {
     return res.status(400).json({ ok: false, message: "Announcement details are required." });
   }
 
   const insertPayload = {
-    category: String(category || "Community News").trim(),
-    title: String(title).trim(),
-    body: String(body).trim(),
+    category: safeCategory || "Community News",
+    title: safeTitle,
+    body: safeBody,
     is_active: true
   };
 
