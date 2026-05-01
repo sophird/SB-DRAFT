@@ -337,6 +337,50 @@ function parseLocalDateString(value) {
   return s;
 }
 
+async function getAppointmentSlotCapacityForDate(slotId, dateISO) {
+  const parsedSlotId = Number(slotId);
+  if (!Number.isInteger(parsedSlotId) || parsedSlotId <= 0) return null;
+  const safeDate = parseLocalDateString(dateISO);
+  if (!safeDate) return null;
+
+  const [slotResult, overrideResult] = await Promise.all([
+    supabaseAdmin.from("appointment_slots").select("id, default_capacity, is_active").eq("id", parsedSlotId).maybeSingle(),
+    supabaseAdmin
+      .from("appointment_slot_overrides")
+      .select("capacity_limit")
+      .eq("slot_id", parsedSlotId)
+      .eq("override_date", safeDate)
+      .maybeSingle()
+  ]);
+
+  if (slotResult.error || !slotResult.data) return null;
+  if (slotResult.data.is_active === false) return null;
+
+  const overrideCap = Number(overrideResult?.data?.capacity_limit);
+  if (Number.isInteger(overrideCap) && overrideCap > 0) return overrideCap;
+
+  const defaultCap = Number(slotResult.data.default_capacity);
+  if (!Number.isInteger(defaultCap) || defaultCap <= 0) return null;
+  return defaultCap;
+}
+
+async function countBookedAppointmentsForSlot(slotId, dateISO) {
+  const parsedSlotId = Number(slotId);
+  if (!Number.isInteger(parsedSlotId) || parsedSlotId <= 0) return null;
+  const safeDate = parseLocalDateString(dateISO);
+  if (!safeDate) return null;
+
+  const { count, error } = await supabaseAdmin
+    .from("appointments")
+    .select("id", { count: "exact", head: true })
+    .eq("slot_id", parsedSlotId)
+    .eq("appointment_date", safeDate)
+    .not("status", "in", "(Rejected,Cancelled)");
+
+  if (error) return null;
+  return Number.isInteger(count) ? count : 0;
+}
+
 async function requireStaffPortalUser(req, res) {
   const { profile, error } = await resolveProfileFromToken(req);
   if (error) {
@@ -728,6 +772,150 @@ app.get("/auth/admin/authorize/:requiredRole", async (req, res) => {
   });
 });
 
+const STAFF_LINEAR_SERVICE_REQUEST_STATUSES = new Set(["Processing", "Ready for Pickup", "Completed", "Rejected"]);
+const STAFF_LINEAR_APPOINTMENT_STATUSES = new Set(["Processing", "Ready for Pickup", "Completed", "Rejected"]);
+
+function parseStatusTimeline(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.filter((x) => x && typeof x === "object");
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((x) => x && typeof x === "object") : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function timelineForApiResponse(kind, row) {
+  const stored = parseStatusTimeline(row.status_timeline);
+  if (stored.length) return stored;
+  const at = row.created_at ? String(row.created_at) : null;
+  const fallbackStatus =
+    kind === "appointment"
+      ? String(row.status || "Pending Review")
+      : String(row.status || "Pending");
+  if (!at) {
+    return [{ status: fallbackStatus, at: new Date().toISOString(), note: null }];
+  }
+  return [{ status: fallbackStatus, at, note: null }];
+}
+
+function buildNextTimelineFromRow(row, incomingStatus, noteText) {
+  const prevTimeline = parseStatusTimeline(row.status_timeline);
+  const safeNote =
+    typeof noteText === "string" && noteText.trim()
+      ? sanitizePlainTextField(noteText, MAX_STATUS_NOTE_LEN)
+      : null;
+  const entry = {
+    status: String(incomingStatus),
+    at: new Date().toISOString(),
+    note: safeNote || null
+  };
+  if (!prevTimeline.length) {
+    const anchorAt = row.created_at ? String(row.created_at) : entry.at;
+    return [{ status: String(row.status ?? ""), at: anchorAt, note: null }, entry];
+  }
+  return [...prevTimeline, entry];
+}
+
+function requestWorkflowStage(status) {
+  const s = String(status || "").trim().toLowerCase();
+  if (s === "pending") return 0;
+  if (s === "processing" || s === "in progress") return 1;
+  if (s === "ready for pickup") return 2;
+  if (s === "completed") return 3;
+  if (s === "rejected") return "reject";
+  return "other";
+}
+
+function appointmentWorkflowStage(status) {
+  const s = String(status || "").trim().toLowerCase();
+  if (s === "pending review") return 0;
+  if (s === "processing" || s === "confirmed") return 1;
+  if (s === "ready for pickup") return 2;
+  if (s === "completed") return 3;
+  if (s === "rejected") return "reject";
+  if (s === "cancelled") return "cancelled";
+  return "other";
+}
+
+function validateStaffServiceRequestTransition(currentStatus, incomingStatus) {
+  const incoming = String(incomingStatus || "").trim();
+  if (!STAFF_LINEAR_SERVICE_REQUEST_STATUSES.has(incoming)) {
+    return { ok: true };
+  }
+  const stage = requestWorkflowStage(currentStatus);
+  if (stage === "reject" || stage === "other") {
+    return {
+      ok: false,
+      message: "Cannot change status once the request is closed or not in workflow."
+    };
+  }
+  if (incoming === "Rejected") {
+    if (stage === 0 || stage === 1) return { ok: true };
+    return {
+      ok: false,
+      message: "Reject is only allowed while the request is Pending or Processing."
+    };
+  }
+  if (incoming === "Processing") {
+    if (stage === 0) return { ok: true };
+    return { ok: false, message: "Processing is only available while the request is Pending." };
+  }
+  if (incoming === "Ready for Pickup") {
+    if (stage === 1) return { ok: true };
+    return {
+      ok: false,
+      message: "Ready for Pickup is only available while the request is Processing."
+    };
+  }
+  if (incoming === "Completed") {
+    if (stage === 2) return { ok: true };
+    return { ok: false, message: "Completed is only available after Ready for Pickup." };
+  }
+  return { ok: false, message: "Invalid status transition." };
+}
+
+function validateStaffAppointmentTransition(currentStatus, incomingStatus) {
+  const incoming = String(incomingStatus || "").trim();
+  if (!STAFF_LINEAR_APPOINTMENT_STATUSES.has(incoming)) {
+    return { ok: true };
+  }
+  const stage = appointmentWorkflowStage(currentStatus);
+  if (stage === "reject" || stage === "cancelled" || stage === "other") {
+    return {
+      ok: false,
+      message: "Cannot change status once the appointment is closed or not in workflow."
+    };
+  }
+  if (incoming === "Rejected") {
+    if (stage === 0 || stage === 1) return { ok: true };
+    return {
+      ok: false,
+      message: "Reject is only allowed while the appointment is Pending Review or Processing."
+    };
+  }
+  if (incoming === "Processing") {
+    if (stage === 0) return { ok: true };
+    return { ok: false, message: "Processing is only available while the appointment is Pending Review." };
+  }
+  if (incoming === "Ready for Pickup") {
+    if (stage === 1) return { ok: true };
+    return {
+      ok: false,
+      message: "Ready for Pickup is only available while the appointment is Processing."
+    };
+  }
+  if (incoming === "Completed") {
+    if (stage === 2) return { ok: true };
+    return { ok: false, message: "Completed is only available after Ready for Pickup." };
+  }
+  return { ok: false, message: "Invalid status transition." };
+}
+
 function normalizeRequestRow(row) {
   return {
     id: row.id,
@@ -738,7 +926,8 @@ function normalizeRequestRow(row) {
     preferredDate: row.preferred_date,
     preferredTimeSlot: row.preferred_time_slot,
     status: row.status,
-    createdAt: row.created_at || row.submitted_at || null
+    createdAt: row.created_at || row.submitted_at || null,
+    statusTimeline: timelineForApiResponse("request", row)
   };
 }
 
@@ -752,7 +941,8 @@ function normalizeAppointmentRow(row) {
     slotId: row.slot_id || null,
     timeLabel: row.appointment_slots?.label || null,
     status: row.status,
-    createdAt: row.created_at || null
+    createdAt: row.created_at || null,
+    statusTimeline: timelineForApiResponse("appointment", row)
   };
 }
 
@@ -1064,7 +1254,9 @@ app.get("/resident/context", async (req, res) => {
   if (!auth) return;
   return res.json({
     ok: true,
-    residentUserId: auth.residentUserId
+    residentUserId: auth.residentUserId,
+    fullName: auth.profile?.full_name || null,
+    email: auth.profile?.email || null
   });
 });
 
@@ -1159,6 +1351,116 @@ app.get("/appointments/events", async (req, res) => {
   req.on("close", () => {
     appointmentEventClients.delete(res);
   });
+});
+
+// --- Appointment slot availability (staff + resident) ---
+
+app.get("/appointment-slots", async (req, res) => {
+  const actor = await requireStaffOrAuthenticatedResident(req, res);
+  if (!actor) return;
+
+  const dateISO = parseLocalDateString(req.query?.date);
+  if (!dateISO) {
+    return res.status(400).json({ ok: false, message: "date (YYYY-MM-DD) is required." });
+  }
+
+  const { data: slots, error: slotsError } = await supabaseAdmin
+    .from("appointment_slots")
+    .select("id, slot_code, label, default_capacity, is_active, is_morning_pickup_only, phase_label")
+    .eq("is_active", true)
+    .order("id", { ascending: true });
+
+  if (slotsError) {
+    return res.status(500).json({ ok: false, message: "Unable to load appointment slots.", detail: slotsError.message });
+  }
+
+  const { data: overrides, error: overrideError } = await supabaseAdmin
+    .from("appointment_slot_overrides")
+    .select("slot_id, capacity_limit")
+    .eq("override_date", dateISO);
+
+  if (overrideError) {
+    return res.status(500).json({ ok: false, message: "Unable to load appointment slot overrides.", detail: overrideError.message });
+  }
+
+  const overrideMap = new Map((overrides || []).map((o) => [Number(o.slot_id), Number(o.capacity_limit)]));
+
+  const { data: bookedRows, error: bookedError } = await supabaseAdmin
+    .from("appointments")
+    .select("slot_id")
+    .eq("appointment_date", dateISO)
+    .not("status", "in", "(Rejected,Cancelled)");
+
+  if (bookedError) {
+    return res.status(500).json({ ok: false, message: "Unable to load appointment bookings.", detail: bookedError.message });
+  }
+
+  const bookedCountBySlot = new Map();
+  for (const row of bookedRows || []) {
+    const id = Number(row.slot_id);
+    if (!Number.isInteger(id) || id <= 0) continue;
+    bookedCountBySlot.set(id, (bookedCountBySlot.get(id) || 0) + 1);
+  }
+
+  const results = (slots || []).map((slot) => {
+    const slotId = Number(slot.id);
+    const overrideCap = overrideMap.get(slotId);
+    const capacity =
+      Number.isInteger(overrideCap) && overrideCap > 0 ? overrideCap : Number(slot.default_capacity || 0);
+    const booked = bookedCountBySlot.get(slotId) || 0;
+    const remaining = Math.max(0, capacity - booked);
+    return {
+      id: slotId,
+      code: slot.slot_code,
+      label: slot.label,
+      phaseLabel: slot.phase_label || null,
+      isMorningPickupOnly: Boolean(slot.is_morning_pickup_only),
+      capacity,
+      booked,
+      remaining,
+      isFull: capacity > 0 ? booked >= capacity : true
+    };
+  });
+
+  return res.json({ ok: true, date: dateISO, slots: results });
+});
+
+app.put("/admin/appointment-slot-overrides", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+
+  const { slotId, date, capacityLimit } = req.body || {};
+  const parsedSlotId = Number(slotId);
+  const parsedLimit = Number(capacityLimit);
+  const dateISO = parseLocalDateString(date);
+
+  if (!Number.isInteger(parsedSlotId) || parsedSlotId <= 0) {
+    return res.status(400).json({ ok: false, message: "slotId must be a positive integer." });
+  }
+  if (!dateISO) {
+    return res.status(400).json({ ok: false, message: "date (YYYY-MM-DD) is required." });
+  }
+  if (!Number.isInteger(parsedLimit) || parsedLimit <= 0 || parsedLimit > 1000) {
+    return res.status(400).json({ ok: false, message: "capacityLimit must be a positive integer (max 1000)." });
+  }
+
+  const { error } = await supabaseAdmin
+    .from("appointment_slot_overrides")
+    .upsert(
+      {
+        slot_id: parsedSlotId,
+        override_date: dateISO,
+        capacity_limit: parsedLimit,
+        set_by_user_id: null
+      },
+      { onConflict: "slot_id,override_date" }
+    );
+
+  if (error) {
+    return res.status(500).json({ ok: false, message: "Unable to save slot capacity override.", detail: error.message });
+  }
+
+  return res.json({ ok: true, slotId: parsedSlotId, date: dateISO, capacityLimit: parsedLimit });
 });
 
 app.get("/requests", async (req, res) => {
@@ -1329,7 +1631,38 @@ app.patch("/requests/:id/status", async (req, res) => {
     });
   }
 
-  const updatePayload = { status: String(status) };
+  const nextStatus = String(status);
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("service_requests")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (existingError) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to update request status.",
+      detail: existingError.message
+    });
+  }
+  if (!existing) {
+    return res.status(404).json({
+      ok: false,
+      message: "Request not found."
+    });
+  }
+
+  const transitionCheck = validateStaffServiceRequestTransition(existing.status, nextStatus);
+  if (!transitionCheck.ok) {
+    return res.status(400).json({
+      ok: false,
+      message: transitionCheck.message || "Invalid status transition."
+    });
+  }
+
+  const nextTimeline = buildNextTimelineFromRow(existing, nextStatus, safeNote || "");
+
+  const updatePayload = { status: nextStatus, status_timeline: nextTimeline };
   const { data, error } = await supabaseAdmin
     .from("service_requests")
     .update(updatePayload)
@@ -1338,9 +1671,17 @@ app.patch("/requests/:id/status", async (req, res) => {
     .maybeSingle();
 
   if (error) {
+    const detail = String(error.message || "");
+    const missingCol =
+      detail.includes("status_timeline") &&
+      (detail.includes("does not exist") ||
+        detail.includes("column") ||
+        detail.includes("schema cache"));
     return res.status(500).json({
       ok: false,
-      message: "Unable to update request status.",
+      message: missingCol
+        ? "Database is missing status_timeline. Apply migration 20260504_staff_status_timeline.sql and retry."
+        : "Unable to update request status.",
       detail: error.message
     });
   }
@@ -1657,6 +1998,28 @@ app.post("/appointments", async (req, res) => {
 
   const resolvedResidentUserId = auth.residentUserId;
 
+  const capacity = await getAppointmentSlotCapacityForDate(parsedSlotId, safeAppointmentDate);
+  if (!capacity) {
+    return res.status(400).json({
+      ok: false,
+      message: "Selected time slot is unavailable."
+    });
+  }
+  const bookedCount = await countBookedAppointmentsForSlot(parsedSlotId, safeAppointmentDate);
+  if (bookedCount === null) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to validate slot availability."
+    });
+  }
+  if (bookedCount >= capacity) {
+    return res.status(409).json({
+      ok: false,
+      code: "SLOT_FULL",
+      message: "The slot selected is already full, select another slot."
+    });
+  }
+
   const referenceNo = `APT-${Math.floor(1000 + Math.random() * 9000)}`;
   const insertPayload = {
     reference_no: referenceNo,
@@ -1710,10 +2073,17 @@ app.patch("/appointments/:id/status", async (req, res) => {
   const mappedStatus = (() => {
     const key = normalizedInputStatus.toLowerCase();
     if (key === "approved") return "Confirmed";
-    if (key === "processing" || key === "in progress") return "Pending Review";
+    if (key === "processing") return "Processing";
+    if (key === "ready for pickup") return "Ready for Pickup";
+    if (key === "in progress") return "Processing";
     if (key === "revision requested") return "Pending Review";
     if (key === "rejected") return "Rejected";
-    if (key === "confirmed" || key === "completed" || key === "cancelled" || key === "pending review") {
+    if (
+      key === "completed" ||
+      key === "cancelled" ||
+      key === "pending review" ||
+      key === "confirmed"
+    ) {
       return normalizedInputStatus;
     }
     return null;
@@ -1725,7 +2095,37 @@ app.patch("/appointments/:id/status", async (req, res) => {
     });
   }
 
-  const updatePayload = { status: mappedStatus };
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("appointments")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (existingError) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to update appointment status.",
+      detail: existingError.message
+    });
+  }
+  if (!existing) {
+    return res.status(404).json({
+      ok: false,
+      message: "Appointment not found."
+    });
+  }
+
+  const transitionCheck = validateStaffAppointmentTransition(existing.status, mappedStatus);
+  if (!transitionCheck.ok) {
+    return res.status(400).json({
+      ok: false,
+      message: transitionCheck.message || "Invalid status transition."
+    });
+  }
+
+  const nextTimeline = buildNextTimelineFromRow(existing, mappedStatus, safeNote || "");
+
+  const updatePayload = { status: mappedStatus, status_timeline: nextTimeline };
   if (safeNote) {
     updatePayload.notes = safeNote;
   }
@@ -1738,9 +2138,21 @@ app.patch("/appointments/:id/status", async (req, res) => {
     .maybeSingle();
 
   if (error) {
+    const detail = String(error.message || "");
+    const missingCol =
+      detail.includes("status_timeline") &&
+      (detail.includes("does not exist") ||
+        detail.includes("column") ||
+        detail.includes("schema cache"));
+    const checkFail =
+      detail.includes("violates check constraint") || detail.includes("appointments_status_check");
     return res.status(500).json({
       ok: false,
-      message: "Unable to update appointment status.",
+      message: missingCol
+        ? "Database is missing status_timeline or appointment status constraint is outdated. Apply migration 20260504_staff_status_timeline.sql and retry."
+        : checkFail
+          ? "Database appointment status constraint does not include Processing / Ready for Pickup. Apply migration 20260504_staff_status_timeline.sql and retry."
+          : "Unable to update appointment status.",
       detail: error.message
     });
   }

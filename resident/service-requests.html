@@ -577,7 +577,7 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Resident Name *</label>
-                        <input type="text" id="reqResidentName" placeholder="Type name...">
+                        <input type="text" id="reqResidentName" placeholder="Resident name" disabled>
                     </div>
                     <div class="form-group">
                         <label>Service Type *</label>
@@ -892,15 +892,17 @@ async function populateResidentNameField() {
             if (!residentNameInput) return;
             
             try {
-                const response = await fetch(`${API_BASE_URL}/resident/context`);
+                const response = await residentApiFetch(`${API_BASE_URL}/resident/context`);
                 const result = await response.json();
                 if (!response.ok || !result?.ok) {
                     throw new Error(result?.message || 'Unable to load resident context.');
                 }
-                const fullName = result.fullName || result.name || result.residentName || 'Resident';
+                const fullName = result.fullName || result.user?.fullName || result.name || result.residentName || 'Resident';
                 residentNameInput.value = fullName;
+                residentNameInput.disabled = true;
             } catch (error) {
                 residentNameInput.value = 'Unknown Resident';
+                residentNameInput.disabled = true;
             }
         }
         

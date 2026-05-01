@@ -359,12 +359,12 @@
                 <span class="slot-label">Phase 1</span>
                 <div class="progress-container"><div id="bar-0900" class="progress-bar" style="width: 0%"></div></div>
                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 10px;">
-                    <span id="text-0900">0 / 15 slots filled</span>
+                    <span id="text-0900">0 / 10 slots filled</span>
                     <span id="pill-0900" class="status-pill status-open">Open</span>
                 </div>
                 <div class="capacity-controls">
                     <span>Limit capacity to:</span>
-                    <input type="number" class="cap-input" value="15" onchange="updateLimit('0900', this.value)">
+                    <input type="number" class="cap-input" value="10" onchange="updateLimit('0900', this.value)">
                 </div>
             </div>
 
@@ -373,12 +373,12 @@
                 <span class="slot-label">Phase 2</span>
                 <div class="progress-container"><div id="bar-1000" class="progress-bar" style="width: 0%"></div></div>
                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 10px;">
-                    <span id="text-1000">0 / 15 slots filled</span>
+                    <span id="text-1000">0 / 10 slots filled</span>
                     <span id="pill-1000" class="status-pill status-open">Open</span>
                 </div>
                 <div class="capacity-controls">
                     <span>Limit capacity to:</span>
-                    <input type="number" class="cap-input" value="15" onchange="updateLimit('1000', this.value)">
+                    <input type="number" class="cap-input" value="10" onchange="updateLimit('1000', this.value)">
                 </div>
             </div>
 
@@ -387,12 +387,12 @@
                 <span class="slot-label">Phase 3</span>
                 <div class="progress-container"><div id="bar-1100" class="progress-bar" style="width: 0%"></div></div>
                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 10px;">
-                    <span id="text-1100">0 / 15 slots filled</span>
+                    <span id="text-1100">0 / 10 slots filled</span>
                     <span id="pill-1100" class="status-pill status-open">Open</span>
                 </div>
                 <div class="capacity-controls">
                     <span>Limit capacity to:</span>
-                    <input type="number" class="cap-input" value="15" onchange="updateLimit('1100', this.value)">
+                    <input type="number" class="cap-input" value="10" onchange="updateLimit('1100', this.value)">
                 </div>
             </div>
         </div>
@@ -594,18 +594,14 @@
         let appointmentEventStream = null;
         let requestEventStream = null;
 
-        // Default capacity limits (frontend-only until backed by records).
-        let capacityLimits = {
-            "0900": 10, "1000": 10, "1100": 10,
-            "0100": 15, "0300": 15, "0400": 15
-        };
-        const slotCodeById = {
-            1: "0900",
-            2: "1000",
-            3: "1100",
-            4: "0100",
-            5: "0300",
-            6: "0400"
+        // Slot capacity + ids are now backed by the API.
+        let slotMetaByCode = {
+            "0900": { slotId: 1, capacity: 10 },
+            "1000": { slotId: 2, capacity: 10 },
+            "1100": { slotId: 3, capacity: 10 },
+            "0100": { slotId: 4, capacity: 15 },
+            "0300": { slotId: 5, capacity: 15 },
+            "0400": { slotId: 6, capacity: 15 }
         };
         const scheduleDateInput = document.getElementById("scheduleDateInput");
         const scheduleDateMeta = document.getElementById("scheduleDateMeta");
@@ -655,8 +651,11 @@
         }
 
         function resolveSlotCodeFromAppointment(appointment) {
-            const directCode = slotCodeById[Number(appointment?.slotId)];
-            if (directCode) return directCode;
+            const slotId = Number(appointment?.slotId);
+            if (Number.isInteger(slotId) && slotId > 0) {
+                const entry = Object.entries(slotMetaByCode).find(([_code, meta]) => Number(meta?.slotId) === slotId);
+                if (entry) return entry[0];
+            }
             return slotCodeFromTimeRange(appointment?.timeLabel);
         }
 
@@ -673,6 +672,21 @@
 
         async function loadSlotCountsFromRecords() {
             try {
+                // Load slot capacities from backend for the selected date.
+                const slotResponse = await fetch(`${API_BASE_URL}/appointment-slots?date=${encodeURIComponent(selectedScheduleDate)}`, {
+                    headers: staffApiHeaders()
+                });
+                const slotResult = await slotResponse.json();
+                if (slotResponse.ok && slotResult?.ok && Array.isArray(slotResult.slots)) {
+                    const nextMetaByCode = { ...slotMetaByCode };
+                    slotResult.slots.forEach((slot) => {
+                        const code = String(slot?.code || "");
+                        if (!code) return;
+                        nextMetaByCode[code] = { slotId: Number(slot.id), capacity: Number(slot.capacity) || 0 };
+                    });
+                    slotMetaByCode = nextMetaByCode;
+                }
+
                 const [appointmentResponse, requestResponse] = await Promise.all([
                     fetch(`${API_BASE_URL}/appointments`, { headers: staffApiHeaders() }),
                     fetch(`${API_BASE_URL}/requests`, { headers: staffApiHeaders() })
@@ -686,7 +700,7 @@
                     throw new Error(requestResult.message || "Unable to load request data.");
                 }
 
-                Object.keys(bookedResidents).forEach((slot) => {
+                Object.keys(slotMetaByCode).forEach((slot) => {
                     bookedResidents[slot] = 0;
                 });
 
@@ -695,7 +709,7 @@
                     if (status === "rejected" || status === "cancelled") return;
                     if (dateKey(appointment?.appointmentDate) !== selectedScheduleDate) return;
                     const slotCode = resolveSlotCodeFromAppointment(appointment);
-                    if (!slotCode || !(slotCode in capacityLimits)) return;
+                    if (!slotCode || !(slotCode in slotMetaByCode)) return;
                     bookedResidents[slotCode] = (bookedResidents[slotCode] || 0) + 1;
                 });
 
@@ -704,7 +718,7 @@
                     if (status === "rejected") return;
                     if (dateKey(request?.preferredDate) !== selectedScheduleDate) return;
                     const slotCode = slotCodeFromTimeRange(request?.preferredTimeSlot);
-                    if (!slotCode || !(slotCode in capacityLimits)) return;
+                    if (!slotCode || !(slotCode in slotMetaByCode)) return;
                     bookedResidents[slotCode] = (bookedResidents[slotCode] || 0) + 1;
                 });
 
@@ -731,29 +745,34 @@
 
         // Synchronize slot progress bars, labels, and status pills.
         function syncUI() {
-            Object.keys(capacityLimits).forEach(slot => {
-                const limit = capacityLimits[slot];
+            Object.keys(slotMetaByCode).forEach(slot => {
+                const limit = Number(slotMetaByCode[slot]?.capacity) || 0;
                 const booked = bookedResidents[slot] || 0;
-                const percent = Math.min((booked / limit) * 100, 100);
+                const percent = limit > 0 ? Math.min((booked / limit) * 100, 100) : 0;
 
                 // Update Progress Bar
                 const bar = document.getElementById(`bar-${slot}`);
-                bar.style.width = percent + "%";
+                if (bar) bar.style.width = percent + "%";
                 
                 // Color change based on fullness
-                if (percent >= 100) bar.style.backgroundColor = "#ef4444";
-                else if (percent >= 80) bar.style.backgroundColor = "#f59e0b";
-                else bar.style.backgroundColor = "#16a34a";
+                if (bar) {
+                    if (percent >= 100) bar.style.backgroundColor = "#ef4444";
+                    else if (percent >= 80) bar.style.backgroundColor = "#f59e0b";
+                    else bar.style.backgroundColor = "#16a34a";
+                }
 
                 // Update Text & Pill
-                document.getElementById(`text-${slot}`).innerText = `${booked} / ${limit} slots filled`;
+                const text = document.getElementById(`text-${slot}`);
+                if (text) text.innerText = `${booked} / ${limit || "—"} slots filled`;
                 const pill = document.getElementById(`pill-${slot}`);
-                if (booked >= limit) {
-                    pill.innerText = "Full";
-                    pill.className = "status-pill status-full";
-                } else {
-                    pill.innerText = "Open";
-                    pill.className = "status-pill status-open";
+                if (pill) {
+                    if (!limit || booked >= limit) {
+                        pill.innerText = "Full";
+                        pill.className = "status-pill status-full";
+                    } else {
+                        pill.innerText = "Open";
+                        pill.className = "status-pill status-open";
+                    }
                 }
             });
         }
@@ -761,8 +780,23 @@
         // Apply a slot capacity change and refresh the UI.
         function updateLimit(slot, newValue) {
             const parsed = Number.parseInt(newValue, 10);
-            capacityLimits[slot] = Number.isFinite(parsed) && parsed > 0 ? parsed : capacityLimits[slot];
-            syncUI();
+            const slotId = Number(slotMetaByCode?.[slot]?.slotId);
+            if (!Number.isInteger(slotId) || slotId <= 0) {
+                syncUI();
+                return;
+            }
+            const nextValue = Number.isFinite(parsed) && parsed > 0 ? parsed : Number(slotMetaByCode?.[slot]?.capacity) || 0;
+            fetch(`${API_BASE_URL}/admin/appointment-slot-overrides`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", ...staffApiHeaders() },
+                body: JSON.stringify({ slotId, date: selectedScheduleDate, capacityLimit: nextValue })
+            }).then(async (res) => {
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok || !json?.ok) return;
+                slotMetaByCode[slot] = { slotId, capacity: nextValue };
+            }).finally(() => {
+                loadSlotCountsFromRecords();
+            });
         }
 
         // Initialize UI on load
