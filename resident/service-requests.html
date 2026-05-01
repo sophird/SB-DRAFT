@@ -722,9 +722,7 @@
             </div>
             <button onclick="toggleChat()" style="background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">&times;</button>
         </div>
-        <div id="chatBody" class="chat-body">
-            <div class="msg msg-ai">Hi Sophia! How can I help you navigate your dashboard today?</div>
-        </div>
+        <div id="chatBody" class="chat-body"></div>
         <div class="chat-footer">
             <input type="text" id="chatInput" placeholder="Type here...">
             <button onclick="sendMessage()">Send</button>
@@ -738,6 +736,7 @@
     </div>
 
     <script src="../shared/routes.js"></script>
+    <script src="../shared/resident-auth-guard.js"></script>
     <script src="../shared/resident-sidebar-profile.js"></script>
     <script>
         const API_BASE_URL = "http://localhost:4000";
@@ -829,7 +828,7 @@
             } catch (_e) {
                 // Ignore invalid cached context and resolve from backend.
             }
-            const response = await fetch(`${API_BASE_URL}/resident/context`);
+            const response = await residentApiFetch(`${API_BASE_URL}/resident/context`);
             const result = await response.json();
             if (!response.ok || !result?.ok || !Number.isInteger(Number(result.residentUserId))) {
                 throw new Error(result?.message || 'Unable to resolve resident context.');
@@ -1178,7 +1177,7 @@ function statusClass(status) {
 
             try {
                 const residentUserId = await getResidentUserId();
-                const response = await fetch(`${API_BASE_URL}/requests?residentUserId=${encodeURIComponent(residentUserId)}`);
+                const response = await residentApiFetch(`${API_BASE_URL}/requests?residentUserId=${encodeURIComponent(residentUserId)}`);
                 const result = await response.json();
                 if (!response.ok || !result.ok) {
                     throw new Error(result.message || 'Unable to load requests.');
@@ -1211,7 +1210,7 @@ function statusClass(status) {
             tableBody.innerHTML = "";
 
             if (!requests.length) {
-                tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:2rem;">No active requests found.</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:2rem;">No active request yet.</td></tr>';
                 return;
             }
 
@@ -1259,11 +1258,10 @@ function statusClass(status) {
             };
 
             try {
-                const residentUserId = await getResidentUserId();
-                const response = await fetch(`${API_BASE_URL}/requests`, {
+                const response = await residentApiFetch(`${API_BASE_URL}/requests`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...payload, residentUserId })
+                    body: JSON.stringify({ ...payload })
                 });
                 const result = await response.json();
                 if (!response.ok || !result.ok) {
@@ -1301,7 +1299,7 @@ function statusClass(status) {
         document.getElementById('confirmDeleteBtn').onclick = async function() {
             if (!requestIdToDelete) return;
             try {
-                const response = await fetch(`${API_BASE_URL}/requests/${requestIdToDelete}`, { method: 'DELETE' });
+                const response = await residentApiFetch(`${API_BASE_URL}/requests/${requestIdToDelete}`, { method: 'DELETE' });
                 const result = await response.json();
                 if (!response.ok || !result.ok) {
                     throw new Error(result.message || 'Unable to delete request.');
@@ -1315,7 +1313,7 @@ function statusClass(status) {
 
         function connectRealtimeRequests() {
             if (requestEventStream) requestEventStream.close();
-            requestEventStream = new EventSource(`${API_BASE_URL}/requests/events`);
+            requestEventStream = new EventSource(residentSseUrl(`${API_BASE_URL}/requests/events`));
             requestEventStream.addEventListener('request-updated', () => {
                 loadRequests();
             });
@@ -1323,49 +1321,6 @@ function statusClass(status) {
                 // Keep existing data on screen; browser auto-retries EventSource.
             };
         }
-
-        // CHATBOT LOGIC
-        function toggleChat() {
-            const win = document.getElementById('chatWindow');
-            if (win.style.display === 'flex') {
-                win.style.display = 'none';
-            } else {
-                win.style.display = 'flex';
-            }
-        }
-
-        function sendMessage() {
-            const input = document.getElementById('chatInput');
-            const body = document.getElementById('chatBody');
-            const text = input.value.trim();
-            
-            if (!text) return;
-
-            // User Message
-            const userMsg = document.createElement('div');
-            userMsg.className = 'msg msg-user';
-            userMsg.textContent = text;
-            body.appendChild(userMsg);
-            
-            input.value = "";
-            body.scrollTop = body.scrollHeight;
-
-            // AI Response Delay
-            setTimeout(() => {
-                const aiMsg = document.createElement('div');
-                aiMsg.className = 'msg msg-ai';
-                aiMsg.textContent = "I'm checking your request details now. Please wait a moment...";
-                body.appendChild(aiMsg);
-                body.scrollTop = body.scrollHeight;
-            }, 800);
-        }
-
-        // Add 'Enter' key support for chat
-        document.getElementById('chatInput')?.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
 
         window.onload = function() {
             loadRequests();
@@ -1414,5 +1369,6 @@ function statusClass(status) {
         requestSearchInput?.addEventListener('input', applyRequestFilters);
         requestStatusFilter?.addEventListener('change', applyRequestFilters);
     </script>
+    <script src="../shared/resident-faq-chat.js" data-api-base="http://localhost:4000"></script>
 </body>
 </html>

@@ -504,9 +504,7 @@
             </div>
             <button onclick="toggleChat()" style="background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">&times;</button>
         </div>
-        <div id="chatBody" class="chat-body">
-            <div class="msg msg-ai">Hi Sophia! How can I help you navigate today?</div>
-        </div>
+        <div id="chatBody" class="chat-body"></div>
         <div class="chat-footer">
             <input type="text" id="chatInput" placeholder="Type here...">
             <button onclick="sendMessage()">Send</button>
@@ -525,6 +523,7 @@
     </div>
 
     <script src="../shared/routes.js"></script>
+    <script src="../shared/resident-auth-guard.js"></script>
     <script src="../shared/resident-sidebar-profile.js"></script>
     <script>
         const API_BASE_URL = "http://localhost:4000";
@@ -702,31 +701,6 @@
             if (logoutModal) logoutModal.classList.remove("show");
         }
 
-        function toggleChat() {
-            const win = document.getElementById('chatWindow');
-            win.style.display = win.style.display === 'flex' ? 'none' : 'flex';
-        }
-
-        function sendMessage() {
-            const input = document.getElementById('chatInput');
-            const body = document.getElementById('chatBody');
-            const text = input.value.trim();
-            if (!text) return;
-            const userMsg = document.createElement('div');
-            userMsg.className = 'msg msg-user';
-            userMsg.textContent = text;
-            body.appendChild(userMsg);
-            input.value = "";
-            body.scrollTop = body.scrollHeight;
-            setTimeout(() => {
-                const aiMsg = document.createElement('div');
-                aiMsg.className = 'msg msg-ai';
-                aiMsg.textContent = "I'm checking the records for you. Is there a specific announcement you're looking for?";
-                body.appendChild(aiMsg);
-                body.scrollTop = body.scrollHeight;
-            }, 800);
-        }
-
         window.onclick = function(e) {
             if (e.target.id === 'detailModal') closeDetail();
             if (e.target === logoutModal) closeLogoutModal();
@@ -745,5 +719,6 @@
             window.location.href = COMMON_ROUTES.landing;
         });
     </script>
+    <script src="../shared/resident-faq-chat.js" data-api-base="http://localhost:4000"></script>
 </body>
 </html>

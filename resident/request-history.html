@@ -429,9 +429,7 @@
             </div>
             <button onclick="toggleChat()" style="background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">&times;</button>
         </div>
-        <div id="chatBody" class="chat-body">
-            <div class="msg msg-ai">Hi Sophia! How can I help you navigate today?</div>
-        </div>
+        <div id="chatBody" class="chat-body"></div>
         <div class="chat-footer">
             <input type="text" id="chatInput" placeholder="Type here...">
             <button onclick="sendMessage()">Send</button>
@@ -469,10 +467,10 @@
     </div>
 
     <script src="../shared/routes.js"></script>
+    <script src="../shared/resident-auth-guard.js"></script>
     <script src="../shared/resident-sidebar-profile.js"></script>
     <script>
         const API_BASE_URL = "http://localhost:4000";
-        const RESIDENT_CONTEXT_KEY = "residentContext";
         const SUPPORTING_DOCS_KEY = "residentSupportingDocsByReference";
         const RESIDENT_ROUTES = window.APP_ROUTES?.resident || {
             serviceRequests: "service-requests.html",
@@ -567,22 +565,6 @@
             return `<span style="font-size:0.78rem;color:#166534;">${text}</span>`;
         }
 
-        async function getResidentUserId() {
-            try {
-                const cached = JSON.parse(sessionStorage.getItem(RESIDENT_CONTEXT_KEY) || "{}");
-                const cachedId = Number(cached?.residentUserId);
-                if (Number.isInteger(cachedId) && cachedId > 0) return cachedId;
-            } catch (_e) {}
-            const response = await fetch(`${API_BASE_URL}/resident/context`);
-            const result = await response.json();
-            if (!response.ok || !result?.ok || !Number.isInteger(Number(result.residentUserId))) {
-                throw new Error(result?.message || "Unable to resolve resident context.");
-            }
-            const residentUserId = Number(result.residentUserId);
-            sessionStorage.setItem(RESIDENT_CONTEXT_KEY, JSON.stringify({ residentUserId }));
-            return residentUserId;
-        }
-
         function handleRepeat(serviceName) {
             const label = serviceName || "this service";
             repeatConfirmAction = () => {
@@ -595,58 +577,13 @@
             if (repeatConfirmModal) repeatConfirmModal.style.display = "flex";
         }
 
-        /* CHATBOT LOGIC */
-        function toggleChat() {
-            const win = document.getElementById('chatWindow');
-            win.style.display = win.style.display === 'flex' ? 'none' : 'flex';
-            if(win.style.display === 'flex') document.getElementById('chatInput').focus();
-        }
-
-        function sendMessage() {
-            const input = document.getElementById('chatInput');
-            const body = document.getElementById('chatBody');
-            const text = input.value.trim();
-
-            if (!text) return;
-
-            const userMsg = document.createElement('div');
-            userMsg.className = 'msg msg-user';
-            userMsg.textContent = text;
-            body.appendChild(userMsg);
-            input.value = "";
-            body.scrollTop = body.scrollHeight;
-
-            setTimeout(() => {
-                const aiMsg = document.createElement('div');
-                aiMsg.className = 'msg msg-ai';
-                
-                let response = "I'm searching your transaction history. Was this for a Clearance or a Permit?";
-                const lowText = text.toLowerCase();
-
-                if (lowText.includes("download") || lowText.includes("document")) {
-                    response = "You can download your documents by clicking the '📄 Download' button next to any completed transaction.";
-                } else if (lowText.includes("repeat") || lowText.includes("again")) {
-                    response = "To repeat a service, click the green 'Request Again' button. It will pre-fill the form with your previous details!";
-                } else if (lowText.includes("clearance")) {
-                    response = "I see your last Barangay Clearance was completed on March 15, 2024. You can download the PDF directly from the list.";
-                }
-
-                aiMsg.textContent = response;
-                body.appendChild(aiMsg);
-                body.scrollTop = body.scrollHeight;
-            }, 800);
-        }
-
         async function loadHistory() {
             const container = document.getElementById("historyList");
             if (!container) return;
             container.innerHTML = '<p style="text-align:center; padding:2rem; color:var(--text-muted);">Loading history…</p>';
 
             try {
-                const residentUserId = await getResidentUserId();
-                const response = await fetch(
-                    `${API_BASE_URL}/resident/history?residentUserId=${encodeURIComponent(residentUserId)}`
-                );
+                const response = await residentApiFetch(`${API_BASE_URL}/resident/history`);
                 const result = await response.json();
                 if (!response.ok || !result?.ok || !Array.isArray(result.items)) {
                     throw new Error(result?.message || "Unable to load history.");
@@ -771,5 +708,6 @@ return `
             window.location.href = COMMON_ROUTES.landing;
         });
     </script>
+    <script src="../shared/resident-faq-chat.js" data-api-base="http://localhost:4000"></script>
 </body>
 </html>
