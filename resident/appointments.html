@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -202,7 +203,7 @@
             margin-top: 4px;
         }
 
-        .btn-primary {
+.btn-primary {
             background: #5f9632;
             color: white;
             padding: 0.75rem 1.5rem;
@@ -251,7 +252,7 @@
 
         /* MODAL STYLES */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
-        .modal { background: white; padding: 2rem; border-radius: 20px; width: 100%; max-width: 500px; }
+.modal { background: white; padding: 2.5rem; border-radius: 24px; width: 100%; max-width: 850px; }
         .form-group { margin-bottom: 1.25rem; }
         .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.9rem; }
         .form-group select, .form-group input { width: 100%; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 10px; outline: none; }
@@ -394,7 +395,7 @@
             </div>
         </section>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
 <h2 class="section-heading" style="margin-bottom: 0; color: #6b7280; font-size: 1.25rem;">Your Appointments</h2>
             <button class="btn-primary" onclick="openModal()">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -424,8 +425,9 @@
         <div class="modal">
             <h2 style="margin-bottom:1.5rem;">Schedule Appointment</h2>
             <div class="form-group">
-                <label class="form-label">Purpose of Appointment</label>
+<label class="form-label">Purpose of Appointment</label>
                 <select class="form-input" id="appointmentPurpose">
+                    <option value="" disabled selected>Select appointment...</option>
                     <option value="in-person">In-person Document Processing</option>
                     <option value="pickup">Document / ID Pickup</option>
                     <option value="consultation">Face-to-Face Consultation</option>
@@ -438,27 +440,20 @@
                     </div>
                     <div style="flex:1;">
                         <label class="form-label">Available Time Slots</label>
-                        <select class="form-input" id="aptTime">
-                            <option value="" disabled selected>Choose a slot</option>
-                            <optgroup label="Morning (Pickup Only)">
-                                <option value="1">09:00 AM - 10:00 AM</option>
-                                <option value="2">10:00 AM - 11:00 AM</option>
-                                <option value="3">11:00 AM - 12:00 PM</option>
-                            </optgroup>
+<select class="form-input" id="aptTime">
+                            <option value="" disabled selected>Select Time...</option>
                             <optgroup label="Afternoon">
-                                <option value="4">01:00 PM - 02:00 PM</option>
-                                <option value="5">03:00 PM - 04:00 PM</option>
-                                <option value="6">04:00 PM - 05:00 PM</option>
+                                <option value="1">01:00 PM - 02:00 PM</option>
+                                <option value="2">02:00 PM - 03:00 PM</option>
+                                <option value="3">03:00 PM - 04:00 PM</option>
+                                <option value="4">04:00 PM - 05:00 PM</option>
                             </optgroup>
                         </select>
                     </div>
                 </div>
 
-                <p style="font-size: 0.75rem; color: #166534; background: #f0fdf4; padding: 10px; border-radius: 8px; margin-top: -5px; margin-bottom: 1.25rem;">
-                    💡 Tip: Choosing a Morning slot helps us minimize hall overcrowding.
-                </p>
 
-                <button onclick="submitBooking()" class="btn-primary" style="width:100%; justify-content:center;">Book Appointment</button>
+<button onclick="submitBooking()" class="btn-primary" style="width:100%; justify-content:center;">Book Appointment</button>
             </div> <button onclick="closeModal()" style="width:100%; background:none; border:none; color:var(--text-muted); margin-top:10px; cursor:pointer;">Cancel</button>
         </div> </div> <div id="chatToggle" onclick="toggleChat()">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
@@ -599,7 +594,7 @@ function renderAppointments(appointments) {
                     <td><b>#${appointment.referenceNo || "—"}</b></td>
                     <td>${getPurposeLabel(appointment.purpose)}</td>
                     <td>${formatAppointmentDate(appointment.appointmentDate)}</td>
-                    <td><span class="status-badge ${statusBadgeClass(appointment.status)}">${appointment.status || "Pending Review"}</span></td>
+                    <td><span class="status-badge ${statusBadgeClass(appointment.status)}">${appointment.status || "Pending"}</span></td>
                     <td style="text-align: right;">
                         <button class="btn-delete" onclick="openDeleteModal('${appointment.id}')" title="Delete appointment">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>

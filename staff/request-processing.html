@@ -385,20 +385,41 @@
                     </div>
                 </div>
 
-            <div class="card" id="reviewActionCard">
+<div class="card" id="reviewActionCard">
                 <div class="card-title">Review Action</div>
                 <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">Select an action to update the status of this request. This will notify the resident immediately.</p>
-                <div class="action-btns">
-                    <button class="btn btn-approve" data-action="Approved" data-dot="active">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                
+<!-- Action buttons for REQUESTS -->
+                <div class="action-btns request-action-btns" style="display: none;">
+                    <button class="btn btn-processing" data-action="Processing" data-dot="active" style="background: #2563eb; color: white;">
+                        Processing
+                    </button>
+                    <button class="btn btn-pickup" data-action="Ready for Pickup" data-dot="active" style="background: #0ea5e9; color: white;">
+                        Ready for Pickup
+                    </button>
+                    <button class="btn btn-completed" data-action="Completed" data-dot="active" style="background: #16a34a; color: white;">
+                        Completed
+                    </button>
+                    <button class="btn btn-reject" data-action="Rejected" data-dot="danger" style="background: #dc2626; color: white;">
+                        Reject
+                    </button>
+                </div>
+                
+                <!-- Action buttons for APPOINTMENTS -->
+                <div class="action-btns appointment-action-btns" style="display: none;">
+                    <button class="btn btn-approve" data-action="Approved" data-dot="active" style="background: #059669; color: white;">
                         Approve
                     </button>
-                    <button class="btn btn-info" data-action="Revision Requested" data-dot="amber">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    <button class="btn btn-revision" data-action="Revision Requested" data-dot="amber" style="background: #f59e0b; color: white;">
                         Request Revisions
                     </button>
-                    <button class="btn btn-reject" data-action="Rejected" data-dot="danger">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <button class="btn btn-pickup" data-action="Ready for Pickup" data-dot="active" style="background: #0ea5e9; color: white;">
+                        Ready for Pickup
+                    </button>
+                    <button class="btn btn-completed" data-action="Completed" data-dot="active" style="background: #16a34a; color: white;">
+                        Completed
+                    </button>
+                    <button class="btn btn-reject" data-action="Rejected" data-dot="danger" style="background: #dc2626; color: white;">
                         Reject
                     </button>
                 </div>
@@ -627,9 +648,17 @@
             if (reviewActionCard) {
                 reviewActionCard.style.display = hasReviewActionSelected ? "none" : "block";
             }
-            const revisionActionBtn = document.querySelector('.btn-info');
+const revisionActionBtn = document.querySelector('.btn-info');
             if (revisionActionBtn) {
                 revisionActionBtn.style.display = isAppointment ? "none" : "block";
+            }
+            
+            // Show the correct action buttons based on item type
+            const requestActionBtns = document.querySelector('.request-action-btns');
+            const appointmentActionBtns = document.querySelector('.appointment-action-btns');
+            if (requestActionBtns && appointmentActionBtns) {
+                requestActionBtns.style.display = isAppointment ? "none" : "flex";
+                appointmentActionBtns.style.display = isAppointment ? "flex" : "none";
             }
         }
 
