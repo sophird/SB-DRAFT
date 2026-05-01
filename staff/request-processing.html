@@ -212,6 +212,7 @@
         .timeline-dot.active { background: #16a34a; }
         .timeline-dot.amber { background: #f59e0b; }
         .timeline-dot.danger { background: #ef4444; }
+        .timeline-dot.slate { background: #64748b; }
 
         .timeline-label {
             font-size: 0.95rem;
@@ -230,13 +231,37 @@
         .info-group { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
         .info-item label { display: block; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 4px; }
         .info-item p { font-size: 0.95rem; color: var(--text-main); font-weight: 500; }
+        .info-item--span-full {
+            grid-column: 1 / -1;
+        }
+        #fieldSubject {
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            line-height: 1.5;
+            max-width: 100%;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            font-weight: 500;
+        }
 
-        /* REVIEW BUTTONS */
+        /* REVIEW BUTTONS (original palette) */
         .action-btns { display: flex; flex-direction: column; gap: 12px; margin-top: 1.5rem; }
-        .btn { padding: 12px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; font-size: 0.9rem; transition: 0.2s; }
-        .btn-approve { background: #16a34a; color: white; } 
+        .btn {
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: 0.2s;
+            font-family: inherit;
+        }
+        .btn-approve { background: #16a34a; color: white; }
         .btn-reject { background: #e11d48; color: white; }
-        .btn-info { background: #f59e0b; color: white; }   
+        .btn-info { background: #f59e0b; color: white; }
+        .btn-pending { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+        .btn-slate { background: #475569; color: white; }
         .btn:hover { opacity: 0.9; }
         .btn.selected { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25); transform: translateY(-1px); }
         .action-note { margin-top: 0.8rem; font-size: 0.82rem; color: var(--text-muted); }
@@ -255,7 +280,20 @@
             outline: none;
         }
         .revision-input:focus { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.25); }
-        .btn-send-revision { margin-top: 10px; width: 100%; background: #2563eb; color: white; }
+        .btn-send-revision {
+            margin-top: 10px;
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-family: inherit;
+            background: #2563eb;
+            color: white;
+        }
+        .btn-send-revision:hover { filter: brightness(0.95); }
         .timeline-note { font-size: 0.82rem; color: var(--text-muted); margin-top: 6px; line-height: 1.45; }
 
         .status-badge { background: #f1f5f9; color: #475569; padding: 4px 12px; border-radius: 12px; font-size: 0.8rem; font-weight: 700; }
@@ -370,10 +408,10 @@
             <div class="card">
                 <div class="card-title">Request Information</div>
                 <div class="info-group">
-                    <div class="info-item"><label>Subject</label><p id="fieldSubject">—</p></div>
-                    <div class="info-item"><label>Status</label><span class="status-badge" id="statusBadge">—</span></div>
-                    <div class="info-item"><label>Date Filed</label><p id="fieldDateFiled">—</p></div>
-                    <div class="info-item"><label>Resident Name</label><p id="fieldResident">—</p></div>
+                    <div class="info-item"><label>Status</label><span class="status-badge" id="statusBadge">Loading…</span></div>
+                    <div class="info-item"><label>Date Filed</label><p id="fieldDateFiled">Loading…</p></div>
+                    <div class="info-item info-item--span-full"><label>Resident Name</label><p id="fieldResident">Loading…</p></div>
+                    <div class="info-item info-item--span-full"><label>Subject</label><p id="fieldSubject">Loading…</p></div>
                 </div>
             </div>
 
@@ -387,25 +425,12 @@
 
             <div class="card" id="reviewActionCard">
                 <div class="card-title">Review Action</div>
-                <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">Select an action to update the status of this request. This will notify the resident immediately.</p>
-                <div class="action-btns">
-                    <button class="btn btn-approve" data-action="Approved" data-dot="active">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        Approve
-                    </button>
-                    <button class="btn btn-info" data-action="Revision Requested" data-dot="amber">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                        Request Revisions
-                    </button>
-                    <button class="btn btn-reject" data-action="Rejected" data-dot="danger">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                        Reject
-                    </button>
-                </div>
+                <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">Select an action to update the status. The resident is notified when you save an update.</p>
+                <div id="reviewActionButtons" class="action-btns" role="group" aria-label="Review actions"></div>
                 <div id="revisionBox" class="revision-box">
                     <label for="revisionMessage" class="revision-label">Revision details</label>
-                    <textarea id="revisionMessage" class="revision-input" placeholder="Describe what needs to be corrected or added before approval."></textarea>
-                    <button id="sendRevisionBtn" class="btn btn-send-revision">Send Revision Request</button>
+                    <textarea id="revisionMessage" class="revision-input" placeholder="Describe what should be updated before approval."></textarea>
+                    <button type="button" id="sendRevisionBtn" class="btn-send-revision">Send revision request</button>
                 </div>
                 <p id="actionFeedback" class="action-note">No review action selected yet.</p>
             </div>
@@ -440,9 +465,9 @@
         applyStaffRouteLinks();
 
         function initialsFromName(name) {
-            if (!name || typeof name !== "string") return "—";
+            if (!name || typeof name !== "string") return "?";
             const parts = name.trim().split(/\s+/).filter(Boolean);
-            if (!parts.length) return "—";
+            if (!parts.length) return "?";
             if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
             return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
         }
@@ -488,14 +513,14 @@
                     return;
                 }
                 await verifyBackendRole("staff", accessToken);
-                const display = user.fullName || user.email || "Admin";
+                const display = user.fullName || user.email || "Staff";
                 const nameEl = document.getElementById("topbarUserName");
                 const avatarEl = document.getElementById("topbarUserAvatar");
                 const roleEl = document.getElementById("topbarUserRole");
                 const homeLink = document.getElementById("dashboardHomeLink");
                 const backLink = document.getElementById("requestBackLink");
-                if (nameEl) nameEl.textContent = "Staff";
-                if (avatarEl) avatarEl.textContent = "ST";
+                if (nameEl) nameEl.textContent = display;
+                if (avatarEl) avatarEl.textContent = initialsFromName(display);
                 if (roleEl) roleEl.textContent = "Personnel";
                 if (homeLink) homeLink.href = STAFF_ROUTES.dashboard;
                 if (backLink) backLink.href = STAFF_ROUTES.dashboard;
@@ -552,7 +577,7 @@
         }
 
         function formatDateTime(value) {
-            if (!value) return "—";
+            if (!value) return "Not recorded";
             const dateObj = new Date(value);
             if (Number.isNaN(dateObj.getTime())) return String(value);
             return dateObj.toLocaleString("en-US", {
@@ -564,39 +589,89 @@
             });
         }
 
+        function formatReferenceLine(referenceNo, recordId) {
+            const ref = String(referenceNo || "").trim();
+            if (ref) return ref;
+            if (recordId != null && recordId !== "") return `Record ${recordId}`;
+            return "Not assigned";
+        }
+
         function statusColorByValue(status) {
             const normalized = String(status || "").toLowerCase();
-            if (normalized.includes("approved") || normalized.includes("ready")) return { bg: "#dcfce7", fg: "#166534" };
+            if (normalized.includes("completed")) return { bg: "#f1f5f9", fg: "#475569" };
+            if (normalized.includes("approved") || normalized.includes("ready") || normalized.includes("confirmed")) return { bg: "#dcfce7", fg: "#166534" };
             if (normalized.includes("revision")) return { bg: "#fef3c7", fg: "#92400e" };
             if (normalized.includes("reject")) return { bg: "#fee2e2", fg: "#991b1b" };
-            if (normalized.includes("process")) return { bg: "#dbeafe", fg: "#1d4ed8" };
+            if (normalized.includes("process") || normalized.includes("progress")) return { bg: "#dbeafe", fg: "#1d4ed8" };
             return { bg: "#fef9c3", fg: "#854d0e" };
+        }
+
+        function isTerminalReviewStatus(status) {
+            const s = String(status || "").toLowerCase();
+            return s === "completed" || s === "rejected";
+        }
+
+        function renderReviewButtons() {
+            const container = document.getElementById("reviewActionButtons");
+            if (!container) return;
+            const isAppointment = activeItemType === "appointment";
+            const defs = isAppointment
+                ? [
+                      { label: "Approved", status: "Approved", dot: "active", cls: "btn-approve" },
+                      { label: "Revisions", status: "Revision Requested", dot: "amber", cls: "btn-info", needsRevision: true },
+                      { label: "Ready to pick up", status: "Ready for Pickup", dot: "active", cls: "btn-approve" },
+                      { label: "Completed", status: "Completed", dot: "slate", cls: "btn-slate" },
+                      { label: "Rejected", status: "Rejected", dot: "danger", cls: "btn-reject" }
+                  ]
+                : [
+                      { label: "Pending", status: "Pending", dot: "amber", cls: "btn-pending" },
+                      { label: "Processing", status: "Processing", dot: "active", cls: "btn-info" },
+                      { label: "Ready to pick up", status: "Ready for Pickup", dot: "active", cls: "btn-approve" },
+                      { label: "Completed", status: "Completed", dot: "slate", cls: "btn-slate" },
+                      { label: "Rejected", status: "Rejected", dot: "danger", cls: "btn-reject" }
+                  ];
+            container.innerHTML = defs
+                .map(
+                    (d) =>
+                        `<button type="button" class="btn ${d.cls}" data-status="${escapeHtml(d.status)}" data-dot="${escapeHtml(d.dot)}"${
+                            d.needsRevision ? ' data-needs-revision="true"' : ""
+                        }>${escapeHtml(d.label)}</button>`
+                )
+                .join("");
         }
 
         function applyRequestToUI(request, itemType = "request") {
             if (!request) return;
             const isAppointment = itemType === "appointment";
             const subject = isAppointment
-                ? (request.purpose || "Appointment")
-                : (request.title || request.serviceType || "Service Request");
-            const currentStatus = request.status || "Pending";
+                ? (request.displaySubject || request.purpose || "Appointment")
+                : (request.displaySubject || request.title || request.serviceType || "Service request");
+            const currentStatus = request.status || (isAppointment ? "Pending Review" : "Pending");
             const filedAt = request.createdAt || request.appointmentDate || request.preferredDate;
-            const referenceNo = request.referenceNo || "—";
+            const referenceNo = formatReferenceLine(request.referenceNo, request.id);
             const normalizedStatus = String(currentStatus).toLowerCase();
-            const hasReviewActionSelected = isAppointment
-                ? ["confirmed", "rejected"].includes(normalizedStatus)
-                : ["approved", "revision requested", "rejected"].includes(normalizedStatus);
+            const hasReviewActionSelected = isTerminalReviewStatus(currentStatus);
 
-            document.getElementById("fieldSubject").textContent = subject;
-            document.getElementById("fieldResident").textContent = "Resident User";
-            document.getElementById("fieldDateFiled").textContent = formatDateTime(filedAt);
+            const subjectEl = document.getElementById("fieldSubject");
+            if (subjectEl) subjectEl.textContent = subject;
+            const residentEl = document.getElementById("fieldResident");
+            if (residentEl) residentEl.textContent = request.residentName || "Resident (name unavailable)";
+            const dateFiledEl = document.getElementById("fieldDateFiled");
+            if (dateFiledEl) dateFiledEl.textContent = formatDateTime(filedAt);
 
             const metaLine = document.getElementById("requestMetaLine");
             if (metaLine) {
                 if (isAppointment) {
-                    metaLine.textContent = `Appointment #${referenceNo} • Scheduled: ${request.appointmentDate || "—"} ${request.timeLabel || ""}`.trim();
+                    const sched = request.appointmentDate
+                        ? `${request.appointmentDate}${request.timeLabel ? ` · ${request.timeLabel}` : ""}`
+                        : "Not scheduled yet";
+                    metaLine.textContent = `Appointment #${referenceNo} · ${sched}`;
                 } else {
-                    metaLine.textContent = `Reference #${referenceNo} • Preferred: ${request.preferredDate || "—"} ${request.preferredTimeSlot || ""}`.trim();
+                    const pref =
+                        request.preferredDate || request.preferredTimeSlot
+                            ? `${request.preferredDate || "Date TBD"}${request.preferredTimeSlot ? ` · ${request.preferredTimeSlot}` : ""}`
+                            : "No preferred slot provided";
+                    metaLine.textContent = `Reference #${referenceNo} · ${pref}`;
                 }
             }
 
@@ -627,9 +702,14 @@
             if (reviewActionCard) {
                 reviewActionCard.style.display = hasReviewActionSelected ? "none" : "block";
             }
-            const revisionActionBtn = document.querySelector('.btn-info');
-            if (revisionActionBtn) {
-                revisionActionBtn.style.display = isAppointment ? "none" : "block";
+            renderReviewButtons();
+            const revisionBox = document.getElementById("revisionBox");
+            if (revisionBox) revisionBox.style.display = "none";
+            const revisionMessage = document.getElementById("revisionMessage");
+            if (revisionMessage) revisionMessage.value = "";
+            if (selectedAction) {
+                selectedAction.classList.remove("selected");
+                selectedAction = null;
             }
         }
 
@@ -783,142 +863,137 @@
             const timelineEmpty = document.getElementById("timelineEmpty");
             if (timelineEmpty) timelineEmpty.style.display = "none";
 
-            // Update the top status badge text and colors
             const badge = document.getElementById("statusBadge");
             if (badge) {
-                badge.innerText = status;
-                // Apply color styling based on the action
-                if (dotClass === 'active') { // Approve
-                    badge.style.background = '#dcfce7';
-                    badge.style.color = '#166534';
-                } else if (dotClass === 'amber') { // Revision
-                    badge.style.background = '#fef3c7';
-                    badge.style.color = '#92400e';
-                } else if (dotClass === 'danger') { // Reject
-                    badge.style.background = '#fee2e2';
-                    badge.style.color = '#991b1b';
-                }
+                badge.textContent = status;
+                const colors = statusColorByValue(status);
+                badge.style.background = colors.bg;
+                badge.style.color = colors.fg;
             }
-            
-            // Keep exactly one latest review action node and update it in place
-            const timelineList = document.getElementById('timelineList');
+
+            const timelineList = document.getElementById("timelineList");
             if (timelineList) {
                 if (!latestActionNode) {
-                    latestActionNode = document.createElement('div');
-                    latestActionNode.className = 'timeline-item';
-                    latestActionNode.id = 'latestActionItem';
+                    latestActionNode = document.createElement("div");
+                    latestActionNode.className = "timeline-item";
+                    latestActionNode.id = "latestActionItem";
                     timelineList.appendChild(latestActionNode);
                 }
 
+                const safeNote = note ? escapeHtml(note) : "";
                 latestActionNode.innerHTML = `
-                    <div class="timeline-dot ${dotClass}"></div>
-                    <div class="timeline-label">${status}</div>
-                    <div class="timeline-time">${now}</div>
-                    ${note ? `<div class="timeline-note">${note}</div>` : ""}
+                    <div class="timeline-dot ${escapeHtml(dotClass)}"></div>
+                    <div class="timeline-label">${escapeHtml(status)}</div>
+                    <div class="timeline-time">${escapeHtml(now)}</div>
+                    ${safeNote ? `<div class="timeline-note">${safeNote}</div>` : ""}
                 `;
             }
 
-            const actionFeedback = document.getElementById('actionFeedback');
+            const actionFeedback = document.getElementById("actionFeedback");
             if (actionFeedback) {
-                actionFeedback.innerText = note
-                    ? `Latest update: ${status} at ${now} - ${note}`
+                actionFeedback.textContent = note
+                    ? `Latest update: ${status} at ${now} — ${note}`
                     : `Latest update: ${status} at ${now}`;
             }
         }
 
-        // Handle quick actions and toggle revision input when needed.
         async function handleAction(button) {
-            const isAppointment = activeItemType === "appointment";
-            const status = isAppointment && button.dataset.action === "Approved"
-                ? "Confirmed"
-                : button.dataset.action;
-            const dotClass = button.dataset.dot;
-            const reviewActionCard = document.getElementById('reviewActionCard');
-            const revisionBox = document.getElementById('revisionBox');
-            const revisionMessage = document.getElementById('revisionMessage');
+            const status = button.dataset.status;
+            const dotClass = button.dataset.dot || "active";
+            const needsRevision = button.dataset.needsRevision === "true";
+            const reviewActionCard = document.getElementById("reviewActionCard");
+            const revisionBox = document.getElementById("revisionBox");
+            const revisionMessage = document.getElementById("revisionMessage");
+
+            if (!status) return;
 
             if (selectedAction) {
-                selectedAction.classList.remove('selected');
+                selectedAction.classList.remove("selected");
             }
             selectedAction = button;
-            selectedAction.classList.add('selected');
+            selectedAction.classList.add("selected");
 
-            if (!isAppointment && status === 'Revision Requested') {
-                revisionBox.style.display = 'block';
+            if (needsRevision) {
+                if (revisionBox) revisionBox.style.display = "block";
+                if (revisionMessage) revisionMessage.focus();
                 return;
             }
 
-            if (revisionBox) {
-                revisionBox.style.display = 'none';
-            }
-            if (revisionMessage) {
-                revisionMessage.value = '';
-            }
+            if (revisionBox) revisionBox.style.display = "none";
+            if (revisionMessage) revisionMessage.value = "";
 
             try {
-                await saveRequestStatus(status, "");
-                updateInterface(status, dotClass);
+                const updated = await saveRequestStatus(status, "");
+                const displayStatus = updated?.status || status;
+                updateInterface(displayStatus, dotClass);
+                if (updated) {
+                    if (activeItemType === "appointment") {
+                        sessionStorage.setItem("selectedRequest", JSON.stringify({ ...updated, itemType: "appointment" }));
+                    } else {
+                        sessionStorage.setItem("selectedRequest", JSON.stringify({ ...updated, itemType: "request" }));
+                    }
+                }
+                if (reviewActionCard && isTerminalReviewStatus(displayStatus)) {
+                    reviewActionCard.style.display = "none";
+                } else if (reviewActionCard) {
+                    reviewActionCard.style.display = "block";
+                    renderReviewButtons();
+                }
             } catch (error) {
-                const actionFeedback = document.getElementById('actionFeedback');
-                if (actionFeedback) actionFeedback.innerText = error.message || "Failed to update status.";
-                return;
-            }
-
-            if (reviewActionCard) {
-                reviewActionCard.style.display = 'none';
+                const actionFeedback = document.getElementById("actionFeedback");
+                if (actionFeedback) actionFeedback.textContent = error.message || "Failed to update status.";
             }
         }
 
-        // Wire action buttons and revision submission behavior.
         function bindReviewActions() {
-            const actionButtons = document.querySelectorAll('.action-btns .btn');
-            actionButtons.forEach((btn) => {
-                btn.addEventListener('click', () => { handleAction(btn); });
+            document.getElementById("reviewActionButtons")?.addEventListener("click", (event) => {
+                const btn = event.target.closest("button[data-status]");
+                if (!btn) return;
+                handleAction(btn);
             });
 
-            const sendRevisionBtn = document.getElementById('sendRevisionBtn');
-            const revisionMessage = document.getElementById('revisionMessage');
-            const reviewActionCard = document.getElementById('reviewActionCard');
-            const revisionBox = document.getElementById('revisionBox');
-            const revisionButton = document.querySelector('.btn-info');
+            const sendRevisionBtn = document.getElementById("sendRevisionBtn");
+            const revisionMessage = document.getElementById("revisionMessage");
+            const reviewActionCard = document.getElementById("reviewActionCard");
+            const revisionBox = document.getElementById("revisionBox");
 
             if (sendRevisionBtn && revisionMessage) {
-                sendRevisionBtn.addEventListener('click', async () => {
+                sendRevisionBtn.addEventListener("click", async () => {
                     const message = revisionMessage.value.trim();
                     if (!message) {
                         revisionMessage.focus();
                         return;
                     }
 
-                    if (selectedAction) {
-                        selectedAction.classList.remove('selected');
-                    }
-                    selectedAction = revisionButton;
-                    if (selectedAction) {
-                        selectedAction.classList.add('selected');
-                    }
-
                     try {
-                        await saveRequestStatus('Revision Requested', message);
-                        updateInterface('Revision Requested', 'amber', `Revision message: ${message}`);
+                        const updated = await saveRequestStatus("Revision Requested", message);
+                        const displayStatus = updated?.status || "Revision Requested";
+                        updateInterface(displayStatus, "amber", `Revision message: ${message}`);
+                        if (updated) {
+                            if (activeItemType === "appointment") {
+                                sessionStorage.setItem("selectedRequest", JSON.stringify({ ...updated, itemType: "appointment" }));
+                            } else {
+                                sessionStorage.setItem("selectedRequest", JSON.stringify({ ...updated, itemType: "request" }));
+                            }
+                        }
                     } catch (error) {
-                        const actionFeedback = document.getElementById('actionFeedback');
-                        if (actionFeedback) actionFeedback.innerText = error.message || "Failed to update status.";
+                        const actionFeedback = document.getElementById("actionFeedback");
+                        if (actionFeedback) actionFeedback.textContent = error.message || "Failed to update status.";
                         return;
                     }
 
-                    if (revisionBox) {
-                        revisionBox.style.display = 'none';
-                    }
-                    if (reviewActionCard) {
-                        reviewActionCard.style.display = 'none';
+                    if (revisionBox) revisionBox.style.display = "none";
+                    if (reviewActionCard) reviewActionCard.style.display = "block";
+                    renderReviewButtons();
+                    if (selectedAction) {
+                        selectedAction.classList.remove("selected");
+                        selectedAction = null;
                     }
                 });
             }
         }
 
-        // 3. Initialize page
-        window.onload = function() {
+        window.onload = function () {
             bindReviewActions();
             loadRequestFromQuery();
         };

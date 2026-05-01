@@ -496,9 +496,9 @@ color: white;
                 const avatarEl = document.getElementById("topbarUserAvatar");
                 const roleEl = document.getElementById("topbarUserRole");
                 const welcomeEl = document.getElementById("welcomeHeading");
-                const display = user.fullName || user.email || "Admin";
-                if (nameEl) nameEl.textContent = "Staff";
-                if (avatarEl) avatarEl.textContent = "ST";
+                const display = user.fullName || user.email || "Staff";
+                if (nameEl) nameEl.textContent = display;
+                if (avatarEl) avatarEl.textContent = initialsFromName(display);
                 if (roleEl) roleEl.textContent = "Personnel";
                 if (welcomeEl) welcomeEl.textContent = user.fullName ? `Welcome, ${user.fullName.split(" ")[0]}!` : "Welcome!";
             } catch (_e) {

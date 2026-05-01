@@ -520,13 +520,13 @@
                     return;
                 }
                 await verifyBackendRole("staff", accessToken);
-                const display = user.fullName || user.email || "Admin";
+                const display = user.fullName || user.email || "Staff";
                 const nameEl = document.getElementById("topbarUserName");
                 const avatarEl = document.getElementById("topbarUserAvatar");
                 const roleEl = document.getElementById("topbarUserRole");
                 const homeLink = document.getElementById("dashboardHomeLink");
-                if (nameEl) nameEl.textContent = "Staff";
-                if (avatarEl) avatarEl.textContent = "ST";
+                if (nameEl) nameEl.textContent = display;
+                if (avatarEl) avatarEl.textContent = initialsFromName(display);
                 if (roleEl) roleEl.textContent = "Personnel";
                 if (homeLink) homeLink.href = STAFF_ROUTES.dashboard;
             } catch (_e) { window.location.href = STAFF_ROUTES.login; }
