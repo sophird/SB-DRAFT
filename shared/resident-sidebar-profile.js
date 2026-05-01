@@ -8,9 +8,9 @@
       const b = parts[parts.length - 1][0] || "";
       return (a + b).toUpperCase();
     }
-    const one = parts[0];
-    if (one.length >= 2) return (one[0] + one[1]).toUpperCase();
-    return (one[0] + one[0]).toUpperCase();
+    const one = parts[0] || "";
+    const letter = one[0] || "";
+    return (letter + letter).toUpperCase();
   }
 
   function initialsFromEmail(email) {
@@ -35,8 +35,12 @@
   }
 
   function apply() {
-    const avatarEl = global.document.getElementById("residentSidebarAvatar");
-    const nameEl = global.document.getElementById("residentSidebarName");
+    const avatarEl =
+      global.document.getElementById("residentSidebarAvatar") ||
+      global.document.getElementById("sidebarUserAvatar");
+    const nameEl =
+      global.document.getElementById("residentSidebarName") ||
+      global.document.getElementById("sidebarUserName");
     if (!avatarEl && !nameEl) return;
 
     let user = null;
