@@ -408,7 +408,7 @@ color: white;
                 <option value="request">Requests</option>
                 <option value="appointment">Appointments</option>
             </select>
-            <input type="date" class="date-input">
+            <input type="date" class="date-input" id="preferredDateFilter">
         </div>
 
         <p class="showing-text" id="counter">Showing 0 of 0 items</p>
@@ -644,6 +644,7 @@ color: white;
                 const safeType = isAppointment ? "Appointment" : "Request";
                 const safeReference = escapeHtml(req.referenceNo || "—");
                 const safeDate = formatRequestDate(req.createdAt || req.appointmentDate || req.preferredDate);
+                const preferredDateKey = escapeHtml(String(isAppointment ? (req.appointmentDate || "") : (req.preferredDate || "")));
                 const badgeClass = statusBadgeClass(req.status);
                 const requestId = req.id ?? "";
                 const referenceParam = encodeURIComponent(req.referenceNo || "");
@@ -654,7 +655,7 @@ color: white;
                 const dateLabel = isAppointment ? "Appointment Date" : "Date Submitted";
 
                 return `
-                    <div class="request-card" data-title="${safeTitle}">
+                    <div class="request-card" data-title="${safeTitle}" data-preferred-date="${preferredDateKey}">
                         <div class="title-row">
                             <h2>${safeTitle}</h2>
                             <span class="badge badge-type">${safeType}</span>
@@ -745,6 +746,7 @@ color: white;
         const searchInput = document.getElementById('adminSearch');
         const statusFilter = document.getElementById('statusFilter');
         const typeFilter = document.getElementById('typeFilter');
+        const dateFilter = document.getElementById('preferredDateFilter');
         const requestContainer = document.getElementById('requestContainer');
         const emptyState = document.getElementById('emptyState');
         const counter = document.getElementById('counter');
@@ -760,6 +762,15 @@ color: white;
 
         function refreshCardList() {
             cards = Array.from(requestContainer.querySelectorAll('.request-card'));
+        }
+
+        function dateKey(value) {
+            if (!value) return "";
+            const asString = String(value);
+            if (/^\d{4}-\d{2}-\d{2}/.test(asString)) return asString.slice(0, 10);
+            const parsed = new Date(asString);
+            if (Number.isNaN(parsed.getTime())) return "";
+            return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
         }
 
         // Render the filtered request cards for the active page.
@@ -807,6 +818,7 @@ color: white;
             const searchQuery = searchInput.value.toLowerCase();
             const statusQuery = statusFilter.value.toLowerCase();
             const typeQuery = typeFilter.value.toLowerCase();
+            const dateQuery = dateKey(dateFilter?.value || "");
 
             filteredCards = cards.filter((card) => {
                 const title = card.getAttribute('data-title').toLowerCase();
@@ -814,12 +826,14 @@ color: white;
                 const cardType = typeBadge ? typeBadge.textContent.toLowerCase().trim() : '';
                 const statusBadge = card.querySelector('.badge:not(.badge-type)');
                 const cardStatus = statusBadge ? statusBadge.textContent.toLowerCase().trim() : '';
+                const cardPreferredDate = dateKey(card.getAttribute('data-preferred-date') || '');
 
                 const matchesSearch = title.includes(searchQuery);
                 const matchesStatus = (statusQuery === 'all' || cardStatus === statusQuery);
                 const matchesType = (typeQuery === 'all' || cardType.includes(typeQuery));
+                const matchesDate = (!dateQuery || cardPreferredDate === dateQuery);
 
-                return matchesSearch && matchesStatus && matchesType;
+                return matchesSearch && matchesStatus && matchesType && matchesDate;
             });
 
             if (resetPage) {
@@ -849,6 +863,7 @@ color: white;
         searchInput.addEventListener('input', () => filterCards(true));
         statusFilter.addEventListener('change', () => filterCards(true));
         typeFilter.addEventListener('change', () => filterCards(true));
+        dateFilter?.addEventListener('change', () => filterCards(true));
         prevPageBtn.addEventListener('click', goToPreviousPage);
         nextPageBtn.addEventListener('click', goToNextPage);
 

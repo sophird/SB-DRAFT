@@ -332,6 +332,12 @@
         }
         .modal-btn-cancel { background: #f1f5f9; color: #334155; }
         .modal-btn-confirm { background: #e11d48; color: white; }
+
+        .btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -427,44 +433,36 @@
                 <div class="card-title">Review Action</div>
                 <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">Select an action to update the status of this request. This will notify the resident immediately.</p>
                 
-<!-- Action buttons for REQUESTS -->
+<!-- Action buttons for REQUESTS (order fixed: Processing → Ready → Completed → Reject) -->
                 <div class="action-btns request-action-btns" style="display: none;">
-                    <button class="btn btn-processing" data-action="Processing" data-dot="active" style="background: #2563eb; color: white;">
+                    <button type="button" class="btn btn-processing" data-status="Processing" data-dot="active" style="background: #2563eb; color: white;">
                         Processing
                     </button>
-                    <button class="btn btn-pickup" data-action="Ready for Pickup" data-dot="active" style="background: #0ea5e9; color: white;">
+                    <button type="button" class="btn btn-pickup" data-status="Ready for Pickup" data-dot="active" style="background: #0ea5e9; color: white;">
                         Ready for Pickup
                     </button>
-                    <button class="btn btn-completed" data-action="Completed" data-dot="active" style="background: #16a34a; color: white;">
+                    <button type="button" class="btn btn-completed" data-status="Completed" data-dot="active" style="background: #16a34a; color: white;">
                         Completed
                     </button>
-                    <button class="btn btn-reject" data-action="Rejected" data-dot="danger" style="background: #dc2626; color: white;">
+                    <button type="button" class="btn btn-reject" data-status="Rejected" data-dot="danger" style="background: #dc2626; color: white;">
                         Reject
                     </button>
                 </div>
                 
-                <!-- Action buttons for APPOINTMENTS -->
+                <!-- Action buttons for APPOINTMENTS (same order and rules as service requests) -->
                 <div class="action-btns appointment-action-btns" style="display: none;">
-                    <button class="btn btn-approve" data-action="Approved" data-dot="active" style="background: #059669; color: white;">
-                        Approve
+                    <button type="button" class="btn btn-processing" data-status="Processing" data-dot="active" style="background: #2563eb; color: white;">
+                        Processing
                     </button>
-                    <button class="btn btn-revision" data-action="Revision Requested" data-dot="amber" style="background: #f59e0b; color: white;">
-                        Request Revisions
-                    </button>
-                    <button class="btn btn-pickup" data-action="Ready for Pickup" data-dot="active" style="background: #0ea5e9; color: white;">
+                    <button type="button" class="btn btn-pickup" data-status="Ready for Pickup" data-dot="active" style="background: #0ea5e9; color: white;">
                         Ready for Pickup
                     </button>
-                    <button class="btn btn-completed" data-action="Completed" data-dot="active" style="background: #16a34a; color: white;">
+                    <button type="button" class="btn btn-completed" data-status="Completed" data-dot="active" style="background: #16a34a; color: white;">
                         Completed
                     </button>
-                    <button class="btn btn-reject" data-action="Rejected" data-dot="danger" style="background: #dc2626; color: white;">
+                    <button type="button" class="btn btn-reject" data-status="Rejected" data-dot="danger" style="background: #dc2626; color: white;">
                         Reject
                     </button>
-                </div>
-                <div id="revisionBox" class="revision-box">
-                    <label for="revisionMessage" class="revision-label">Revision details</label>
-                    <textarea id="revisionMessage" class="revision-input" placeholder="Describe what should be updated before approval."></textarea>
-                    <button type="button" id="sendRevisionBtn" class="btn-send-revision">Send revision request</button>
                 </div>
                 <p id="actionFeedback" class="action-note">No review action selected yet.</p>
             </div>
@@ -608,8 +606,6 @@
             }
         }
 
-        let selectedAction = null;
-        let latestActionNode = null;
         let activeRequestId = null;
         let activeItemType = "request";
 
@@ -654,36 +650,111 @@
 
         function isTerminalReviewStatus(status) {
             const s = String(status || "").toLowerCase();
-            return s === "completed" || s === "rejected";
+            return s === "completed" || s === "rejected" || s === "cancelled";
         }
 
-        function renderReviewButtons() {
-            const container = document.getElementById("reviewActionButtons");
+        function timelineDotClassForStatus(statusLabel) {
+            const s = String(statusLabel || "").toLowerCase();
+            if (s.includes("reject")) return "danger";
+            if (s.includes("revision")) return "amber";
+            if (s.includes("pending")) return "amber";
+            if (s.includes("complete")) return "slate";
+            return "active";
+        }
+
+        function serviceRequestWorkflowStageIndex(status) {
+            const s = String(status || "").trim().toLowerCase();
+            if (s === "pending") return 0;
+            if (s === "processing" || s === "in progress") return 1;
+            if (s === "ready for pickup") return 2;
+            if (s === "completed") return 3;
+            return -1;
+        }
+
+        function appointmentWorkflowStageIndex(status) {
+            const s = String(status || "").trim().toLowerCase();
+            if (s === "pending review") return 0;
+            if (s === "processing" || s === "confirmed") return 1;
+            if (s === "ready for pickup") return 2;
+            if (s === "completed") return 3;
+            return -1;
+        }
+
+        /**
+         * Renders persisted status_history from API (statusTimeline).
+         */
+        function renderStatusTimeline(entries) {
+            const timelineList = document.getElementById("timelineList");
+            const timelineEmpty = document.getElementById("timelineEmpty");
+            if (!timelineList) return;
+
+            timelineList.querySelectorAll(".timeline-item-dynamic").forEach((node) => node.remove());
+
+            const raw = Array.isArray(entries) ? entries.slice() : [];
+            raw.sort((a, b) => {
+                const ta = new Date(a?.at || 0).getTime();
+                const tb = new Date(b?.at || 0).getTime();
+                return ta - tb;
+            });
+
+            if (!raw.length) {
+                if (timelineEmpty) timelineEmpty.style.display = "block";
+                return;
+            }
+            if (timelineEmpty) timelineEmpty.style.display = "none";
+
+            for (const e of raw) {
+                const item = document.createElement("div");
+                item.className = "timeline-item timeline-item-dynamic";
+                const dotClass = timelineDotClassForStatus(e?.status);
+                const noteHtml = e?.note
+                    ? `<div class="timeline-note">${escapeHtml(String(e.note))}</div>`
+                    : "";
+                item.innerHTML = `
+                    <div class="timeline-dot ${escapeHtml(dotClass)}"></div>
+                    <div class="timeline-label">${escapeHtml(String(e?.status || "—"))}</div>
+                    <div class="timeline-time">${escapeHtml(formatDateTime(e?.at))}</div>
+                    ${noteHtml}
+                `;
+                timelineList.appendChild(item);
+            }
+        }
+
+        function syncReviewActionButtons(status, itemType) {
+            const isAppointment = itemType === "appointment";
+            const container = document.querySelector(
+                isAppointment ? ".appointment-action-btns" : ".request-action-btns"
+            );
             if (!container) return;
-            const isAppointment = activeItemType === "appointment";
-            const defs = isAppointment
-                ? [
-                      { label: "Approved", status: "Approved", dot: "active", cls: "btn-approve" },
-                      { label: "Revisions", status: "Revision Requested", dot: "amber", cls: "btn-info", needsRevision: true },
-                      { label: "Ready to pick up", status: "Ready for Pickup", dot: "active", cls: "btn-approve" },
-                      { label: "Completed", status: "Completed", dot: "slate", cls: "btn-slate" },
-                      { label: "Rejected", status: "Rejected", dot: "danger", cls: "btn-reject" }
-                  ]
-                : [
-                      { label: "Pending", status: "Pending", dot: "amber", cls: "btn-pending" },
-                      { label: "Processing", status: "Processing", dot: "active", cls: "btn-info" },
-                      { label: "Ready to pick up", status: "Ready for Pickup", dot: "active", cls: "btn-approve" },
-                      { label: "Completed", status: "Completed", dot: "slate", cls: "btn-slate" },
-                      { label: "Rejected", status: "Rejected", dot: "danger", cls: "btn-reject" }
-                  ];
-            container.innerHTML = defs
-                .map(
-                    (d) =>
-                        `<button type="button" class="btn ${d.cls}" data-status="${escapeHtml(d.status)}" data-dot="${escapeHtml(d.dot)}"${
-                            d.needsRevision ? ' data-needs-revision="true"' : ""
-                        }>${escapeHtml(d.label)}</button>`
-                )
-                .join("");
+
+            const stage = isAppointment
+                ? appointmentWorkflowStageIndex(status)
+                : serviceRequestWorkflowStageIndex(status);
+
+            const buttons = container.querySelectorAll("button[data-status]");
+            buttons.forEach((btn) => {
+                const label = btn.dataset.status;
+                btn.style.display = "";
+                btn.disabled = false;
+
+                if (label === "Processing") {
+                    btn.style.display = stage >= 1 ? "none" : "";
+                    btn.disabled = stage !== 0;
+                } else if (label === "Ready for Pickup") {
+                    btn.style.display = stage >= 2 ? "none" : "";
+                    btn.disabled = stage !== 1;
+                } else if (label === "Completed") {
+                    btn.style.display = stage >= 3 ? "none" : "";
+                    btn.disabled = stage !== 2;
+                } else if (label === "Rejected") {
+                    btn.style.display = "";
+                    btn.disabled = !(stage === 0 || stage === 1);
+                }
+
+                if (stage < 0 && label !== "Rejected") {
+                    btn.disabled = true;
+                }
+            });
         }
 
         function applyRequestToUI(request, itemType = "request") {
@@ -695,7 +766,6 @@
             const currentStatus = request.status || (isAppointment ? "Pending Review" : "Pending");
             const filedAt = request.createdAt || request.appointmentDate || request.preferredDate;
             const referenceNo = formatReferenceLine(request.referenceNo, request.id);
-            const normalizedStatus = String(currentStatus).toLowerCase();
             const hasReviewActionSelected = isTerminalReviewStatus(currentStatus);
 
             const subjectEl = document.getElementById("fieldSubject");
@@ -727,38 +797,37 @@
             badge.style.background = statusColors.bg;
             badge.style.color = statusColors.fg;
 
-            const timelineEmpty = document.getElementById("timelineEmpty");
-            if (timelineEmpty) timelineEmpty.style.display = "none";
-            const timelineList = document.getElementById("timelineList");
-            if (timelineList) {
-                const existing = document.getElementById("latestActionItem");
-                if (existing) existing.remove();
-                latestActionNode = document.createElement("div");
-                latestActionNode.className = "timeline-item";
-                latestActionNode.id = "latestActionItem";
-                latestActionNode.innerHTML = `
-                    <div class="timeline-dot active"></div>
-                    <div class="timeline-label">${escapeHtml(currentStatus)}</div>
-                    <div class="timeline-time">${escapeHtml(formatDateTime(filedAt))}</div>
-                `;
-                timelineList.appendChild(latestActionNode);
+            let timelineEntries = Array.isArray(request.statusTimeline) ? request.statusTimeline : [];
+            if (!timelineEntries.length) {
+                timelineEntries = [
+                    {
+                        status: currentStatus,
+                        at: request.createdAt || request.appointmentDate || new Date().toISOString(),
+                        note: null
+                    }
+                ];
             }
+            renderStatusTimeline(timelineEntries);
 
             const reviewActionCard = document.getElementById("reviewActionCard");
             if (reviewActionCard) {
                 reviewActionCard.style.display = hasReviewActionSelected ? "none" : "block";
             }
-const revisionActionBtn = document.querySelector('.btn-info');
-            if (revisionActionBtn) {
-                revisionActionBtn.style.display = isAppointment ? "none" : "block";
-            }
-            
-            // Show the correct action buttons based on item type
-            const requestActionBtns = document.querySelector('.request-action-btns');
-            const appointmentActionBtns = document.querySelector('.appointment-action-btns');
+
+            const requestActionBtns = document.querySelector(".request-action-btns");
+            const appointmentActionBtns = document.querySelector(".appointment-action-btns");
             if (requestActionBtns && appointmentActionBtns) {
                 requestActionBtns.style.display = isAppointment ? "none" : "flex";
                 appointmentActionBtns.style.display = isAppointment ? "flex" : "none";
+            }
+
+            const actionFeedback = document.getElementById("actionFeedback");
+            if (actionFeedback && !hasReviewActionSelected) {
+                actionFeedback.textContent = "Select an action to update status. Sequential steps unlock in order.";
+            }
+
+            if (!hasReviewActionSelected) {
+                syncReviewActionButtons(currentStatus, itemType);
             }
         }
 
@@ -918,140 +987,35 @@ const revisionActionBtn = document.querySelector('.btn-info');
             return payload;
         }
 
-        // Update badge, timeline, and feedback text for the latest action.
-        function updateInterface(status, dotClass, note = "") {
-            const now = new Date().toLocaleString();
-            const timelineEmpty = document.getElementById("timelineEmpty");
-            if (timelineEmpty) timelineEmpty.style.display = "none";
-
-            const badge = document.getElementById("statusBadge");
-            if (badge) {
-                badge.textContent = status;
-                const colors = statusColorByValue(status);
-                badge.style.background = colors.bg;
-                badge.style.color = colors.fg;
-            }
-
-            const timelineList = document.getElementById("timelineList");
-            if (timelineList) {
-                if (!latestActionNode) {
-                    latestActionNode = document.createElement("div");
-                    latestActionNode.className = "timeline-item";
-                    latestActionNode.id = "latestActionItem";
-                    timelineList.appendChild(latestActionNode);
-                }
-
-                const safeNote = note ? escapeHtml(note) : "";
-                latestActionNode.innerHTML = `
-                    <div class="timeline-dot ${escapeHtml(dotClass)}"></div>
-                    <div class="timeline-label">${escapeHtml(status)}</div>
-                    <div class="timeline-time">${escapeHtml(now)}</div>
-                    ${safeNote ? `<div class="timeline-note">${safeNote}</div>` : ""}
-                `;
-            }
-
-            const actionFeedback = document.getElementById("actionFeedback");
-            if (actionFeedback) {
-                actionFeedback.textContent = note
-                    ? `Latest update: ${status} at ${now} — ${note}`
-                    : `Latest update: ${status} at ${now}`;
-            }
-        }
-
         async function handleAction(button) {
             const status = button.dataset.status;
-            const dotClass = button.dataset.dot || "active";
-            const needsRevision = button.dataset.needsRevision === "true";
-            const reviewActionCard = document.getElementById("reviewActionCard");
-            const revisionBox = document.getElementById("revisionBox");
-            const revisionMessage = document.getElementById("revisionMessage");
+            if (!status || button.disabled) return;
 
-            if (!status) return;
-
-            if (selectedAction) {
-                selectedAction.classList.remove("selected");
-            }
-            selectedAction = button;
-            selectedAction.classList.add("selected");
-
-            if (needsRevision) {
-                if (revisionBox) revisionBox.style.display = "block";
-                if (revisionMessage) revisionMessage.focus();
-                return;
-            }
-
-            if (revisionBox) revisionBox.style.display = "none";
-            if (revisionMessage) revisionMessage.value = "";
-
+            const actionFeedback = document.getElementById("actionFeedback");
             try {
                 const updated = await saveRequestStatus(status, "");
-                const displayStatus = updated?.status || status;
-                updateInterface(displayStatus, dotClass);
                 if (updated) {
-                    if (activeItemType === "appointment") {
-                        sessionStorage.setItem("selectedRequest", JSON.stringify({ ...updated, itemType: "appointment" }));
-                    } else {
-                        sessionStorage.setItem("selectedRequest", JSON.stringify({ ...updated, itemType: "request" }));
-                    }
+                    const wrapped =
+                        activeItemType === "appointment"
+                            ? { ...updated, itemType: "appointment" }
+                            : { ...updated, itemType: "request" };
+                    sessionStorage.setItem("selectedRequest", JSON.stringify(wrapped));
                 }
-                if (reviewActionCard && isTerminalReviewStatus(displayStatus)) {
-                    reviewActionCard.style.display = "none";
-                } else if (reviewActionCard) {
-                    reviewActionCard.style.display = "block";
-                    renderReviewButtons();
+                applyRequestToUI(updated, activeItemType);
+                if (actionFeedback) {
+                    actionFeedback.textContent = `Status updated to “${updated?.status || status}”.`;
                 }
             } catch (error) {
-                const actionFeedback = document.getElementById("actionFeedback");
                 if (actionFeedback) actionFeedback.textContent = error.message || "Failed to update status.";
             }
         }
 
         function bindReviewActions() {
-            document.getElementById("reviewActionButtons")?.addEventListener("click", (event) => {
+            document.getElementById("reviewActionCard")?.addEventListener("click", (event) => {
                 const btn = event.target.closest("button[data-status]");
-                if (!btn) return;
+                if (!btn || btn.disabled) return;
                 handleAction(btn);
             });
-
-            const sendRevisionBtn = document.getElementById("sendRevisionBtn");
-            const revisionMessage = document.getElementById("revisionMessage");
-            const reviewActionCard = document.getElementById("reviewActionCard");
-            const revisionBox = document.getElementById("revisionBox");
-
-            if (sendRevisionBtn && revisionMessage) {
-                sendRevisionBtn.addEventListener("click", async () => {
-                    const message = revisionMessage.value.trim();
-                    if (!message) {
-                        revisionMessage.focus();
-                        return;
-                    }
-
-                    try {
-                        const updated = await saveRequestStatus("Revision Requested", message);
-                        const displayStatus = updated?.status || "Revision Requested";
-                        updateInterface(displayStatus, "amber", `Revision message: ${message}`);
-                        if (updated) {
-                            if (activeItemType === "appointment") {
-                                sessionStorage.setItem("selectedRequest", JSON.stringify({ ...updated, itemType: "appointment" }));
-                            } else {
-                                sessionStorage.setItem("selectedRequest", JSON.stringify({ ...updated, itemType: "request" }));
-                            }
-                        }
-                    } catch (error) {
-                        const actionFeedback = document.getElementById("actionFeedback");
-                        if (actionFeedback) actionFeedback.textContent = error.message || "Failed to update status.";
-                        return;
-                    }
-
-                    if (revisionBox) revisionBox.style.display = "none";
-                    if (reviewActionCard) reviewActionCard.style.display = "block";
-                    renderReviewButtons();
-                    if (selectedAction) {
-                        selectedAction.classList.remove("selected");
-                        selectedAction = null;
-                    }
-                });
-            }
         }
 
         window.onload = function () {
