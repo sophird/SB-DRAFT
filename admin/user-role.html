@@ -574,7 +574,34 @@ function openUserManage(userName, currentRole, currentStatus, rowId) {
         }
 
 async function saveUserChanges() {
-            // Logic to update the UI table row instantly
+            if (!targetUserRow) return;
+            
+            const row = document.getElementById(targetUserRow);
+            if (!row) return;
+            
+            // Get selected status
+            const newStatus = document.getElementById('userStatusSelect').value;
+            
+            // Get selected permissions
+            const permissionCheckboxes = document.querySelectorAll('#permissionGroupStaff input[type="checkbox"]');
+            const selectedPermissions = [];
+            permissionCheckboxes.forEach(cb => {
+                if (cb.checked) {
+                    selectedPermissions.push(cb.parentElement.textContent.trim());
+                }
+            });
+            
+            // Update the table row
+            const statusCell = row.querySelector('td:nth-child(4)');
+            if (statusCell) {
+                statusCell.innerHTML = `<span class="status-badge" style="background: ${newStatus === 'Active' ? '#f0fdf4' : newStatus === 'Suspended' ? '#fff7ed' : '#f1f5f9'}; color: ${newStatus === 'Active' ? '#16a34a' : newStatus === 'Suspended' ? '#ea580c' : '#64748b'}; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">${newStatus}</span>`;
+            }
+            
+            const permissionsCell = row.querySelector('td:nth-child(3)');
+            if (permissionsCell) {
+                permissionsCell.innerHTML = `<small>${selectedPermissions.join(', ')}</small>`;
+            }
+            
             await showDialog({
                 title: "User Updated",
                 message: "User account has been updated.",
