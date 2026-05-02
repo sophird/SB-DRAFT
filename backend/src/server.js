@@ -64,6 +64,14 @@ const authResidentLoginLimiter = rateLimit({
   message: { ok: false, message: "Too many login attempts. Please try again later." }
 });
 
+const adminStaffCreateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, message: "Too many staff creation attempts. Please try again later." }
+});
+
 const faqSearchLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 120,
@@ -117,6 +125,44 @@ function sanitizeFullNameForStorage(raw) {
   if (s.length > MAX_FULL_NAME_LEN) s = s.slice(0, MAX_FULL_NAME_LEN);
   s = s.replace(/[<>]/g, "");
   return s.trim();
+}
+
+const STAFF_PERMISSION_KEYS = ["dashboard", "appointmentScheduling", "requestProcessing", "documentGenerator"];
+
+function defaultStaffPermissionsAllTrue() {
+  return {
+    dashboard: true,
+    appointmentScheduling: true,
+    requestProcessing: true,
+    documentGenerator: true
+  };
+}
+
+function normalizeStaffPermissionsFromDb(raw) {
+  const base = defaultStaffPermissionsAllTrue();
+  if (!raw || typeof raw !== "object") return base;
+  for (const k of STAFF_PERMISSION_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(raw, k)) {
+      base[k] = Boolean(raw[k]);
+    }
+  }
+  return base;
+}
+
+function normalizeStaffPermissionsFromBody(body) {
+  const src = body && typeof body === "object" ? body : {};
+  const out = {
+    dashboard: false,
+    appointmentScheduling: false,
+    requestProcessing: false,
+    documentGenerator: false
+  };
+  for (const k of STAFF_PERMISSION_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(src, k)) {
+      out[k] = Boolean(src[k]);
+    }
+  }
+  return out;
 }
 
 function getBearerToken(req) {
@@ -696,7 +742,7 @@ app.post("/auth/admin/login", async (req, res) => {
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
-    .select("email, full_name, role")
+    .select("email, full_name, role, staff_permissions")
     .eq("email", email)
     .maybeSingle();
 
@@ -716,14 +762,19 @@ app.post("/auth/admin/login", async (req, res) => {
     });
   }
 
+  const userPayload = {
+    email: profile.email,
+    fullName: profile.full_name,
+    role: profile.role
+  };
+  if (profile.role === "staff") {
+    userPayload.staffPermissions = normalizeStaffPermissionsFromDb(profile.staff_permissions);
+  }
+
   return res.json({
     ok: true,
     message: "Login successful.",
-    user: {
-      email: profile.email,
-      fullName: profile.full_name,
-      role: profile.role
-    },
+    user: userPayload,
     session: {
       accessToken: authData.session?.access_token || null,
       refreshToken: authData.session?.refresh_token || null,
@@ -2438,6 +2489,357 @@ app.post("/admin/announcements", async (req, res) => {
     message: "Announcement posted.",
     announcement: normalizeAnnouncementRow(data)
   });
+});
+
+// --- Admin user profiles (User & Role management) ---
+
+app.get("/admin/profiles", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+  if (auth.profile.role !== "admin") {
+    return res.status(403).json({ ok: false, message: "Admin role required to list all users." });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("email, full_name, role, created_at, staff_permissions")
+    .not("role", "eq", "admin")
+    .not("role", "eq", "system-admin")
+    .order("full_name", { ascending: true });
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load user profiles.",
+      detail: error.message
+    });
+  }
+
+  return res.json({
+    ok: true,
+    profiles: (data || []).map((row) => {
+      const profile = {
+        email: row.email,
+        fullName: row.full_name,
+        role: row.role,
+        createdAt: row.created_at
+      };
+      if (row.role === "staff") {
+        profile.staffPermissions = normalizeStaffPermissionsFromDb(row.staff_permissions);
+      }
+      return profile;
+    })
+  });
+});
+
+/** Barangay admin creates a staff Supabase Auth user + profile with page permissions (JSON on profiles). */
+app.post("/admin/staff", adminStaffCreateLimiter, async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+  if (auth.profile.role !== "admin") {
+    return res.status(403).json({
+      ok: false,
+      message: "Only barangay administrators can create staff accounts."
+    });
+  }
+
+  const body = req.body || {};
+  const { fullName, email, password } = body;
+  const normalizedEmail = normalizeEmail(email);
+  const safeFullName = sanitizeFullNameForStorage(fullName);
+  const safePassword = String(password || "");
+  const perms = normalizeStaffPermissionsFromBody(body.permissions ?? body);
+
+  if (!safeFullName || !normalizedEmail || !safePassword) {
+    return res.status(400).json({
+      ok: false,
+      message: "fullName, email, and password are required."
+    });
+  }
+
+  if (!isValidEmailFormat(normalizedEmail)) {
+    return res.status(400).json({
+      ok: false,
+      message: "Please enter a valid email address."
+    });
+  }
+
+  if (safePassword.length < 8) {
+    return res.status(400).json({
+      ok: false,
+      message: "Password must be at least 8 characters long."
+    });
+  }
+
+  if (safePassword.length > MAX_PASSWORD_LEN) {
+    return res.status(400).json({
+      ok: false,
+      message: `Password must be at most ${MAX_PASSWORD_LEN} characters.`
+    });
+  }
+
+  const { data: existingProfile, error: existingErr } = await supabaseAdmin
+    .from("profiles")
+    .select("email")
+    .eq("email", normalizedEmail)
+    .maybeSingle();
+
+  if (existingErr) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to verify email availability.",
+      detail: existingErr.message
+    });
+  }
+
+  if (existingProfile) {
+    return res.status(409).json({
+      ok: false,
+      message: "An account with this email already exists."
+    });
+  }
+
+  const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+    email: normalizedEmail,
+    password: safePassword,
+    email_confirm: true,
+    user_metadata: {
+      full_name: safeFullName,
+      role: "staff"
+    }
+  });
+
+  if (createErr || !created?.user?.id) {
+    const msg = String(createErr?.message || "Unable to create staff login.");
+    const lower = msg.toLowerCase();
+    if (
+      lower.includes("already") ||
+      lower.includes("registered") ||
+      lower.includes("exists") ||
+      lower.includes("duplicate") ||
+      lower.includes("unique")
+    ) {
+      return res.status(409).json({
+        ok: false,
+        message: "An account with this email already exists."
+      });
+    }
+    return res.status(400).json({
+      ok: false,
+      message: msg
+    });
+  }
+
+  const upsertPayload = {
+    email: normalizedEmail,
+    full_name: safeFullName,
+    role: "staff",
+    staff_permissions: perms
+  };
+
+  const { error: profErr } = await supabaseAdmin.from("profiles").upsert(upsertPayload, { onConflict: "email" });
+
+  if (profErr) {
+    await supabaseAdmin.auth.admin.deleteUser(created.user.id);
+    return res.status(500).json({
+      ok: false,
+      message: "Staff login was created but saving the profile failed. The partial auth user was removed.",
+      detail: profErr.message
+    });
+  }
+
+  return res.status(201).json({
+    ok: true,
+    message: "Staff account created.",
+    user: {
+      email: normalizedEmail,
+      fullName: safeFullName,
+      role: "staff",
+      staffPermissions: perms
+    }
+  });
+});
+
+/** Update saved page permissions for an existing staff profile (admin only). */
+app.patch("/admin/staff/permissions", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+  if (auth.profile.role !== "admin") {
+    return res.status(403).json({
+      ok: false,
+      message: "Only barangay administrators can update staff permissions."
+    });
+  }
+
+  const normalizedEmail = normalizeEmail(req.body?.email ?? "");
+  if (!normalizedEmail || !isValidEmailFormat(normalizedEmail)) {
+    return res.status(400).json({
+      ok: false,
+      message: "A valid staff email is required."
+    });
+  }
+
+  const perms = normalizeStaffPermissionsFromBody(req.body?.permissions ?? req.body);
+
+  const { data: profile, error: loadErr } = await supabaseAdmin
+    .from("profiles")
+    .select("email, role")
+    .eq("email", normalizedEmail)
+    .maybeSingle();
+
+  if (loadErr) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load profile.",
+      detail: loadErr.message
+    });
+  }
+
+  if (!profile || profile.role !== "staff") {
+    return res.status(404).json({
+      ok: false,
+      message: "No staff account found for that email."
+    });
+  }
+
+  const { error: upErr } = await supabaseAdmin
+    .from("profiles")
+    .update({ staff_permissions: perms })
+    .eq("email", normalizedEmail)
+    .eq("role", "staff");
+
+  if (upErr) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to update staff permissions.",
+      detail: upErr.message
+    });
+  }
+
+  return res.json({
+    ok: true,
+    message: "Staff permissions updated.",
+    staffPermissions: perms
+  });
+});
+
+async function findAuthUserIdByEmail(normalizedEmail) {
+  let page = 1;
+  const perPage = 200;
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+    if (error) return { id: null, error };
+    const hit = data.users.find((u) => normalizeEmail(u.email) === normalizedEmail);
+    if (hit?.id) return { id: hit.id, error: null };
+    if (!data.users?.length || data.users.length < perPage) break;
+    page += 1;
+  }
+  return { id: null, error: null };
+}
+
+/** Remove profile + app user row + Supabase Auth user (admin only; cannot delete self or other admins). */
+app.post("/admin/profiles/delete", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+  if (auth.profile.role !== "admin") {
+    return res.status(403).json({ ok: false, message: "Admin role required to delete users." });
+  }
+
+  const email = normalizeEmail(req.body?.email ?? "");
+  if (!email || !isValidEmailFormat(email)) {
+    return res.status(400).json({ ok: false, message: "A valid email is required." });
+  }
+
+  if (normalizeEmail(auth.profile.email) === email) {
+    return res.status(400).json({ ok: false, message: "You cannot delete your own account." });
+  }
+
+  const { data: profile, error: profLoadErr } = await supabaseAdmin
+    .from("profiles")
+    .select("email, role")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (profLoadErr) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load profile.",
+      detail: profLoadErr.message
+    });
+  }
+
+  if (!profile) {
+    return res.status(404).json({ ok: false, message: "No profile found for that email." });
+  }
+
+  if (profile.role === "admin") {
+    return res.status(403).json({ ok: false, message: "Deleting admin accounts is not allowed." });
+  }
+
+  const { id: authUserId, error: authLookupErr } = await findAuthUserIdByEmail(email);
+  if (authLookupErr) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to look up auth user.",
+      detail: authLookupErr.message
+    });
+  }
+
+  if (profile.role === "resident") {
+    const { data: userRow } = await supabaseAdmin.from("users").select("id").eq("email", email).maybeSingle();
+    if (userRow?.id) {
+      const { count, error: reqErr } = await supabaseAdmin
+        .from("service_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("resident_user_id", userRow.id);
+      if (!reqErr && typeof count === "number" && count > 0) {
+        return res.status(409).json({
+          ok: false,
+          message:
+            "This resident has service requests on file. Resolve or remove those records before deleting the account."
+        });
+      }
+    }
+  }
+
+  const { error: usersDelErr } = await supabaseAdmin.from("users").delete().eq("email", email);
+  if (usersDelErr) {
+    const msg = String(usersDelErr.message || "");
+    if (/foreign key|violates/i.test(msg)) {
+      return res.status(409).json({
+        ok: false,
+        message: "This account cannot be deleted while related records still reference it.",
+        detail: usersDelErr.message
+      });
+    }
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to remove linked user record.",
+      detail: usersDelErr.message
+    });
+  }
+
+  const { error: profDelErr } = await supabaseAdmin.from("profiles").delete().eq("email", email);
+  if (profDelErr) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to delete profile.",
+      detail: profDelErr.message
+    });
+  }
+
+  if (authUserId) {
+    const { error: authDelErr } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
+    if (authDelErr) {
+      return res.status(500).json({
+        ok: false,
+        message: "Profile removed but deleting the Supabase Auth user failed. Remove the auth user manually if needed.",
+        detail: authDelErr.message
+      });
+    }
+  }
+
+  return res.json({ ok: true, message: "Account deleted." });
 });
 
 // --- Admin service catalog ---

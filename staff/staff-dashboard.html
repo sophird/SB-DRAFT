@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard | SerbisyoBurgos</title>
+    <title>Staff Dashboard | SerbisyoBurgos</title>
     <link rel="icon" type="image/png" href="../asset/SB.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
@@ -435,6 +435,7 @@ color: white;
     </div>
 
     <script src="../shared/routes.js"></script>
+    <script src="../shared/staff-page-guard.js" data-staff-permission="dashboard"></script>
     <script>
         const API_BASE_URL = "http://localhost:4000";
         const STAFF_ROUTES = window.APP_ROUTES?.staff || { login: "../admin-login.html", dashboard: "staff-dashboard.html" };

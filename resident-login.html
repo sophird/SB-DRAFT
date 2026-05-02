@@ -474,6 +474,8 @@
 <script>
     const API_BASE_URL = "http://localhost:4000";
     const RESIDENT_CONTEXT_KEY = "residentContext";
+    /** Emails self-registered via this page; admin User & Roles uses this to show status-only management. */
+    const RESIDENT_PORTAL_SELF_REG_EMAILS_KEY = "SB_RESIDENT_PORTAL_SELF_REG_EMAILS";
     const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "landing.html" };
     const RESIDENT_ROUTES = window.APP_ROUTES?.resident || { dashboard: "resident/dashboard.html" };
     document.getElementById("residentBackToLanding")?.setAttribute("href", COMMON_ROUTES.landing);
@@ -532,6 +534,19 @@
             confirmInput: document.getElementById("resident-register-confirm"),
             errorEl: document.getElementById("resident-register-error")
         };
+    }
+
+    function rememberResidentPortalSelfRegistration(email) {
+        const norm = String(email || "").trim().toLowerCase();
+        if (!norm) return;
+        try {
+            const parsed = JSON.parse(localStorage.getItem(RESIDENT_PORTAL_SELF_REG_EMAILS_KEY) || "[]");
+            const list = Array.isArray(parsed) ? parsed : [];
+            const merged = [...new Set([...list.map((e) => String(e).trim().toLowerCase()).filter(Boolean), norm])];
+            localStorage.setItem(RESIDENT_PORTAL_SELF_REG_EMAILS_KEY, JSON.stringify(merged));
+        } catch (_e) {
+            localStorage.setItem(RESIDENT_PORTAL_SELF_REG_EMAILS_KEY, JSON.stringify([norm]));
+        }
     }
 
     function persistResidentAuth(result) {
@@ -693,6 +708,7 @@
                 return;
             }
 
+            rememberResidentPortalSelfRegistration(email);
             showRegisterSuccessModal();
         } catch (_error) {
             if (errorEl) errorEl.innerText = "Cannot connect to backend. Make sure API server is running.";

@@ -226,6 +226,14 @@
             font-size: 0.95rem;
         }
 
+        tr.archived-row {
+            opacity: 0.72;
+            background: #fafafa;
+        }
+        tr.archived-row td {
+            color: #64748b;
+        }
+
         .status-badge {
             padding: 4px 10px;
             border-radius: 20px;
@@ -422,36 +430,9 @@
                             <th>Action</th>
                         </tr>
                     </thead>
-<tbody>
-<tr id="row-1">
-                            <td style="font-weight: 600;">Staff 1</td>
-                            <td>staff@serbisyoburgos.com</td>
-                            <td><small>Dashboard, Request Processing</small></td>
-                            <td><span class="status-badge" style="background: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Active</span></td>
-                            <td>
-                                <button class="btn-config" onclick="openUserManage('Staff 1', 'Staff', 'Active')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
-                                <button class="btn-delete" onclick="deleteUser('row-1')" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Delete</button>
-                            </td>
-                        </tr>
-                        <tr id="row-2">
-                            <td style="font-weight: 600;">Sophia Dumayas</td>
-                            <td>user@gmail.com</td>
-                            <td><small>Request Services, View News</small></td>
-                            <td><span class="status-badge" style="background: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Active</span></td>
-                            <td>
-                                <button class="btn-config" onclick="openUserManage('Sophia Dumayas', 'Resident', 'Active')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
-                                <button class="btn-delete" onclick="deleteUser('row-2')" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Delete</button>
-                            </td>
-                        </tr>
-<tr id="row-3">
-                            <td style="font-weight: 600;">Staff 2</td>
-                            <td>staff@serbisyoburgos.com</td>
-                            <td><small>Appointment Scheduling, Document Generator</small></td>
-                            <td><span class="status-badge" style="background: #fff7ed; color: #ea580c; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Suspended</span></td>
-                            <td>
-                                <button class="btn-config" onclick="openUserManage('Staff 2', 'Staff', 'Suspended')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
-                                <button class="btn-delete" onclick="deleteUser('row-3')" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Delete</button>
-                            </td>
+                    <tbody id="usersTableBody">
+                        <tr>
+                            <td colspan="5" style="color: var(--text-muted); font-size: 0.9rem;">Loading users…</td>
                         </tr>
                     </tbody>
                 </table>
@@ -477,10 +458,10 @@
 <div class="form-group" id="permissionGroupStaff">
                     <label>Staff Permissions</label>
                     <div class="permission-grid-staff">
-                        <div class="permission-item"><input type="checkbox"> Dashboard</div>
-                        <div class="permission-item"><input type="checkbox"> Appointment Scheduling</div>
-                        <div class="permission-item"><input type="checkbox"> Request Processing</div>
-                        <div class="permission-item"><input type="checkbox"> Document Generator</div>
+                        <div class="permission-item"><input type="checkbox" id="managePermDashboard"> Dashboard</div>
+                        <div class="permission-item"><input type="checkbox" id="managePermAppt"> Appointment Scheduling</div>
+                        <div class="permission-item"><input type="checkbox" id="managePermRequest"> Request Processing</div>
+                        <div class="permission-item"><input type="checkbox" id="managePermDoc"> Document Generator</div>
                     </div>
                 </div>
 
@@ -553,8 +534,223 @@
     <script>
         window.SB_ADMIN_ACCESS?.requireRole("admin");
 
+        const API_BASE_URL = "http://localhost:4000";
         const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "../landing.html" };
+        /** Same key as resident-login.html — emails registered through the resident portal. */
+        const RESIDENT_PORTAL_SELF_REG_EMAILS_KEY = "SB_RESIDENT_PORTAL_SELF_REG_EMAILS";
         let targetUserRow = null;
+
+        function getAdminAccessToken() {
+            try {
+                const raw = sessionStorage.getItem("adminAuth");
+                if (!raw) return null;
+                return JSON.parse(raw)?.session?.accessToken || null;
+            } catch (_e) {
+                return null;
+            }
+        }
+
+        async function adminFetch(path, options = {}) {
+            const token = getAdminAccessToken();
+            const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+            if (token) headers.Authorization = `Bearer ${token}`;
+            return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function roleUiLabel(role) {
+            const r = String(role || "").trim().toLowerCase();
+            if (r === "resident") return "Resident";
+            if (r === "staff") return "Staff";
+            if (r === "admin") return "Admin";
+            if (r === "system-admin") return "System Admin";
+            return r ? String(role) : "User";
+        }
+
+        function staffPermissionsCellHtml(p) {
+            const sp = p.staffPermissions;
+            if (!sp || typeof sp !== "object") {
+                return "<small>Staff portal (default access)</small>";
+            }
+            const pairs = [
+                ["dashboard", "Dashboard"],
+                ["appointmentScheduling", "Scheduling"],
+                ["requestProcessing", "Requests"],
+                ["documentGenerator", "Documents"]
+            ];
+            const allowed = pairs.filter(([key]) => sp[key]).map(([, label]) => label);
+            if (!allowed.length) {
+                return '<small style="color:#94a3b8;">No page access</small>';
+            }
+            return "<small>" + escapeHtml(allowed.join(", ")) + "</small>";
+        }
+
+        function permissionsCellHtmlForProfile(p) {
+            const r = String(p.role || "").trim().toLowerCase();
+            if (r === "resident") {
+                const email = String(p.email || "").trim().toLowerCase();
+                if (loadResidentPortalSelfRegEmails().includes(email)) {
+                    return "<small>Resident portal access</small>";
+                }
+                return '<small style="color:#94a3b8;">—</small>';
+            }
+            if (r === "staff") return staffPermissionsCellHtml(p);
+            if (r === "admin") return "<small>Administration, catalog, users, announcements</small>";
+            if (r === "system-admin") return "<small>System administration</small>";
+            return "<small>—</small>";
+        }
+
+        function defaultAccountStatusBadge() {
+            return '<span class="status-badge" style="background: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Active</span>';
+        }
+
+        function residentPortalDatasetAttr(p) {
+            if (String(p.role || "").trim().toLowerCase() !== "resident") return "";
+            const email = String(p.email || "").trim().toLowerCase();
+            if (!loadResidentPortalSelfRegEmails().includes(email)) return "";
+            return ' data-account-source="resident-login"';
+        }
+
+        function profileSearchHaystack(p) {
+            return `${String(p.fullName || "").trim()} ${String(p.email || "").trim()}`.trim().toLowerCase();
+        }
+
+        function staffPermissionDataAttrsForRow(p) {
+            const r = String(p?.role || "").trim().toLowerCase();
+            if (r !== "staff") return "";
+            const sp =
+                p.staffPermissions && typeof p.staffPermissions === "object"
+                    ? p.staffPermissions
+                    : { dashboard: true, appointmentScheduling: true, requestProcessing: true, documentGenerator: true };
+            const b = (k) => (sp[k] ? "1" : "0");
+            return ` data-sp-dashboard="${b("dashboard")}" data-sp-appt="${b(
+                "appointmentScheduling"
+            )}" data-sp-request="${b("requestProcessing")}" data-sp-doc="${b("documentGenerator")}"`;
+        }
+
+        function isStaffTableRow(row) {
+            return String(row?.dataset?.userRole || "").trim().toLowerCase() === "staff";
+        }
+
+        function readStaffPermissionsFromRowDataset(row) {
+            if (!row || !isStaffTableRow(row)) {
+                return {
+                    dashboard: false,
+                    appointmentScheduling: false,
+                    requestProcessing: false,
+                    documentGenerator: false
+                };
+            }
+            if (row.dataset.spDashboard === undefined) {
+                return {
+                    dashboard: true,
+                    appointmentScheduling: true,
+                    requestProcessing: true,
+                    documentGenerator: true
+                };
+            }
+            return {
+                dashboard: row.dataset.spDashboard === "1",
+                appointmentScheduling: row.dataset.spAppt === "1",
+                requestProcessing: row.dataset.spRequest === "1",
+                documentGenerator: row.dataset.spDoc === "1"
+            };
+        }
+
+        function applyStaffPermissionDatasetToRow(row, perms) {
+            if (!row || !perms || typeof perms !== "object") return;
+            row.dataset.spDashboard = perms.dashboard ? "1" : "0";
+            row.dataset.spAppt = perms.appointmentScheduling ? "1" : "0";
+            row.dataset.spRequest = perms.requestProcessing ? "1" : "0";
+            row.dataset.spDoc = perms.documentGenerator ? "1" : "0";
+        }
+
+        function readStaffPermissionsFromManageModal() {
+            return {
+                dashboard: Boolean(document.getElementById("managePermDashboard")?.checked),
+                appointmentScheduling: Boolean(document.getElementById("managePermAppt")?.checked),
+                requestProcessing: Boolean(document.getElementById("managePermRequest")?.checked),
+                documentGenerator: Boolean(document.getElementById("managePermDoc")?.checked)
+            };
+        }
+
+        function syncManageModalStaffPermissionsFromRow(row) {
+            const ids = ["managePermDashboard", "managePermAppt", "managePermRequest", "managePermDoc"];
+            const perms = readStaffPermissionsFromRowDataset(row);
+            if (!isStaffTableRow(row)) {
+                ids.forEach((id) => {
+                    const el = document.getElementById(id);
+                    if (el) el.checked = false;
+                });
+                return;
+            }
+            const keys = ["dashboard", "appointmentScheduling", "requestProcessing", "documentGenerator"];
+            keys.forEach((k, i) => {
+                const el = document.getElementById(ids[i]);
+                if (el) el.checked = Boolean(perms[k]);
+            });
+        }
+
+        async function loadUsersTable() {
+            const tbody = document.getElementById("usersTableBody");
+            if (!tbody) return;
+            tbody.innerHTML =
+                '<tr><td colspan="5" style="color: var(--text-muted); font-size: 0.9rem;">Loading users…</td></tr>';
+            try {
+                const res = await adminFetch("/admin/profiles");
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok || !json?.ok || !Array.isArray(json.profiles)) {
+                    throw new Error(json?.message || "Unable to load users.");
+                }
+                const profiles = json.profiles.filter((p) => {
+                    const r = String(p?.role || "").trim().toLowerCase();
+                    return r !== "admin" && r !== "system-admin";
+                });
+                if (!profiles.length) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="5" style="color: var(--text-muted); font-size: 0.9rem;">No user profiles found.</td></tr>';
+                    return;
+                }
+                const rowsHtml = profiles
+                    .map((p, idx) => {
+                        const rowId = `profile-row-${idx}`;
+                        const name = escapeHtml(p.fullName || "—");
+                        const email = escapeHtml(p.email || "");
+                        const roleLabel = roleUiLabel(p.role);
+                        const roleAttr = escapeHtml(roleLabel);
+                        const nameAttr = escapeHtml(p.fullName || "");
+                        const searchAttr = escapeHtml(profileSearchHaystack(p));
+                        const perms = permissionsCellHtmlForProfile(p);
+                        const portalAttr = residentPortalDatasetAttr(p);
+                        const staffPermAttr = staffPermissionDataAttrsForRow(p);
+                        return `<tr id="${rowId}" data-user-name="${nameAttr}" data-user-role="${roleAttr}" data-search="${searchAttr}"${portalAttr}${staffPermAttr}>
+                            <td style="font-weight: 600;">${name}</td>
+                            <td>${email}</td>
+                            <td>${perms}</td>
+                            <td data-cell="account-status">${defaultAccountStatusBadge()}</td>
+                            <td>
+                                <button type="button" class="btn-config" onclick="openUserManageFromRow('${rowId}')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
+                                <button type="button" class="btn-delete-user" onclick="deleteUserAccount('${rowId}')" style="background-color: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Delete</button>
+                            </td>
+                        </tr>`;
+                    })
+                    .join("");
+                tbody.innerHTML = rowsHtml;
+                syncResidentPortalRowMarkers();
+                applyResidentPortalTableCells();
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="5" style="color:#b91c1c;font-size:0.9rem;">${escapeHtml(
+                    err?.message || "Unable to load users."
+                )}</td></tr>`;
+            }
+        }
         const appDialogModal = document.getElementById("appDialogModal");
         const appDialogTitle = document.getElementById("appDialogTitle");
         const appDialogMessage = document.getElementById("appDialogMessage");
@@ -613,16 +809,121 @@
             });
         }
 
-function openUserManage(userName, currentRole, currentStatus, rowId) {
+        function loadResidentPortalSelfRegEmails() {
+            try {
+                const parsed = JSON.parse(localStorage.getItem(RESIDENT_PORTAL_SELF_REG_EMAILS_KEY) || "[]");
+                if (!Array.isArray(parsed)) return [];
+                const out = [];
+                const seen = new Set();
+                for (const e of parsed) {
+                    const n = String(e || "").trim().toLowerCase();
+                    if (!n || seen.has(n)) continue;
+                    seen.add(n);
+                    out.push(n);
+                }
+                return out;
+            } catch (_e) {
+                return [];
+            }
+        }
+
+        function isResidentPortalRow(row) {
+            if (!row) return false;
+            if (String(row.dataset.accountSource || "").trim() === "resident-login") return true;
+            const email = row.querySelector("td:nth-child(2)")?.textContent?.trim().toLowerCase();
+            if (!email) return false;
+            return loadResidentPortalSelfRegEmails().includes(email);
+        }
+
+        function getAccountStatusCell(row) {
+            return row?.querySelector('[data-cell="account-status"]') || null;
+        }
+
+        function syncResidentPortalRowMarkers() {
+            const emails = new Set(loadResidentPortalSelfRegEmails());
+            document.querySelectorAll("table tbody tr").forEach((row) => {
+                const email = row.querySelector("td:nth-child(2)")?.textContent?.trim().toLowerCase();
+                if (email && emails.has(email)) {
+                    row.dataset.accountSource = "resident-login";
+                }
+            });
+        }
+
+        function applyResidentPortalTableCells() {
+            document.querySelectorAll("table tbody tr").forEach((row) => {
+                if (!isResidentPortalRow(row)) return;
+                const permCell = row.querySelector("td:nth-child(3)");
+                if (permCell) {
+                    permCell.innerHTML = "<small>Resident portal access</small>";
+                }
+            });
+        }
+
+        function getRowProfileEmail(row) {
+            return row?.querySelector("td:nth-child(2)")?.textContent?.trim() || "";
+        }
+
+        function setManageModalPermissionsVisibility(rowId) {
+            const permGroup = document.getElementById("permissionGroupStaff");
+            if (!permGroup) return;
+            if (!rowId) {
+                permGroup.style.display = "block";
+                return;
+            }
+            const row = document.getElementById(rowId);
+            permGroup.style.display = row && isResidentPortalRow(row) ? "none" : "block";
+        }
+
+        function readRowAccountStatus(row) {
+            const cell = getAccountStatusCell(row);
+            const badge = cell?.querySelector(".status-badge");
+            return badge ? badge.textContent.trim() : "Active";
+        }
+
+        function setRowActionsCell(rowId) {
+            const row = document.getElementById(rowId);
+            if (!row) return;
+            const td = row.querySelector("td:last-child");
+            if (!td) return;
+            const manageStyle =
+                "background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;";
+            td.innerHTML = `
+                    <button type="button" class="btn-config" onclick="openUserManageFromRow('${rowId}')" style="${manageStyle} margin-right: 5px;">Manage</button>
+                    <button type="button" class="btn-delete-user" onclick="deleteUserAccount('${rowId}')" style="background-color: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Delete</button>`;
+        }
+
+        function openUserManageFromRow(rowId) {
+            const row = document.getElementById(rowId);
+            if (!row) return;
+            const userName = row.dataset.userName || row.querySelector("td")?.textContent?.trim() || "User";
+            const role = row.dataset.userRole || "Staff";
+            const status = readRowAccountStatus(row);
+            openUserManage(userName, role, status, rowId);
+        }
+
+        function openUserManage(userName, currentRole, currentStatus, rowId) {
             targetUserRow = rowId;
             document.getElementById('manageUserTitle').innerText = "Manage: " + userName;
-            document.getElementById('userStatusSelect').value = currentStatus;
-            
+            const statusSelect = document.getElementById("userStatusSelect");
+            const allowed = new Set(["Active", "Suspended", "Deactivated"]);
+            statusSelect.value = allowed.has(currentStatus) ? currentStatus : "Active";
+            setManageModalPermissionsVisibility(rowId);
+            const row = rowId ? document.getElementById(rowId) : null;
+            syncManageModalStaffPermissionsFromRow(row);
             document.getElementById('userManageModal').style.display = 'flex';
         }
 
         function closeUserModal() {
             document.getElementById('userManageModal').style.display = 'none';
+            setManageModalPermissionsVisibility(null);
+        }
+
+        function ensureUsersTablePlaceholderIfEmpty() {
+            const tbody = document.getElementById("usersTableBody");
+            if (tbody && tbody.getElementsByTagName("tr").length === 0) {
+                tbody.innerHTML =
+                    '<tr><td colspan="5" style="color: var(--text-muted); font-size: 0.9rem;">No users in the table. Reload the page to fetch profiles from the server again.</td></tr>';
+            }
         }
 
 async function saveUserChanges() {
@@ -634,60 +935,171 @@ async function saveUserChanges() {
             // Get selected status
             const newStatus = document.getElementById('userStatusSelect').value;
             
-            // Get selected permissions
-            const permissionCheckboxes = document.querySelectorAll('#permissionGroupStaff input[type="checkbox"]');
-            const selectedPermissions = [];
-            permissionCheckboxes.forEach(cb => {
-                if (cb.checked) {
-                    selectedPermissions.push(cb.parentElement.textContent.trim());
+            const permissionLabels = [
+                ["dashboard", "Dashboard"],
+                ["appointmentScheduling", "Appointment Scheduling"],
+                ["requestProcessing", "Request Processing"],
+                ["documentGenerator", "Document Generator"]
+            ];
+            let selectedPermissions = [];
+            if (isStaffTableRow(row)) {
+                const modalPerms = readStaffPermissionsFromManageModal();
+                selectedPermissions = permissionLabels.filter(([k]) => modalPerms[k]).map(([, label]) => label);
+                const email = getRowProfileEmail(row);
+                if (!email) {
+                    await showDialog({
+                        title: "Cannot update",
+                        message: "No email found for this staff row.",
+                        confirmLabel: "OK"
+                    });
+                    return;
                 }
-            });
+                try {
+                    const res = await adminFetch("/admin/staff/permissions", {
+                        method: "PATCH",
+                        body: JSON.stringify({ email, permissions: modalPerms })
+                    });
+                    const json = await res.json().catch(() => ({}));
+                    if (!res.ok || !json?.ok) {
+                        await showDialog({
+                            title: "Update failed",
+                            message: json?.message || "Could not save staff permissions.",
+                            confirmLabel: "OK"
+                        });
+                        return;
+                    }
+                    const saved = json.staffPermissions || modalPerms;
+                    applyStaffPermissionDatasetToRow(row, saved);
+                } catch (_err) {
+                    await showDialog({
+                        title: "Update failed",
+                        message: "Could not reach the server. Check that the API is running.",
+                        confirmLabel: "OK"
+                    });
+                    return;
+                }
+            } else {
+                const permissionCheckboxes = document.querySelectorAll("#permissionGroupStaff input[type=\"checkbox\"]");
+                permissionCheckboxes.forEach((cb) => {
+                    if (cb.checked) {
+                        selectedPermissions.push(cb.parentElement.textContent.trim());
+                    }
+                });
+            }
             
             // Update the table row
-            const statusCell = row.querySelector('td:nth-child(4)');
+            const statusCell = getAccountStatusCell(row);
             if (statusCell) {
-                statusCell.innerHTML = `<span class="status-badge" style="background: ${newStatus === 'Active' ? '#f0fdf4' : newStatus === 'Suspended' ? '#fff7ed' : '#f1f5f9'}; color: ${newStatus === 'Active' ? '#16a34a' : newStatus === 'Suspended' ? '#ea580c' : '#64748b'}; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">${newStatus}</span>`;
+                let bg = "#f1f5f9";
+                let color = "#64748b";
+                if (newStatus === "Active") {
+                    bg = "#f0fdf4";
+                    color = "#16a34a";
+                } else if (newStatus === "Suspended") {
+                    bg = "#fff7ed";
+                    color = "#ea580c";
+                } else if (newStatus === "Deactivated") {
+                    bg = "#f1f5f9";
+                    color = "#64748b";
+                }
+                statusCell.innerHTML = `<span class="status-badge" style="background: ${bg}; color: ${color}; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">${newStatus}</span>`;
             }
-            
-            const permissionsCell = row.querySelector('td:nth-child(3)');
-            if (permissionsCell) {
-                permissionsCell.innerHTML = `<small>${selectedPermissions.join(', ')}</small>`;
+            row.classList.remove("archived-row");
+            setRowActionsCell(targetUserRow);
+
+            if (!isResidentPortalRow(row)) {
+                const permissionsCell = row.querySelector("td:nth-child(3)");
+                if (permissionsCell) {
+                    if (isStaffTableRow(row)) {
+                        const fakeProfile = {
+                            role: "staff",
+                            staffPermissions: readStaffPermissionsFromRowDataset(row)
+                        };
+                        permissionsCell.innerHTML = staffPermissionsCellHtml(fakeProfile);
+                    } else {
+                        permissionsCell.innerHTML = `<small>${escapeHtml(selectedPermissions.join(", "))}</small>`;
+                    }
+                }
             }
-            
+
+            const updateMessage = isStaffTableRow(row)
+                ? "User account has been updated. If this staff member is currently signed in, they should sign out and sign in again so page access matches the new permissions."
+                : "User account has been updated.";
             await showDialog({
                 title: "User Updated",
-                message: "User account has been updated.",
+                message: updateMessage,
                 confirmLabel: "OK"
             });
             
             closeUserModal();
         }
 
-// Function for Delete User (destructive action)
-        async function deleteUser(rowId) {
-            const rowToDelete = document.getElementById(rowId);
-            if (!rowToDelete) return;
-            
-            const userNameCell = rowToDelete.querySelector('td:first-child');
-            const userName = userNameCell ? userNameCell.textContent : "this user";
-            
+        async function deleteUserAccount(rowId) {
+            const row = document.getElementById(rowId);
+            if (!row) return;
+
+            const email = getRowProfileEmail(row);
+            const userName = row.dataset.userName || row.querySelector("td:first-child")?.textContent?.trim() || "this user";
+
             const confirmed = await showDialog({
-                title: "Delete User",
-                message: "Are you sure you want to delete " + userName + "? This action cannot be undone.",
+                title: "Delete account",
+                message:
+                    "Permanently delete " +
+                    userName +
+                    (email ? " (" + email + ")" : "") +
+                    "? This removes the profile, linked records, and Supabase login for this email. This cannot be undone.",
                 confirmLabel: "Delete",
                 cancelLabel: "Cancel",
                 danger: true
             });
             if (!confirmed) return;
-            
-            // Remove the row from the table
-            rowToDelete.remove();
-            
-            await showDialog({
-                title: "User Deleted",
-                message: userName + " has been deleted from the system.",
-                confirmLabel: "OK"
-            });
+
+            if (!email) {
+                await showDialog({
+                    title: "Cannot delete",
+                    message: "No email address was found for this row.",
+                    confirmLabel: "OK"
+                });
+                return;
+            }
+
+            try {
+                const res = await adminFetch("/admin/profiles/delete", {
+                    method: "POST",
+                    body: JSON.stringify({ email })
+                });
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok || !json?.ok) {
+                    await showDialog({
+                        title: "Delete failed",
+                        message: json?.message || "Unable to delete this account.",
+                        confirmLabel: "OK"
+                    });
+                    return;
+                }
+
+                row.remove();
+                ensureUsersTablePlaceholderIfEmpty();
+                const selfReg = loadResidentPortalSelfRegEmails();
+                const next = selfReg.filter((e) => e !== email.trim().toLowerCase());
+                try {
+                    localStorage.setItem(RESIDENT_PORTAL_SELF_REG_EMAILS_KEY, JSON.stringify(next));
+                } catch (_e) {
+                    /* ignore */
+                }
+
+                await showDialog({
+                    title: "Account deleted",
+                    message: (json.message || "Account deleted.") + " The row has been removed from the table.",
+                    confirmLabel: "OK"
+                });
+            } catch (_err) {
+                await showDialog({
+                    title: "Delete failed",
+                    message: "Could not reach the server. Check that the API is running.",
+                    confirmLabel: "OK"
+                });
+            }
         }
 
         function handleLogout(event) {
@@ -722,24 +1134,25 @@ logoutConfirmBtn?.addEventListener("click", () => {
             const rows = table.getElementsByTagName('tr');
             
             for (let i = 0; i < rows.length; i++) {
-                const nameCell = rows[i].getElementsByTagName('td')[0];
-                const emailCell = rows[i].getElementsByTagName('td')[1];
-                
+                const row = rows[i];
+                const hay = (row.getAttribute("data-search") || "").toLowerCase();
+                if (hay) {
+                    row.style.display = hay.indexOf(filter) > -1 ? "" : "none";
+                    continue;
+                }
+                const nameCell = row.getElementsByTagName("td")[0];
+                const emailCell = row.getElementsByTagName("td")[1];
                 if (nameCell || emailCell) {
                     const nameText = nameCell.textContent || nameCell.innerText;
                     const emailText = emailCell.textContent || emailCell.innerText;
-                    
                     if (nameText.toLowerCase().indexOf(filter) > -1 || emailText.toLowerCase().indexOf(filter) > -1) {
-                        rows[i].style.display = '';
+                        row.style.display = "";
                     } else {
-                        rows[i].style.display = 'none';
+                        row.style.display = "none";
                     }
                 }
             }
         }
-
-        // Create New Staff Functions
-        let staffCounter = 3;
 
         function openCreateStaffModal() {
             document.getElementById('createStaffModal').style.display = 'flex';
@@ -760,7 +1173,7 @@ logoutConfirmBtn?.addEventListener("click", () => {
             const name = document.getElementById('newStaffName').value.trim();
             const email = document.getElementById('newStaffEmail').value.trim();
             const password = document.getElementById('newStaffPassword').value;
-            
+
             if (!name || !email || !password) {
                 await showDialog({
                     title: "Validation Error",
@@ -769,48 +1182,47 @@ logoutConfirmBtn?.addEventListener("click", () => {
                 });
                 return;
             }
-            
-            const selectedPermissions = [];
-            if (document.getElementById('permDashboard').checked) selectedPermissions.push('Dashboard');
-            if (document.getElementById('permAppt').checked) selectedPermissions.push('Appointment Scheduling');
-            if (document.getElementById('permRequest').checked) selectedPermissions.push('Request Processing');
-            if (document.getElementById('permDoc').checked) selectedPermissions.push('Document Generator');
-            
-            if (selectedPermissions.length === 0) {
+
+            const permissions = {
+                dashboard: Boolean(document.getElementById('permDashboard')?.checked),
+                appointmentScheduling: Boolean(document.getElementById('permAppt')?.checked),
+                requestProcessing: Boolean(document.getElementById('permRequest')?.checked),
+                documentGenerator: Boolean(document.getElementById('permDoc')?.checked)
+            };
+
+            try {
+                const res = await adminFetch("/admin/staff", {
+                    method: "POST",
+                    body: JSON.stringify({ fullName: name, email, password, permissions })
+                });
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok || !json?.ok) {
+                    await showDialog({
+                        title: "Could not create staff",
+                        message: json?.message || "Unable to create this staff account.",
+                        confirmLabel: "OK"
+                    });
+                    return;
+                }
+                closeCreateStaffModal();
+                await loadUsersTable();
                 await showDialog({
-                    title: "Validation Error",
-                    message: "Please select at least one permission.",
+                    title: "Staff created",
+                    message:
+                        (json.message || "Staff account created.") +
+                        " They can sign in at the admin portal login using the email and password you set.",
                     confirmLabel: "OK"
                 });
-                return;
+            } catch (_err) {
+                await showDialog({
+                    title: "Could not create staff",
+                    message: "Could not reach the server. Check that the API is running.",
+                    confirmLabel: "OK"
+                });
             }
-            
-            staffCounter++;
-            const rowId = 'row-' + staffCounter;
-            
-            const tbody = document.querySelector('table tbody');
-            const newRow = document.createElement('tr');
-            newRow.id = rowId;
-            newRow.innerHTML = `
-                <td style="font-weight: 600;">${name}</td>
-                <td>${email}</td>
-                <td><small>${selectedPermissions.join(', ')}</small></td>
-                <td><span class="status-badge" style="background: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Active</span></td>
-                <td>
-                    <button class="btn-config" onclick="openUserManage('${name}', 'Staff', 'Active', '${rowId}')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
-                    <button class="btn-delete" onclick="deleteUser('${rowId}')" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Delete</button>
-                </td>
-            `;
-            tbody.appendChild(newRow);
-            
-            closeCreateStaffModal();
-            
-            await showDialog({
-                title: "Staff Created",
-                message: name + " has been added as a new staff member.",
-                confirmLabel: "OK"
-            });
         }
+
+        loadUsersTable();
     </script>
 </body>
 </html>
