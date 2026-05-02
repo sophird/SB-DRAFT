@@ -1095,7 +1095,7 @@ async function ensureResidentUserRow(email) {
   return fallbackByEmail?.id || null;
 }
 
-async function upsertResidentProfile({ email, fullName }) {
+async function upsertResidentProfile({ email, fullName, residentSelfRegistered = false }) {
   const normalizedEmail = normalizeEmail(email);
   const safeFullName = sanitizeFullNameForStorage(fullName);
   if (!normalizedEmail || !safeFullName) {
@@ -1105,7 +1105,8 @@ async function upsertResidentProfile({ email, fullName }) {
   const upsertPayload = {
     email: normalizedEmail,
     full_name: safeFullName,
-    role: "resident"
+    role: "resident",
+    resident_self_registered: Boolean(residentSelfRegistered)
   };
 
   const { error } = await supabaseAdmin.from("profiles").upsert(upsertPayload, { onConflict: "email" });
@@ -1180,7 +1181,8 @@ app.post("/auth/resident/register", authResidentRegisterLimiter, async (req, res
 
   const profileResult = await upsertResidentProfile({
     email: normalizedEmail,
-    fullName: safeFullName
+    fullName: safeFullName,
+    residentSelfRegistered: true
   });
   if (!profileResult.ok) {
     return res.status(500).json({
@@ -2763,7 +2765,7 @@ app.get("/admin/profiles", async (req, res) => {
 
   const { data, error } = await supabaseAdmin
     .from("profiles")
-    .select("email, full_name, role, created_at, staff_permissions")
+    .select("email, full_name, role, created_at, staff_permissions, resident_self_registered")
     .not("role", "eq", "admin")
     .not("role", "eq", "system-admin")
     .order("full_name", { ascending: true });
@@ -2783,7 +2785,8 @@ app.get("/admin/profiles", async (req, res) => {
         email: row.email,
         fullName: row.full_name,
         role: row.role,
-        createdAt: row.created_at
+        createdAt: row.created_at,
+        residentSelfRegistered: row.role === "resident" && Boolean(row.resident_self_registered)
       };
       if (row.role === "staff") {
         profile.staffPermissions = normalizeStaffPermissionsFromDb(row.staff_permissions);
