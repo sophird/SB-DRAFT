@@ -99,6 +99,7 @@ const supabaseAuth = createClient(
 
 const requestEventClients = new Set();
 const appointmentEventClients = new Set();
+const announcementEventClients = new Set();
 
 const MAX_EMAIL_LEN = 254;
 const MAX_FULL_NAME_LEN = 120;
@@ -1049,6 +1050,17 @@ function broadcastAppointmentEvent(payload) {
   }
 }
 
+function broadcastAnnouncementEvent(payload) {
+  const packet = `event: announcements-changed\ndata: ${JSON.stringify(payload)}\n\n`;
+  for (const client of announcementEventClients) {
+    try {
+      client.write(packet);
+    } catch (_error) {
+      announcementEventClients.delete(client);
+    }
+  }
+}
+
 async function ensureResidentUserRow(email) {
   const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail) return null;
@@ -1405,6 +1417,25 @@ app.get("/appointments/events", async (req, res) => {
 
   req.on("close", () => {
     appointmentEventClients.delete(res);
+  });
+});
+
+app.get("/announcements/events", async (req, res) => {
+  const gate = await validateSseAccess(req);
+  if (!gate.ok) {
+    res.status(gate.status).setHeader("Content-Type", "text/plain").send(gate.message);
+    return;
+  }
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+
+  res.write(`event: ready\ndata: {"ok":true}\n\n`);
+  announcementEventClients.add(res);
+
+  req.on("close", () => {
+    announcementEventClients.delete(res);
   });
 });
 
@@ -2484,10 +2515,191 @@ app.post("/admin/announcements", async (req, res) => {
     });
   }
 
+  const createdRow = normalizeAnnouncementRow(data);
+  broadcastAnnouncementEvent({ type: "created", announcement: createdRow });
+
   return res.status(201).json({
     ok: true,
     message: "Announcement posted.",
-    announcement: normalizeAnnouncementRow(data)
+    announcement: createdRow
+  });
+});
+
+/** List all announcements (including inactive) for admin reporting table. */
+app.get("/admin/announcements", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+  if (auth.profile.role !== "admin") {
+    return res.status(403).json({ ok: false, message: "Admin role required to list announcements." });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("community_announcements")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load announcements.",
+      detail: error.message
+    });
+  }
+
+  return res.json({
+    ok: true,
+    announcements: (data || []).map(normalizeAnnouncementRow)
+  });
+});
+
+/** Permanently remove an announcement (admin only). */
+app.delete("/admin/announcements/:id", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+  if (auth.profile.role !== "admin") {
+    return res.status(403).json({
+      ok: false,
+      message: "Admin role required to delete announcements."
+    });
+  }
+
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, message: "Invalid announcement id." });
+  }
+
+  const { data: existing, error: findErr } = await supabaseAdmin
+    .from("community_announcements")
+    .select("id")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (findErr) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to verify announcement.",
+      detail: findErr.message
+    });
+  }
+  if (!existing) {
+    return res.status(404).json({ ok: false, message: "Announcement not found." });
+  }
+
+  const { error: delErr } = await supabaseAdmin.from("community_announcements").delete().eq("id", id);
+
+  if (delErr) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to delete announcement.",
+      detail: delErr.message
+    });
+  }
+
+  broadcastAnnouncementEvent({ type: "deleted", id });
+
+  return res.json({ ok: true, message: "Announcement deleted." });
+});
+
+// --- Admin reports & analytics ---
+
+function pctCompleted(completed, total) {
+  const t = Number(total);
+  const c = Number(completed);
+  if (!Number.isFinite(t) || t <= 0) return 0;
+  if (!Number.isFinite(c) || c <= 0) return 0;
+  return Math.round((c / t) * 1000) / 10;
+}
+
+app.get("/admin/analytics/summary", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+  if (auth.profile.role !== "admin") {
+    return res.status(403).json({
+      ok: false,
+      message: "Admin role required to view analytics."
+    });
+  }
+
+  const [reqAll, reqDone, apptAll, apptDone] = await Promise.all([
+    supabaseAdmin.from("service_requests").select("id", { count: "exact", head: true }),
+    supabaseAdmin.from("service_requests").select("id", { count: "exact", head: true }).eq("status", "Completed"),
+    supabaseAdmin.from("appointments").select("id", { count: "exact", head: true }),
+    supabaseAdmin.from("appointments").select("id", { count: "exact", head: true }).eq("status", "Completed")
+  ]);
+
+  if (reqAll.error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to count service requests.",
+      detail: reqAll.error.message
+    });
+  }
+  if (reqDone.error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to count completed service requests.",
+      detail: reqDone.error.message
+    });
+  }
+  if (apptAll.error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to count appointments.",
+      detail: apptAll.error.message
+    });
+  }
+  if (apptDone.error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to count completed appointments.",
+      detail: apptDone.error.message
+    });
+  }
+
+  const requestsTotal = typeof reqAll.count === "number" ? reqAll.count : 0;
+  const requestsCompleted = typeof reqDone.count === "number" ? reqDone.count : 0;
+  const appointmentsTotal = typeof apptAll.count === "number" ? apptAll.count : 0;
+  const appointmentsCompleted = typeof apptDone.count === "number" ? apptDone.count : 0;
+
+  const totalRequestsAndAppointments = requestsTotal + appointmentsTotal;
+  const completedTotal = requestsCompleted + appointmentsCompleted;
+  const overallCompletionRatePercent = pctCompleted(completedTotal, totalRequestsAndAppointments);
+
+  let activeResidents = 0;
+  const usersCount = await supabaseAdmin
+    .from("users")
+    .select("id", { count: "exact", head: true })
+    .eq("role", "resident")
+    .eq("is_active", true);
+
+  if (!usersCount.error && typeof usersCount.count === "number") {
+    activeResidents = usersCount.count;
+  } else {
+    const profRes = await supabaseAdmin
+      .from("profiles")
+      .select("email", { count: "exact", head: true })
+      .eq("role", "resident");
+    if (profRes.error) {
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to count active residents.",
+        detail: profRes.error.message
+      });
+    }
+    activeResidents = typeof profRes.count === "number" ? profRes.count : 0;
+  }
+
+  return res.json({
+    ok: true,
+    totalRequestsAndAppointments,
+    requestsTotal,
+    appointmentsTotal,
+    requestsCompleted,
+    appointmentsCompleted,
+    overallCompletionRatePercent,
+    requestsCompletionRatePercent: pctCompleted(requestsCompleted, requestsTotal),
+    appointmentsCompletionRatePercent: pctCompleted(appointmentsCompleted, appointmentsTotal),
+    activeResidents
   });
 });
 

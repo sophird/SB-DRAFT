@@ -197,6 +197,15 @@
             color: var(--brand-dark);
         }
 
+        .stat-card .stat-sub {
+            display: block;
+            margin-top: 0.35rem;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            line-height: 1.35;
+        }
+
         .chart-container {
             background: var(--white);
             padding: 2rem;
@@ -301,15 +310,15 @@
         <div class="stats-grid">
             <div class="stat-card">
                 <h4>Total Service Requests</h4>
-                <p>500</p>
+                <p id="statTotalRequestsAppointments">—</p>
             </div>
             <div class="stat-card">
                 <h4>Completion Rate</h4>
-                <p>67%</p>
+                <p id="statCompletionRate">—</p>
             </div>
             <div class="stat-card">
                 <h4>Active Residents</h4>
-                <p>300</p>
+                <p id="statActiveResidents">—</p>
             </div>
         </div>
 
@@ -365,7 +374,80 @@
     <script src="../shared/admin-access.js"></script>
     <script>
         window.SB_ADMIN_ACCESS?.requireRole("admin");
+        const API_BASE_URL = "http://localhost:4000";
         const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "../landing.html" };
+
+        function getAdminAccessToken() {
+            try {
+                const raw = sessionStorage.getItem("adminAuth");
+                if (!raw) return null;
+                return JSON.parse(raw)?.session?.accessToken || null;
+            } catch (_e) {
+                return null;
+            }
+        }
+
+        async function adminFetch(path, options = {}) {
+            const token = getAdminAccessToken();
+            const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+            if (token) headers.Authorization = `Bearer ${token}`;
+            return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+        }
+
+        function formatPercent(value) {
+            const n = Number(value);
+            if (!Number.isFinite(n)) return "—";
+            return `${n % 1 === 0 ? String(Math.round(n)) : n.toFixed(1)}%`;
+        }
+
+        async function loadAnalyticsSummary() {
+            const elTotal = document.getElementById("statTotalRequestsAppointments");
+            const elTotalHint = document.getElementById("statTotalRequestsAppointmentsHint");
+            const elRate = document.getElementById("statCompletionRate");
+            const elRateHint = document.getElementById("statCompletionRateHint");
+            const elResidents = document.getElementById("statActiveResidents");
+            const elResidentsHint = document.getElementById("statActiveResidentsHint");
+            if (!elTotal || !elRate || !elResidents) return;
+
+            try {
+                const res = await adminFetch("/admin/analytics/summary");
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok || !json?.ok) {
+                    elTotal.textContent = "—";
+                    elRate.textContent = "—";
+                    elResidents.textContent = "—";
+                    if (elTotalHint) elTotalHint.textContent = json?.message || "Unable to load metrics.";
+                    if (elRateHint) elRateHint.textContent = "";
+                    if (elResidentsHint) elResidentsHint.textContent = "";
+                    return;
+                }
+
+                const reqN = Number(json.requestsTotal) || 0;
+                const apptN = Number(json.appointmentsTotal) || 0;
+                elTotal.textContent = String(Number(json.totalRequestsAndAppointments) || 0);
+                if (elTotalHint) {
+                    elTotalHint.textContent = `${reqN.toLocaleString()} requests · ${apptN.toLocaleString()} appointments`;
+                }
+
+                elRate.textContent = formatPercent(json.overallCompletionRatePercent);
+                if (elRateHint) {
+                    const rPct = formatPercent(json.requestsCompletionRatePercent);
+                    const aPct = formatPercent(json.appointmentsCompletionRatePercent);
+                    elRateHint.textContent = `Requests ${rPct} · Appointments ${aPct}`;
+                }
+
+                elResidents.textContent = String(Number(json.activeResidents) || 0);
+                if (elResidentsHint) elResidentsHint.textContent = "Residents with an active portal account";
+            } catch (_err) {
+                elTotal.textContent = "—";
+                elRate.textContent = "—";
+                elResidents.textContent = "—";
+                if (elTotalHint) elTotalHint.textContent = "Could not reach the API server.";
+            }
+        }
+
+        loadAnalyticsSummary();
+
         const logoutModal = document.getElementById("logoutModal");
         const logoutCancelBtn = document.getElementById("logoutCancelBtn");
         const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
