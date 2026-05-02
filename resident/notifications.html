@@ -280,7 +280,15 @@
             position: relative;
         }
         .notif-card.unread { border-left: 4px solid var(--brand-green); }
+        /* Request/appointment updates + new barangay admin posts */
+        .notif-card.bulletin-spotlight {
+            background: linear-gradient(135deg, #fffbeb 0%, #fff7ed 55%, #ffffff 100%);
+            border-color: #fcd34d;
+            box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25), 0 8px 20px -6px rgba(180, 83, 9, 0.12);
+        }
+        .notif-card.bulletin-spotlight.unread { border-left-width: 5px; border-left-color: #d97706; }
         .unread-dot { width: 8px; height: 8px; background: var(--brand-green); border-radius: 50%; position: absolute; top: 1.5rem; right: 1.5rem; }
+        .notif-card.bulletin-spotlight .unread-dot { background: #d97706; }
 
         .notif-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .icon-blue { background: #eff6ff; color: var(--brand-blue); }
@@ -434,7 +442,7 @@
                 <div class="tab active" data-bulletin-tab="all" role="tab" tabindex="0">All Notifications</div>
                 <div class="tab" data-bulletin-tab="announcements" role="tab" tabindex="0">Announcements</div>
             </div>
-            <button type="button" class="mark-all-btn" onclick="markAllAnnouncementReads()">Mark announcements read</button>
+            <button type="button" class="mark-all-btn" onclick="markAllBulletinReads()">Mark all read</button>
         </div>
 
         <div class="notification-list">
@@ -482,6 +490,7 @@
     <script>
         const API_BASE_URL = "http://localhost:4000";
         const READ_ANNOUNCEMENT_IDS_KEY = "bulletinReadAnnouncementIds";
+        const READ_ACTIVITY_KEYS_KEY = "bulletinReadActivityKeys";
         const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "landing.html" };
         const RESIDENT_ROUTES = window.APP_ROUTES?.resident || {};
         const logoutModal = document.getElementById("logoutModal");
@@ -505,6 +514,8 @@
         applyResidentRouteLinks();
 
         let latestAnnouncementRows = [];
+        let latestRequests = [];
+        let latestAppointments = [];
         let latestActivityCards = [];
 
         let activeBulletinTab = "all";
@@ -544,6 +555,37 @@
                 merged.push(id);
             }
             sessionStorage.setItem(READ_ANNOUNCEMENT_IDS_KEY, JSON.stringify(merged));
+        }
+
+        function loadReadActivityKeys() {
+            try {
+                const parsed = JSON.parse(sessionStorage.getItem(READ_ACTIVITY_KEYS_KEY) || "[]");
+                if (!Array.isArray(parsed)) return [];
+                const out = [];
+                const seen = new Set();
+                for (const x of parsed) {
+                    const k = String(x ?? "").trim();
+                    if (!k || seen.has(k)) continue;
+                    seen.add(k);
+                    out.push(k);
+                }
+                return out;
+            } catch (_e) {
+                return [];
+            }
+        }
+
+        function saveReadActivityKeys(keys) {
+            const merged = [];
+            const seen = new Set();
+            for (const x of keys || []) {
+                const k = String(x ?? "").trim();
+                if (!k || seen.has(k)) continue;
+                seen.add(k);
+                merged.push(k);
+            }
+            const capped = merged.length > 800 ? merged.slice(merged.length - 800) : merged;
+            sessionStorage.setItem(READ_ACTIVITY_KEYS_KEY, JSON.stringify(capped));
         }
 
         function escapeHtml(value) {
@@ -602,7 +644,8 @@
             return raw.slice(1);
         }
 
-        function buildActivityCards(requests, appointments) {
+        function buildActivityCards(requests, appointments, readKeySet) {
+            const readKeys = readKeySet instanceof Set ? readKeySet : new Set(Array.isArray(readKeySet) ? readKeySet : []);
             const out = [];
 
             for (const r of requests || []) {
@@ -616,11 +659,12 @@
                     if (Number.isNaN(sortMs)) continue;
                     const note = typeof e?.note === "string" && e.note.trim() ? escapeHtml(e.note.trim()) : "";
                     const headline = escapeHtml(ref ? `#${ref}` : `#${String(r.id || "")}`);
+                    const feedKey = `service:${String(r?.id ?? "")}:${sortMs}:${escapeHtml(st)}`;
                     out.push({
-                        feedKey: `service:${String(r?.id ?? "")}:${sortMs}:${escapeHtml(st)}`,
+                        feedKey,
                         sortMs,
                         type: "service",
-                        unread: false,
+                        unread: !readKeys.has(feedKey),
                         iconClass: "icon-blue",
                         icon: "📄",
                         title: headline,
@@ -645,11 +689,12 @@
                     const note = typeof e?.note === "string" && e.note.trim() ? escapeHtml(e.note.trim()) : "";
                     const headline = escapeHtml(ref ? `#${ref}` : `#${String(apt.id || "")}`);
                     const safePurpose = escapeHtml(purpose);
+                    const feedKey = `apt:${String(apt?.id ?? "")}:${sortMs}:${escapeHtml(st)}`;
                     out.push({
-                        feedKey: `apt:${String(apt?.id ?? "")}:${sortMs}:${escapeHtml(st)}`,
+                        feedKey,
                         sortMs,
                         type: "appointment",
-                        unread: false,
+                        unread: !readKeys.has(feedKey),
                         iconClass: "icon-amber",
                         icon: "📅",
                         title: headline,
@@ -685,6 +730,7 @@
                         sortMs,
                         type: "announcement",
                         unread,
+                        postedByRole: String(a?.postedByRole || "").trim(),
                         iconClass: "icon-green",
                         icon: "📢",
                         title: escapeHtml(a.title || "Announcement"),
@@ -722,8 +768,14 @@
                 .map((row) => {
                     const unread = row.unread ? " unread" : "";
                     const dot = row.unread ? '<div class="unread-dot" aria-hidden="true"></div>' : "";
+                    const isActivity = row.type === "service" || row.type === "appointment";
+                    const isAdminPost =
+                        row.type === "announcement" && String(row.postedByRole || "").toLowerCase() === "admin";
+                    const spotlight =
+                        (isActivity && row.unread) || (isAdminPost && row.unread);
+                    const spotlightClass = spotlight ? " bulletin-spotlight" : "";
                     return `
-                        <article class="notif-card${unread}" data-feed-key="${escapeHtml(row.feedKey)}" data-unread="${row.unread ? "true" : "false"}">
+                        <article class="notif-card${unread}${spotlightClass}" data-feed-key="${escapeHtml(row.feedKey)}" data-unread="${row.unread ? "true" : "false"}">
                             ${dot}
                             <div class="notif-icon ${row.iconClass}">${escapeHtml(row.icon)}</div>
                             <div class="notif-content">
@@ -759,7 +811,13 @@
                 if (!apptRes.ok || !apJson.ok) throw new Error(apJson.message || "Unable to load appointments.");
                 if (!annRes.ok || !annJson.ok) throw new Error(annJson.message || "Unable to load announcements.");
 
-                latestActivityCards = buildActivityCards(reqJson.requests || [], apJson.appointments || []);
+                latestRequests = reqJson.requests || [];
+                latestAppointments = apJson.appointments || [];
+                latestActivityCards = buildActivityCards(
+                    latestRequests,
+                    latestAppointments,
+                    new Set(loadReadActivityKeys())
+                );
                 latestAnnouncementRows = annJson.announcements || [];
 
                 renderFeed();
@@ -806,7 +864,7 @@
             };
         }
 
-        function markAllAnnouncementReads() {
+        function markAllBulletinReads() {
             const fromRows = [];
             const seenRow = new Set();
             for (const a of latestAnnouncementRows || []) {
@@ -815,8 +873,17 @@
                 seenRow.add(id);
                 fromRows.push(id);
             }
-            const merged = [...new Set([...loadReadAnnouncementIds(), ...fromRows])];
-            saveReadAnnouncementIds(merged);
+            const mergedAnn = [...new Set([...loadReadAnnouncementIds(), ...fromRows])];
+            saveReadAnnouncementIds(mergedAnn);
+
+            const actKeys = (latestActivityCards || []).map((c) => c.feedKey).filter(Boolean);
+            saveReadActivityKeys([...new Set([...loadReadActivityKeys(), ...actKeys])]);
+            latestActivityCards = buildActivityCards(
+                latestRequests,
+                latestAppointments,
+                new Set(loadReadActivityKeys())
+            );
+
             renderFeed();
         }
 
