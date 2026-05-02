@@ -378,7 +378,7 @@ color: white;
     <main>
         <div class="top-bar">
             <section class="welcome-section">
-                <h1 id="welcomeHeading">Welcome</h1>
+                <h1 id="welcomeHeading">Welcome, Barangay Staff!</h1>
                 <p>View and manage all incoming requests and appointments</p>
             </section>
 
@@ -500,7 +500,7 @@ color: white;
                 if (nameEl) nameEl.textContent = display;
                 if (avatarEl) avatarEl.textContent = initialsFromName(display);
                 if (roleEl) roleEl.textContent = "Personnel";
-                if (welcomeEl) welcomeEl.textContent = user.fullName ? `Welcome, ${user.fullName.split(" ")[0]}!` : "Welcome!";
+                if (welcomeEl) welcomeEl.textContent = user.fullName ? `Welcome, ${user.fullName}!` : "Welcome!";
             } catch (_e) {
                 window.location.href = STAFF_ROUTES.login;
             }
