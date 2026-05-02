@@ -266,7 +266,7 @@
         .tab.active { color: var(--brand-green); }
         .tab.active::after { content: ""; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: var(--brand-green); }
 
-        /* NOTIFICATION LIST — cards are not interactive links */
+        /* NOTIFICATION LIST */
         .notif-card {
             background: white;
             border: 1px solid #e2e8f0;
@@ -276,8 +276,26 @@
             gap: 1rem;
             margin-bottom: 1rem;
             cursor: default;
-            transition: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
             position: relative;
+        }
+        .notif-card.notif-card--announcement {
+            cursor: pointer;
+        }
+        .notif-card.notif-card--announcement:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+        }
+        .notif-card.notif-card--announcement:focus-visible {
+            outline: 2px solid var(--brand-green);
+            outline-offset: 2px;
+        }
+        .notif-card.notif-card--announcement .ann-open-hint {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-top: 0.35rem;
+            letter-spacing: 0.02em;
         }
         .notif-card.unread { border-left: 4px solid var(--brand-green); }
         /* Request/appointment updates + new barangay admin posts */
@@ -326,6 +344,93 @@
             max-width: min(440px, 100%);
             width: 100%;
             box-shadow: 0 20px 44px rgba(2, 6, 23, 0.25);
+        }
+
+        /* Announcement full post (matches bulletin / welcome card language) */
+        .modal-content.announcement-detail-modal {
+            position: relative;
+            max-width: min(560px, 100%);
+            max-height: min(88vh, 720px);
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem 1.75rem 1.5rem;
+            border-left: 6px solid #5f9632;
+        }
+        .announcement-detail-modal .ann-detail-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            width: 2.25rem;
+            height: 2.25rem;
+            border: none;
+            border-radius: 10px;
+            background: #f1f5f9;
+            color: #64748b;
+            font-size: 1.35rem;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, color 0.2s;
+        }
+        .announcement-detail-modal .ann-detail-close:hover {
+            background: #e2e8f0;
+            color: var(--brand-dark);
+        }
+        .announcement-detail-modal .ann-detail-category {
+            display: inline-block;
+            margin: 0 0 0.65rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .announcement-detail-modal #announcementDetailTitle {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--brand-dark);
+            margin: 0 2.5rem 0.75rem 0;
+            line-height: 1.35;
+            padding-right: 0.25rem;
+        }
+        .announcement-detail-modal .ann-detail-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 1rem;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .announcement-detail-modal .ann-detail-meta span {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+        .announcement-detail-modal .ann-detail-body {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            font-size: 0.95rem;
+            line-height: 1.65;
+            color: #475569;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .announcement-detail-modal .ann-detail-footer {
+            margin-top: 1.25rem;
+            padding-top: 1rem;
+            border-top: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .announcement-detail-modal .ann-detail-footer .mark-all-btn {
+            min-width: 6.5rem;
+            justify-content: center;
         }
 
         /* AI CHATBOT STYLES */
@@ -473,6 +578,19 @@
         </div>
     </div>
 
+    <div id="announcementDetailModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="announcementDetailTitle">
+        <div class="modal-content announcement-detail-modal">
+            <button type="button" class="ann-detail-close" id="announcementDetailCloseBtn" aria-label="Close announcement">&times;</button>
+            <span id="announcementDetailCategory" class="ann-detail-category"></span>
+            <h2 id="announcementDetailTitle">Announcement</h2>
+            <div class="ann-detail-meta" id="announcementDetailMeta"></div>
+            <div id="announcementDetailBody" class="ann-detail-body"></div>
+            <div class="ann-detail-footer">
+                <button type="button" class="mark-all-btn" id="announcementDetailDoneBtn">Close</button>
+            </div>
+        </div>
+    </div>
+
     <div id="logoutModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
         <div class="modal-content">
             <h2 id="logoutModalTitle" style="font-size:1.1rem; color:var(--brand-dark); margin-bottom:0.75rem;">Confirm Logout</h2>
@@ -496,6 +614,13 @@
         const logoutModal = document.getElementById("logoutModal");
         const logoutCancelBtn = document.getElementById("logoutCancelBtn");
         const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
+        const announcementDetailModal = document.getElementById("announcementDetailModal");
+        const announcementDetailCloseBtn = document.getElementById("announcementDetailCloseBtn");
+        const announcementDetailDoneBtn = document.getElementById("announcementDetailDoneBtn");
+        const announcementDetailCategory = document.getElementById("announcementDetailCategory");
+        const announcementDetailTitle = document.getElementById("announcementDetailTitle");
+        const announcementDetailMeta = document.getElementById("announcementDetailMeta");
+        const announcementDetailBody = document.getElementById("announcementDetailBody");
         function applyResidentRouteLinks() {
             const hrefMap = {
                 "dashboard.html": RESIDENT_ROUTES.dashboard || "dashboard.html",
@@ -521,6 +646,7 @@
         let activeBulletinTab = "all";
         let requestEventStream = null;
         let appointmentEventStream = null;
+        let announcementEventStream = null;
 
         function normalizeAnnouncementId(raw) {
             const n = Number(raw);
@@ -555,6 +681,20 @@
                 merged.push(id);
             }
             sessionStorage.setItem(READ_ANNOUNCEMENT_IDS_KEY, JSON.stringify(merged));
+        }
+
+        /** Drop read markers for announcements that no longer exist (e.g. admin deleted the post). */
+        function pruneReadAnnouncementIdsToCurrentRows(rows) {
+            const valid = new Set(
+                (rows || [])
+                    .map((a) => normalizeAnnouncementId(a?.id))
+                    .filter((id) => id !== null)
+            );
+            const current = loadReadAnnouncementIds();
+            const next = current.filter((id) => valid.has(id));
+            if (next.length !== current.length) {
+                saveReadAnnouncementIds(next);
+            }
         }
 
         function loadReadActivityKeys() {
@@ -594,6 +734,91 @@
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;");
+        }
+
+        function escapeAttr(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
+        function getAnnouncementCategoryBadgeStyle(category) {
+            const c = String(category || "");
+            if (c.includes("Emergency")) return { background: "#fee2e2", color: "#ef4444" };
+            if (c.includes("Holiday")) return { background: "#dcfce7", color: "#16a34a" };
+            if (c.includes("Service Interruption")) return { background: "#fef3c7", color: "#d97706" };
+            if (c.includes("Community News")) return { background: "#e0e7ff", color: "#4f46e5" };
+            return { background: "#e0f2fe", color: "#0284c7" };
+        }
+
+        function formatPostedByDisplay(role) {
+            const r = String(role || "").trim().toLowerCase();
+            if (r === "admin") return "Barangay admin";
+            if (r === "staff") return "Barangay staff";
+            if (r === "system-admin") return "System admin";
+            return r ? String(role).trim() : "Barangay office";
+        }
+
+        function formatAnnouncementFullDate(iso) {
+            if (!iso) return "—";
+            const d = new Date(iso);
+            if (Number.isNaN(d.getTime())) return "—";
+            return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+        }
+
+        function findAnnouncementById(rawId) {
+            const n = normalizeAnnouncementId(rawId);
+            if (n === null) return null;
+            const rows = latestAnnouncementRows || [];
+            return rows.find((a) => normalizeAnnouncementId(a?.id) === n) || null;
+        }
+
+        function markAnnouncementOpenedAndRefresh(id) {
+            const n = normalizeAnnouncementId(id);
+            if (n === null) return;
+            const ids = loadReadAnnouncementIds();
+            if (ids.includes(n)) return;
+            saveReadAnnouncementIds([...ids, n]);
+            renderFeed();
+        }
+
+        function closeAnnouncementDetailModal() {
+            announcementDetailModal?.classList.remove("show");
+        }
+
+        function openAnnouncementDetailModal(rawId) {
+            const a = findAnnouncementById(rawId);
+            if (!a) return;
+
+            const catLabel = String(a.category || "Community News").trim() || "Community News";
+            const badge = getAnnouncementCategoryBadgeStyle(catLabel);
+            if (announcementDetailCategory) {
+                announcementDetailCategory.textContent = catLabel;
+                announcementDetailCategory.style.background = badge.background;
+                announcementDetailCategory.style.color = badge.color;
+            }
+            if (announcementDetailTitle) {
+                announcementDetailTitle.textContent = String(a.title || "Announcement").trim() || "Announcement";
+            }
+            if (announcementDetailMeta) {
+                const posted = formatPostedByDisplay(a.postedByRole);
+                const when = formatAnnouncementFullDate(a.createdAt);
+                announcementDetailMeta.innerHTML =
+                    '<span>Posted by <strong style="color:#334155;font-weight:600;">' +
+                    escapeHtml(posted) +
+                    '</strong></span><span>Date <strong style="color:#334155;font-weight:600;">' +
+                    escapeHtml(when) +
+                    "</strong></span>";
+            }
+            if (announcementDetailBody) {
+                const body = String(a.body || "").trim();
+                announcementDetailBody.textContent = body || "(No details were provided for this announcement.)";
+            }
+
+            markAnnouncementOpenedAndRefresh(a.id);
+            announcementDetailModal?.classList.add("show");
+            requestAnimationFrame(() => announcementDetailCloseBtn?.focus());
         }
 
         function formatRelativeTime(iso) {
@@ -725,6 +950,7 @@
                     const preview = rawBody.length > 420 ? `${escapeHtml(rawBody.slice(0, 420))}…` : escapeHtml(rawBody);
                     const sortMs = new Date(a.createdAt || 0).getTime();
                     const iso = a.createdAt;
+                    const titlePlain = String(a.title || "Announcement").trim() || "Announcement";
                     return {
                         feedKey: `announcement:${id ?? "x"}:${sortMs}`,
                         sortMs,
@@ -733,7 +959,8 @@
                         postedByRole: String(a?.postedByRole || "").trim(),
                         iconClass: "icon-green",
                         icon: "📢",
-                        title: escapeHtml(a.title || "Announcement"),
+                        title: escapeHtml(titlePlain),
+                        announcementTitlePlain: titlePlain,
                         bodyHtml: `
                             <p><span style="font-size:0.75rem;font-weight:700;color:#64748b;">${escapeHtml(a.category || "Community")}</span></p>
                             <p>${preview}</p>`,
@@ -769,19 +996,35 @@
                     const unread = row.unread ? " unread" : "";
                     const dot = row.unread ? '<div class="unread-dot" aria-hidden="true"></div>' : "";
                     const isActivity = row.type === "service" || row.type === "appointment";
+                    const isAnnouncement = row.type === "announcement";
+                    const annId = isAnnouncement && row.announcementId !== null ? String(row.announcementId) : "";
                     const isAdminPost =
                         row.type === "announcement" && String(row.postedByRole || "").toLowerCase() === "admin";
                     const spotlight =
                         (isActivity && row.unread) || (isAdminPost && row.unread);
                     const spotlightClass = spotlight ? " bulletin-spotlight" : "";
+                    const annInteractiveClass = annId ? " notif-card--announcement" : "";
+                    const ariaAnn =
+                        annId !== ""
+                            ? escapeAttr(`View full announcement: ${row.announcementTitlePlain || "Announcement"}`)
+                            : "";
+                    const annAttrs =
+                        annId !== ""
+                            ? ` role="button" tabindex="0" data-announcement-id="${escapeHtml(annId)}" aria-label="${ariaAnn}"`
+                            : "";
+                    const annHint =
+                        annId !== ""
+                            ? '<p class="ann-open-hint">View full post</p>'
+                            : "";
                     return `
-                        <article class="notif-card${unread}${spotlightClass}" data-feed-key="${escapeHtml(row.feedKey)}" data-unread="${row.unread ? "true" : "false"}">
+                        <article class="notif-card${unread}${spotlightClass}${annInteractiveClass}" data-feed-key="${escapeHtml(row.feedKey)}" data-unread="${row.unread ? "true" : "false"}"${annAttrs}>
                             ${dot}
                             <div class="notif-icon ${row.iconClass}">${escapeHtml(row.icon)}</div>
                             <div class="notif-content">
                                 <h4>${row.title}</h4>
                                 ${row.bodyHtml}
                                 <span class="notif-time">${escapeHtml(row.timeLabel)}</span>
+                                ${annHint}
                             </div>
                         </article>`;
                 })
@@ -819,6 +1062,7 @@
                     new Set(loadReadActivityKeys())
                 );
                 latestAnnouncementRows = annJson.announcements || [];
+                pruneReadAnnouncementIdsToCurrentRows(latestAnnouncementRows);
 
                 renderFeed();
             } catch (error) {
@@ -862,6 +1106,13 @@
             appointmentEventStream.onerror = () => {
                 /* browser reconnects automatically */
             };
+
+            if (announcementEventStream) announcementEventStream.close();
+            announcementEventStream = new EventSource(residentSseUrl(`${API_BASE_URL}/announcements/events`));
+            announcementEventStream.addEventListener("announcements-changed", () => reloadBulletinData());
+            announcementEventStream.onerror = () => {
+                /* browser reconnects automatically */
+            };
         }
 
         function markAllBulletinReads() {
@@ -891,6 +1142,36 @@
         reloadBulletinData();
         connectRealtimeFeeds();
 
+        function attachAnnouncementFeedHandlers() {
+            const feed = document.getElementById("notificationsFeed");
+            if (!feed || feed.dataset.annHandlersAttached === "1") return;
+            feed.dataset.annHandlersAttached = "1";
+            feed.addEventListener("click", (event) => {
+                const card = event.target.closest("[data-announcement-id]");
+                if (!card || !feed.contains(card)) return;
+                openAnnouncementDetailModal(card.getAttribute("data-announcement-id"));
+            });
+            feed.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                const card = event.target.closest("[data-announcement-id]");
+                if (!card || !feed.contains(card)) return;
+                if (event.target !== card) return;
+                if (event.key === " ") event.preventDefault();
+                openAnnouncementDetailModal(card.getAttribute("data-announcement-id"));
+            });
+        }
+        attachAnnouncementFeedHandlers();
+
+        announcementDetailCloseBtn?.addEventListener("click", closeAnnouncementDetailModal);
+        announcementDetailDoneBtn?.addEventListener("click", closeAnnouncementDetailModal);
+        document.addEventListener("keydown", (event) => {
+            if (event.key !== "Escape") return;
+            if (announcementDetailModal?.classList.contains("show")) {
+                event.preventDefault();
+                closeAnnouncementDetailModal();
+            }
+        });
+
         function openLogoutModal() {
             if (logoutModal) logoutModal.classList.add("show");
         }
@@ -900,6 +1181,7 @@
 
         window.onclick = function (e) {
             if (e.target === logoutModal) closeLogoutModal();
+            if (e.target === announcementDetailModal) closeAnnouncementDetailModal();
         };
 
         function handleLogout(event) {

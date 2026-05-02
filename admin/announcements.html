@@ -496,17 +496,8 @@
                     </tr>
                 </thead>
                 <tbody id="announcementsTableBody">
-                    <!-- Example Row, data injected by JS -->
-                    <tr>
-                        <td><span class="tag-badge" style="background: #fef3c7; color: #d97706;">Service Interruption</span></td>
-                        <td>Scheduled Power Interruption - May 4</td>
-                        <td>May 1, 2026</td>
-                        <td>Admin</td>
-                        <td style="text-align: right;">
-                            <button class="btn-delete" title="Delete Announcement">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                            </button>
-                        </td>
+                    <tr id="announcementsTableLoadingRow">
+                        <td colspan="5" style="color: var(--text-muted); font-size: 0.9rem;">Loading announcements…</td>
                     </tr>
                 </tbody>
             </table>
@@ -580,6 +571,18 @@
             </div>
         </div>
     </div>
+    <div id="deleteConfirmModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="deleteConfirmTitle">
+        <div class="confirm-modal">
+            <h3 id="deleteConfirmTitle" style="font-size:1.05rem; color:var(--brand-dark); margin-bottom:0.55rem;">Delete this announcement?</h3>
+            <p id="deleteConfirmMessage" style="font-size:0.9rem; color:var(--text-muted); line-height:1.5;">
+                This cannot be undone. The post will be removed from the admin list and the resident bulletin board.
+            </p>
+            <div class="confirm-actions">
+                <button type="button" class="btn-cancel" id="deleteConfirmCancelBtn">Cancel</button>
+                <button type="button" class="btn-confirm danger" id="deleteConfirmSubmitBtn">Delete</button>
+            </div>
+        </div>
+    </div>
     <div id="publishSuccessModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="publishSuccessTitle">
         <div class="confirm-modal">
             <h3 id="publishSuccessTitle" style="font-size:1.05rem; color:var(--brand-dark); margin-bottom:0.55rem;">Announcement posted</h3>
@@ -642,6 +645,10 @@
         const publishConfirmSubmitBtn = document.getElementById("publishConfirmSubmitBtn");
         const publishSuccessModal = document.getElementById("publishSuccessModal");
         const publishSuccessOkBtn = document.getElementById("publishSuccessOkBtn");
+        const deleteConfirmModal = document.getElementById("deleteConfirmModal");
+        const deleteConfirmMessage = document.getElementById("deleteConfirmMessage");
+        const deleteConfirmCancelBtn = document.getElementById("deleteConfirmCancelBtn");
+        const deleteConfirmSubmitBtn = document.getElementById("deleteConfirmSubmitBtn");
         const appDialogModal = document.getElementById("appDialogModal");
         const appDialogTitle = document.getElementById("appDialogTitle");
         const appDialogMessage = document.getElementById("appDialogMessage");
@@ -652,6 +659,8 @@
         const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
         const createAnnBtn = document.getElementById("btnCreateAnnouncement");
         const annFormModal = document.getElementById("announcementFormModal");
+        const categoryFilter = document.getElementById("categoryFilter");
+        const announcementsTableBody = document.getElementById("announcementsTableBody");
 
         function openFormModal() {
             annFormModal?.classList.add("show");
@@ -666,6 +675,188 @@
         }
 
         createAnnBtn?.addEventListener("click", openFormModal);
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function escapeAttr(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
+        function getCategoryTagStyle(category) {
+            const c = String(category || "");
+            if (c.includes("Emergency")) return { background: "#fee2e2", color: "#ef4444" };
+            if (c.includes("Holiday")) return { background: "#dcfce7", color: "#16a34a" };
+            if (c.includes("Service Interruption")) return { background: "#fef3c7", color: "#d97706" };
+            if (c.includes("Community News")) return { background: "#e0e7ff", color: "#4f46e5" };
+            return { background: "#e0f2fe", color: "#0284c7" };
+        }
+
+        function formatPostedByRole(role) {
+            const r = String(role || "").trim().toLowerCase();
+            if (r === "admin") return "Admin";
+            if (r === "staff") return "Staff";
+            if (r === "system-admin") return "System Admin";
+            return r ? role : "—";
+        }
+
+        function formatAnnouncementDate(iso) {
+            if (!iso) return "—";
+            try {
+                const d = new Date(iso);
+                if (Number.isNaN(d.getTime())) return "—";
+                return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+            } catch (_e) {
+                return "—";
+            }
+        }
+
+        let pendingDeleteAnnouncementId = null;
+
+        function openDeleteAnnouncementModal(id, title) {
+            const numId = Number(id);
+            if (!Number.isInteger(numId) || numId <= 0) return;
+            pendingDeleteAnnouncementId = numId;
+            const safeTitle = String(title || "this announcement").trim() || "this announcement";
+            if (deleteConfirmMessage) {
+                deleteConfirmMessage.textContent =
+                    'Permanently delete "' +
+                    safeTitle +
+                    '"? This cannot be undone. The post will be removed from the resident bulletin board.';
+            }
+            deleteConfirmModal?.classList.add("show");
+        }
+
+        function closeDeleteConfirmModal() {
+            deleteConfirmModal?.classList.remove("show");
+            pendingDeleteAnnouncementId = null;
+        }
+
+        async function adminFetch(path, options = {}) {
+            const token = getAdminAccessToken();
+            const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+            if (token) headers.Authorization = `Bearer ${token}`;
+            return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+        }
+
+        async function loadAnnouncementsTable() {
+            const tbody = document.getElementById("announcementsTableBody");
+            if (!tbody) return;
+
+            tbody.innerHTML =
+                '<tr><td colspan="5" style="color: var(--text-muted); font-size: 0.9rem;">Loading announcements…</td></tr>';
+
+            const token = getAdminAccessToken();
+            if (!token) {
+                tbody.innerHTML =
+                    '<tr><td colspan="5" style="color:#b91c1c;font-size:0.9rem;">Sign in again to load announcements.</td></tr>';
+                return;
+            }
+
+            try {
+                const res = await adminFetch("/admin/announcements");
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok || !json?.ok || !Array.isArray(json.announcements)) {
+                    throw new Error(json?.message || "Unable to load announcements.");
+                }
+                const list = json.announcements;
+                if (!list.length) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="5" style="color: var(--text-muted); font-size: 0.9rem;">No announcements posted yet.</td></tr>';
+                    filterByCategory();
+                    return;
+                }
+
+                const rows = list
+                    .map((a) => {
+                        const id = Number(a.id);
+                        const title = String(a.title || "").trim();
+                        const category = String(a.category || "Community News");
+                        const tag = getCategoryTagStyle(category);
+                        const posted = formatPostedByRole(a.postedByRole);
+                        const when = formatAnnouncementDate(a.createdAt);
+                        return `<tr data-announcement-id="${id}">
+                            <td><span class="tag-badge" style="background:${tag.background};color:${tag.color};">${escapeHtml(
+                                category
+                            )}</span></td>
+                            <td>${escapeHtml(title)}</td>
+                            <td>${escapeHtml(when)}</td>
+                            <td>${escapeHtml(posted)}</td>
+                            <td style="text-align: right;">
+                                <button type="button" class="btn-delete" title="Delete announcement" data-announcement-delete data-announcement-id="${id}" data-announcement-title="${escapeAttr(
+                                    title
+                                )}">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                </button>
+                            </td>
+                        </tr>`;
+                    })
+                    .join("");
+                tbody.innerHTML = rows;
+                filterByCategory();
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="5" style="color:#b91c1c;font-size:0.9rem;">${escapeHtml(
+                    err?.message || "Unable to load announcements."
+                )}</td></tr>`;
+            }
+        }
+
+        announcementsTableBody?.addEventListener("click", (event) => {
+            const btn = event.target.closest("button[data-announcement-delete]");
+            if (!btn) return;
+            const id = btn.getAttribute("data-announcement-id");
+            const title = btn.getAttribute("data-announcement-title") || "";
+            openDeleteAnnouncementModal(id, title);
+        });
+
+        deleteConfirmCancelBtn?.addEventListener("click", closeDeleteConfirmModal);
+        deleteConfirmModal?.addEventListener("click", (event) => {
+            if (event.target === deleteConfirmModal) closeDeleteConfirmModal();
+        });
+        deleteConfirmSubmitBtn?.addEventListener("click", async () => {
+            const id = pendingDeleteAnnouncementId;
+            if (!id) {
+                closeDeleteConfirmModal();
+                return;
+            }
+            const token = getAdminAccessToken();
+            if (!token) {
+                closeDeleteConfirmModal();
+                await showDialog({ title: "Session expired", message: "Please sign in again.", confirmLabel: "OK" });
+                return;
+            }
+            deleteConfirmSubmitBtn.disabled = true;
+            try {
+                const res = await adminFetch(`/admin/announcements/${id}`, { method: "DELETE" });
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok || !json?.ok) {
+                    await showDialog({
+                        title: "Delete failed",
+                        message: json?.message || "Could not delete this announcement.",
+                        confirmLabel: "OK"
+                    });
+                    return;
+                }
+                closeDeleteConfirmModal();
+                await loadAnnouncementsTable();
+            } catch (_err) {
+                await showDialog({
+                    title: "Delete failed",
+                    message: "Could not reach the server. Check that the API is running.",
+                    confirmLabel: "OK"
+                });
+            } finally {
+                deleteConfirmSubmitBtn.disabled = false;
+            }
+        });
 
         function updatePreview() {
             document.getElementById("previewTitle").innerText = titleInput.value || "Title Preview";
@@ -792,6 +983,7 @@ const tag = document.getElementById("previewTag");
                 titleInput.value = "";
                 contentInput.value = "";
                 updatePreview();
+                await loadAnnouncementsTable();
                 openPublishSuccessModal();
             } catch (err) {
                 await showDialog({
@@ -829,7 +1021,24 @@ const tag = document.getElementById("previewTag");
             if (event.target === logoutModal) closeLogoutModal();
         });
         document.addEventListener("keydown", (event) => {
-            if (event.key === "Escape") closeLogoutModal();
+            if (event.key !== "Escape") return;
+            if (deleteConfirmModal?.classList.contains("show")) {
+                closeDeleteConfirmModal();
+                return;
+            }
+            if (publishConfirmModal?.classList.contains("show")) {
+                closePublishConfirmModal();
+                return;
+            }
+            if (publishSuccessModal?.classList.contains("show")) {
+                closePublishSuccessModal();
+                return;
+            }
+            if (appDialogModal?.classList.contains("show")) {
+                appDialogModal.classList.remove("show");
+                return;
+            }
+            closeLogoutModal();
         });
 logoutConfirmBtn?.addEventListener("click", () => {
             closeLogoutModal();
@@ -842,9 +1051,6 @@ logoutConfirmBtn?.addEventListener("click", () => {
         });
 
         // Category Filter Functionality
-        const categoryFilter = document.getElementById("categoryFilter");
-        const announcementsTableBody = document.getElementById("announcementsTableBody");
-
         function filterByCategory() {
             const selectedCategory = categoryFilter.value;
             const rows = announcementsTableBody?.querySelectorAll("tr");
@@ -869,6 +1075,8 @@ logoutConfirmBtn?.addEventListener("click", () => {
         }
 
         categoryFilter?.addEventListener("change", filterByCategory);
+
+        loadAnnouncementsTable();
     </script>
 </body>
 </html>
