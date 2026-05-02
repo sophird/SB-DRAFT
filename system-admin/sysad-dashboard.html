@@ -10,10 +10,10 @@
     <style>
         :root {
             --brand-green: #16a34a;
-            --brand-dark: #043d2e;
-            --bg-light: #f8fafc;
-            --text-main: #1e293b;
-            --text-muted: #64748b;
+            --brand-dark: #000000; /* Set brand dark to black */
+            --bg-light: #ffffff;    /* Changed background to white */
+            --text-main: #000000;   /* Changed main text to black */
+            --text-muted: #475569;  /* Slightly darker muted text for readability on white */
             --sidebar-width: 260px;
             --white: #ffffff;
         }
@@ -275,7 +275,7 @@
             <a href="audit-logs.html" style="text-decoration: none; display: block;">
                 <div class="card overview-card green">
                     <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Active Sessions</p>
-                    <h2 style="color: var(--brand-dark); margin: 0.75rem 0;">04 Users</h2>
+                    <h2 style="color: var(--brand-dark); margin: 0.75rem 0;">4 Users</h2>
                     <p style="color: #16a34a; font-size: 0.75rem; font-weight: 500;">2 Admins | 2 Staff</p>
                 </div>
             </a>
@@ -308,17 +308,92 @@
             </a>
         </div>
 
-        <div class="card">
+        <div class="card" style="padding: 1.5rem;">
             <h2 style="color: var(--brand-dark); font-weight: 700; font-size: 1.25rem; margin-bottom: 0.5rem;">Role-Based Access Control</h2>
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Define and enforce permissions across all user roles.</p>
-            <table>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Define and enforce permissions across all user roles.</p>
+            
+            <table style="width: 100%; border-collapse: collapse;">
                 <thead>
-                    <tr><th>Role Name</th><th>Access Level</th><th>Module Permissions</th><th>Status</th><th>Action</th></tr>
+                    <tr style="background-color: #ffffff;">
+                        <th style="padding: 12px; text-align: left; color: #000000; font-size: 0.85rem;">User</th>
+                        <th style="padding: 12px; text-align: left; color: #000000; font-size: 0.85rem;">Email</th>
+                        <th style="padding: 12px; text-align: left; color: #000000; font-size: 0.85rem;">Role</th>
+                        <th style="padding: 12px; text-align: left; color: #000000; font-size: 0.85rem;">Permissions</th>
+                        <th style="padding: 12px; text-align: left; color: #000000; font-size: 0.85rem;">Date Joined</th>
+                        <th style="padding: 12px; text-align: left; color: #000000; font-size: 0.85rem;">Status</th>
+                        <th style="padding: 12px; text-align: center; color: #000000; font-size: 0.85rem;">Action</th>
+                    </tr>
                 </thead>
                 <tbody>
-                    <tr><td>Super Admin</td><td>Full</td><td>All Modules</td><td><span class="badge badge-green">Locked</span></td><td>-</td></tr>
-                    <tr><td>Staff</td><td>Partial</td><td>Services, Announcements</td><td><span class="badge badge-green">Active</span></td><td><a href="#" style="color: var(--brand-green); text-decoration: none; font-weight: 600;">Edit</a></td></tr>
-                    <tr><td>Resident</td><td>Basic</td><td>Public Portal Only</td><td><span class="badge badge-green">Active</span></td><td><a href="#" style="color: var(--brand-green); text-decoration: none; font-weight: 600;">Edit</a></td></tr>
+                    <!-- IT Personnel Row -->
+                    <tr>
+                        <td style="padding: 16px 12px; font-weight: 600;">System Admin</td>
+                        <td style="padding: 16px 12px; color: var(--text-muted);">admin@serbisyoburgos.com</td>
+                        <td style="padding: 16px 12px;"><span class="badge" style="background: #faf5ff; color: #7e22ce;">System Admin</span></td>
+                        <td style="padding: 16px 12px; font-size: 0.8rem; color: var(--text-muted);">All</td>
+                        <td style="padding: 16px 12px; color: var(--text-muted);">04/27/2026</td>
+                        <td style="padding: 16px 12px;"><span class="badge badge-green">Active</span></td>
+                        <td style="padding: 16px 12px; text-align: center;">
+                            <button onclick="confirmUserDeletion('System Admin')" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 5px;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
+                        </td>
+                    </tr>
+                    <!-- Admin Row -->
+                    <tr>
+                        <td style="padding: 16px 12px; font-weight: 600;">Kagawad</td>
+                        <td style="padding: 16px 12px; color: var(--text-muted);">admin@serbisyoburgos.com</td>
+                        <td style="padding: 16px 12px;"><span class="badge" style="background: #e0f2fe; color: #0369a1;">Admin</span></td>
+                        <td style="padding: 16px 12px; font-size: 0.8rem; color: var(--text-muted);">Admin Portal</td>
+                        <td style="padding: 16px 12px; color: var(--text-muted);">04/27/2026</td>
+                        <td style="padding: 16px 12px;"><span class="badge badge-green">Active</span></td>
+                        <td style="padding: 16px 12px; text-align: center;">
+                            <button onclick="confirmUserDeletion('Kagawad')" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 5px;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
+                        </td>
+                    </tr>
+                    <!-- Staff Rows -->
+                     <tr>
+                        <td style="padding: 16px 12px; font-weight: 600;">Staff 1</td>
+                        <td style="padding: 16px 12px; color: var(--text-muted);">staff@serbisyoburgos.com</td>
+                        <td style="padding: 16px 12px;"><span class="badge" style="background: #fff7ed; color: #c2410c;">Staff</span></td>
+                        <td style="padding: 16px 12px; font-size: 0.8rem; color: var(--text-muted);">Staff Portal - Dashboard, Request Processing</td>
+                        <td style="padding: 16px 12px; color: var(--text-muted);">04/16/2026</td>
+                        <td style="padding: 16px 12px;"><span class="badge badge-green">Active</span></td>
+                        <td style="padding: 16px 12px; text-align: center;">
+                            <button onclick="confirmUserDeletion('Staff 1')" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 5px;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 16px 12px; font-weight: 600;">Staff 2</td>
+                        <td style="padding: 16px 12px; color: var(--text-muted);">staff@serbisyoburgos.com</td>
+                        <td style="padding: 16px 12px;"><span class="badge" style="background: #fff7ed; color: #c2410c;">Staff</span></td>
+                        <td style="padding: 16px 12px; font-size: 0.8rem; color: var(--text-muted);">Staff Portal - Appointment Scheduling, Document Generator</td>
+                        <td style="padding: 16px 12px; color: var(--text-muted);">04/16/2026</td>
+                        <td style="padding: 16px 12px;"><span class="badge badge-green">Active</span></td>
+                        <td style="padding: 16px 12px; text-align: center;">
+                            <button onclick="confirmUserDeletion('Staff 2')" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 5px;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
+                        </td>
+                    </tr>
+                    <!-- Resident Row -->
+                    <tr>
+                        <td style="padding: 16px 12px; font-weight: 600;">Sophia Dumayas</td>
+                        <td style="padding: 16px 12px; color: var(--text-muted);">rainnedumayassophia@gmail.com</td>
+                        <td style="padding: 16px 12px;"><span class="badge" style="background: #f0fdf4; color: #166534;">Resident</span></td>
+                        <td style="padding: 16px 12px; font-size: 0.8rem; color: var(--text-muted);">Resident Portal</td>
+                        <td style="padding: 16px 12px; color: var(--text-muted);">05/01/2026</td>
+                        <td style="padding: 16px 12px;"><span class="badge badge-green">Active</span></td>
+                        <td style="padding: 16px 12px; text-align: center;">
+                            <button onclick="confirmUserDeletion('Sophia Dumayas')" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 5px;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
