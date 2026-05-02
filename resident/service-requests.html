@@ -582,10 +582,7 @@
                     <div class="form-group">
                         <label>Service Type *</label>
                         <select id="reqType" required>
-                            <option value="" disabled selected>Select Service...</option>
-                            <option>Barangay Clearance</option>
-                            <option>Certificate of Indigency</option>
-                            <option>Certificate of Residency</option>
+                            <option value="" disabled selected>Loading services…</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -906,9 +903,10 @@ async function populateResidentNameField() {
             }
         }
         
-        function openModal() { 
+        function openModal() {
             populateResidentNameField();
-            document.getElementById('requestModal').style.display = 'flex'; 
+            void populateResidentServiceTypeOptions();
+            document.getElementById("requestModal").style.display = "flex";
         }
         function closeModal() { document.getElementById('requestModal').style.display = 'none'; }
         function openUploadSuccessModal(message) {
@@ -1177,6 +1175,40 @@ async function populateResidentNameField() {
                 .replace(/"/g, "&quot;");
         }
 
+        async function populateResidentServiceTypeOptions() {
+            const sel = document.getElementById("reqType");
+            if (!sel) return;
+            try {
+                const response = await residentApiFetch(`${API_BASE_URL}/resident/service-catalog`);
+                const result = await response.json();
+                if (!response.ok || !result?.ok || !Array.isArray(result.services)) {
+                    throw new Error(result?.message || "Unable to load services.");
+                }
+                const list = result.services.filter((s) => String(s.status) === "Active");
+                if (!list.length) {
+                    sel.innerHTML =
+                        '<option value="" disabled selected>No services are available for requests right now.</option>';
+                    sel.disabled = true;
+                    return;
+                }
+                sel.disabled = false;
+                const opts = [
+                    '<option value="" disabled selected>Select Service…</option>',
+                    ...list.map((svc) => {
+                        const label = String(svc.name || "").trim();
+                        if (!label) return "";
+                        const esc = escapeHtmlText(label);
+                        return `<option value="${esc}">${esc}</option>`;
+                    })
+                ].join("");
+                sel.innerHTML = opts;
+            } catch (_err) {
+                sel.innerHTML =
+                    '<option value="" disabled selected>Could not load services. Try again later.</option>';
+                sel.disabled = true;
+            }
+        }
+
         function buildRequestStatusCellHtml(req) {
             const statusText = String(req.status || "Pending");
             const escaped = escapeHtmlText(statusText);
@@ -1348,8 +1380,9 @@ function statusClass(status) {
             };
         }
 
-        window.onload = function() {
+        window.onload = function () {
             loadRequests();
+            void populateResidentServiceTypeOptions();
             connectRealtimeRequests();
         };
 

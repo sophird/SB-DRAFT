@@ -1327,6 +1327,32 @@ app.get("/resident/context", async (req, res) => {
   });
 });
 
+/** Services residents may request (matches admin catalog: Active and not archived). */
+app.get("/resident/service-catalog", async (req, res) => {
+  const auth = await requireResidentPortalUser(req, res);
+  if (!auth) return;
+
+  const { data, error } = await supabaseAdmin
+    .from("service_catalog")
+    .select("*")
+    .is("archived_at", null)
+    .eq("status", "Active")
+    .order("service_name", { ascending: true });
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load service catalog.",
+      detail: error.message
+    });
+  }
+
+  return res.json({
+    ok: true,
+    services: (data || []).map(normalizeServiceCatalogRow)
+  });
+});
+
 // Combined service requests + appointments for a resident, newest activity first.
 app.get("/resident/history", async (req, res) => {
   const auth = await requireResidentPortalUser(req, res);
@@ -1806,6 +1832,29 @@ app.post("/requests", async (req, res) => {
     return res.status(400).json({
       ok: false,
       message: "title, serviceType, preferredDate, and preferredTimeSlot are required. Use YYYY-MM-DD for dates."
+    });
+  }
+
+  const { data: catalogRows, error: catalogErr } = await supabaseAdmin
+    .from("service_catalog")
+    .select("id")
+    .eq("service_name", safeServiceType)
+    .is("archived_at", null)
+    .eq("status", "Active")
+    .limit(1);
+
+  if (catalogErr) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to validate service type.",
+      detail: catalogErr.message
+    });
+  }
+  const catalogRow = Array.isArray(catalogRows) && catalogRows.length ? catalogRows[0] : null;
+  if (!catalogRow) {
+    return res.status(400).json({
+      ok: false,
+      message: "That service is not available for new requests. It may be inactive, under review, or removed."
     });
   }
 
