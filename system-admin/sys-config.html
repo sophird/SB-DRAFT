@@ -314,6 +314,7 @@
         </div>
 
         <div class="config-container">
+            <!-- Sidebar Selection -->
             <div class="config-sidebar">
                 <div class="category-item active">
                     <p style="font-weight: 600;">Service Types</p>
@@ -321,25 +322,49 @@
                 </div>
                 <div class="category-item">
                     <p style="font-weight: 600;">Appointment Types</p>
-                    <small class="text-muted">2 APT</small>
+                    <small class="text-muted">3 APT</small>
                 </div>
             </div>
 
+            <!-- Main Content Area -->
             <div class="config-main card">
-                <h3>🏷️ Service Request Types</h3>
-                <p class="page-subtitle" style="margin-bottom: 1.5rem;">Categories shown in service request forms and filters.</p>
-                
-                <div class="input-group">
-                    <input type="text" placeholder="(e.g. Certificate of Residency)" style="flex: 2;">
-                    <input type="text" placeholder="Required Documents (Optional)" style="flex: 1;">
-                    <button class="btn-save" style="background: #5f9632;">+ Add</button>
+                <!-- Service Request Section -->
+                <div id="service-types-section">
+                    <h3>🏷️ Service Request Types</h3>
+                    <p class="page-subtitle" style="margin-bottom: 1.5rem;">Categories shown in service request forms and filters.</p>
+                    
+                    <div class="input-group">
+                        <input type="text" placeholder="(e.g. Certificate of Residency)" style="flex: 2;">
+                        <input type="text" placeholder="Required Documents (Optional)" style="flex: 1;">
+                        <button class="btn-save" style="background: #5f9632;">+ Add</button>
+                    </div>
+
+                    <div class="values-list">
+                        <div class="value-card"><span>Barangay Clearance</span><button class="btn-delete">🗑️</button></div>
+                        <div class="value-card"><span>Certificate of Indigency</span><button class="btn-delete">🗑️</button></div>
+                    </div>
                 </div>
 
-                <div id="values-list">
-                    <div class="value-card"><span>Barangay Clearance</span><button class="btn-delete">🗑️</button></div>
-                    <div class="value-card"><span>Certificate of Indigency</span><button class="btn-delete">🗑️</button></div>
+                <hr style="margin: 2.5rem 0; border: 0; border-top: 1px solid #e2e8f0;">
+
+                <!-- Appointment Types Section (Mirrored Style) -->
+                <div id="appointment-types-section">
+                    <h3>📅 Appointment Types</h3>
+                    <p class="page-subtitle" style="margin-bottom: 1.5rem;">Manage the types of scheduled visits available to residents.</p>
+                    
+                    <div class="input-group">
+                        <input type="text" placeholder="(e.g. Complaint)" style="flex: 2;">
+                        <button class="btn-save" style="background: #5f9632;">+ Add</button>
+                    </div>
+
+                    <div class="values-list">
+                        <div class="value-card"><span>In-person Document Processing</span><button class="btn-delete">🗑️</button></div>
+                        <div class="value-card"><span>Document / ID Pickup</span><button class="btn-delete">🗑️</button></div>
+                        <div class="value-card"><span>Face-to-Face Consultation</span><button class="btn-delete">🗑️</button></div>
+                    </div>
                 </div>
-                <p style="font-size: 0.75rem; color: #64748b; margin-top: 1rem;">Removed values are soft-deleted — existing records are not affected.</p>
+
+                <p style="font-size: 0.75rem; color: #64748b; margin-top: 1.5rem;">Removed values are soft-deleted — existing records are not affected.</p>
             </div>
         </div>
     </main>
