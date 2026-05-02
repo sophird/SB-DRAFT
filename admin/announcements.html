@@ -356,10 +356,52 @@
             margin-bottom: 1.5rem;   
         }
 
-        #btnCreateAnnouncement:hover { 
+#btnCreateAnnouncement:hover { 
             background-color: #15803d; 
             transform: translateY(-1px);
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Search Bar Styles */
+        .search-filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 1.5rem;
+            padding: 12px 16px;
+            background: #f8fafc;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .search-filter-bar label {
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 0;
+            white-space: nowrap;
+        }
+
+        .search-filter-bar select {
+            width: 220px;
+            padding: 10px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            background: white;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .search-filter-bar select:focus {
+            border-color: var(--brand-green);
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+        }
+
+        #categoryFilter {
+            flex: 1;
+            max-width: 250px;
         }
     </style>
 </head>
@@ -427,8 +469,22 @@
             </button>
         </div>
 
-        <div class="content-card" id="postedAnnouncementsTableCard" style="display: block;">
-            <h3 style="color: var(--brand-dark); margin-bottom: 1rem;">Recently Posted Advisories</h3>
+<div class="content-card" id="postedAnnouncementsTableCard" style="display: block;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                <h3 style="color: var(--brand-dark); margin: 0;">Recently Posted Advisories</h3>
+                
+                <!-- Search/Filter Bar - Left Aligned -->
+                <div class="search-filter-bar" style="margin-bottom: 0; background: transparent; border: none; padding: 0;">
+                    <select id="categoryFilter">
+                        <option value="">All Categories</option>
+                        <option value="Holiday Schedule">📅 Holiday Schedule</option>
+                        <option value="Service Interruption">⚠️ Service Interruption</option>
+                        <option value="Community News">📰 Community News</option>
+                        <option value="Emergency Alert">🚨 Emergency Alert</option>
+                    </select>
+                </div>
+            </div>
+
             <table class="announcements-table" id="announcementsTable">
                 <thead>
                     <tr>
@@ -775,7 +831,7 @@ const tag = document.getElementById("previewTag");
         document.addEventListener("keydown", (event) => {
             if (event.key === "Escape") closeLogoutModal();
         });
-        logoutConfirmBtn?.addEventListener("click", () => {
+logoutConfirmBtn?.addEventListener("click", () => {
             closeLogoutModal();
             if (window.APP_NAV?.logout) {
                 window.APP_NAV.logout();
@@ -784,6 +840,35 @@ const tag = document.getElementById("previewTag");
             sessionStorage.removeItem("adminAuth");
             window.location.href = COMMON_ROUTES.landing;
         });
+
+        // Category Filter Functionality
+        const categoryFilter = document.getElementById("categoryFilter");
+        const announcementsTableBody = document.getElementById("announcementsTableBody");
+
+        function filterByCategory() {
+            const selectedCategory = categoryFilter.value;
+            const rows = announcementsTableBody?.querySelectorAll("tr");
+            
+            rows?.forEach(row => {
+                if (!selectedCategory) {
+                    // Show all rows if no filter selected
+                    row.style.display = "";
+                    return;
+                }
+                
+                const categoryCell = row.querySelector("td:first-child");
+                if (categoryCell) {
+                    const categoryText = categoryCell.textContent;
+                    if (categoryText.includes(selectedCategory)) {
+                        row.style.display = "";
+                    } else {
+                        row.style.display = "none";
+                    }
+                }
+            });
+        }
+
+        categoryFilter?.addEventListener("change", filterByCategory);
     </script>
 </body>
 </html>

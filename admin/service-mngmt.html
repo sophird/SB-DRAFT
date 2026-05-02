@@ -225,8 +225,40 @@
             transition: background 0.2s;
         }
 
-        .btn-archive:hover {
+.btn-archive:hover {
             background-color: #dc2626; /* Darker red */
+        }
+
+        /* Search Bar */
+        .search-bar {
+            width: 100%;
+            max-width: 320px;
+            padding: 10px 16px;
+            padding-left: 38px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .search-bar:focus {
+            border-color: var(--brand-green);
+        }
+
+        .search-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 10px;
+            width: 16px;
+            height: 16px;
+            color: #64748b;
+            pointer-events: none;
         }
 
         /* Modal Overlay */
@@ -338,8 +370,8 @@
     <main>
         <div class="top-bar">
             <div>
-                <h1 style="color: var(--brand-dark); font-weight: 800; font-size: 1.75rem;">Service and Requirements Management</h1>
-                <p style="color: var(--text-muted); font-size: 0.9rem;">Configure available services, required documents, and processing times.</p>
+                <h1 style="color: var(--brand-dark); font-weight: 800; font-size: 1.75rem;">Administration Dashboard</h1>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Welcome, Admins!</p>
             </div>
 
             <div class="user-profile">
@@ -351,26 +383,72 @@
             </div>
         </div>
 
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="color: var(--brand-dark);">Active Services</h3>
-                <button type="button" class="btn-add" id="btnAddService">+ Add Service</button>
-            </div>
+        <!-- OVERALL SYSTEM OVERVIEW -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
+            
+            <!-- Link to Service Management -->
+            <a href="service-mngmt.html" style="text-decoration: none;">
+                <div class="card" style="padding: 1.25rem; border-left: 4px solid var(--brand-green); transition: transform 0.2s;">
+                    <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Active Services</p>
+                    <h2 style="color: var(--brand-dark); margin-top: 0.5rem;">2</h2>
+                    <p style="color: var(--brand-green); font-size: 0.75rem; margin-top: 0.25rem;">View </p>
+                </div>
+            </a>
 
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Service Name</th>
-                            <th>Required Documents</th>
-                            <th>Processing Time</th>
-                            <th>Service Status</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="serviceCatalogBody"></tbody>
-                </table>
+            <!-- Link to User & Roles -->
+            <a href="user-role.html" style="text-decoration: none;">
+                <div class="card" style="padding: 1.25rem; border-left: 4px solid #3b82f6;">
+                    <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Total Users</p>
+                    <h2 style="color: var(--brand-dark); margin-top: 0.5rem;">3</h2>
+                    <p style="color: #3b82f6; font-size: 0.75rem; margin-top: 0.25rem;">Manage</p>
+                </div>
+            </a>
+
+            <!-- Link to Analytics -->
+            <a href="reports-analytics.html" style="text-decoration: none;">
+                <div class="card" style="padding: 1.25rem; border-left: 4px solid #f59e0b;">
+                    <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Monthly Requests</p>
+                    <h2 style="color: var(--brand-dark); margin-top: 0.5rem;">100</h2>
+                    <p style="color: #f59e0b; font-size: 0.75rem; margin-top: 0.25rem;">View</p>
+                </div>
+            </a>
+
+            <!-- Link to Announcements -->
+            <a href="announcements.html" style="text-decoration: none;">
+                <div class="card" style="padding: 1.25rem; border-left: 4px solid #ef4444;">
+                    <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Advisories</p>
+                    <h2 style="color: var(--brand-dark); margin-top: 0.5rem;">1</h2>
+                    <p style="color: #ef4444; font-size: 0.75rem; margin-top: 0.25rem;">Manage</p>
+                </div>
+            </a>
+        </div>
+
+        <div class="card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                <div>
+                    <h2 style="color: var(--brand-dark); font-weight: 700; font-size: 1.25rem;">Service and Requirements Management</h2>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem;">Configure available services, required documents, and processing times.</p>
+                </div>
+                <div class="search-container">
+                    <svg class="search-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" id="searchServices" class="search-bar" placeholder="Search services..." onkeyup="searchServices()">
+                </div>
             </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Service Name</th>
+                        <th>Required Documents</th>
+                        <th>Processing Time</th>
+                        <th>Service Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                    <tbody id="serviceCatalogBody"></tbody>
+            </table>
         </div>
 
         <div class="modal-overlay" id="addServiceModal">
@@ -763,7 +841,7 @@
             window.location.href = COMMON_ROUTES.landing;
         });
 
-        document.getElementById("btnAddService")?.addEventListener("click", openAddModal);
+document.getElementById("btnAddService")?.addEventListener("click", openAddModal);
 
         document.getElementById("configModal")?.addEventListener("click", (e) => {
             if (e.target.id === "configModal") closeModal();
@@ -771,6 +849,30 @@
         document.getElementById("addServiceModal")?.addEventListener("click", (e) => {
             if (e.target.id === "addServiceModal") closeAddModal();
         });
+
+        // Search Services Function
+        function searchServices() {
+            const input = document.getElementById("searchServices");
+            const filter = input.value.toLowerCase();
+            const tbody = document.getElementById("serviceCatalogBody");
+            const rows = tbody.getElementsByTagName("tr");
+
+            for (let i = 0; i < rows.length; i++) {
+                const nameCell = rows[i].getElementsByTagName("td")[0];
+                const docsCell = rows[i].getElementsByTagName("td")[1];
+
+                if (nameCell || docsCell) {
+                    const nameText = nameCell.textContent || nameCell.innerText;
+                    const docsText = docsCell.textContent || docsCell.innerText;
+
+                    if (nameText.toLowerCase().indexOf(filter) > -1 || docsText.toLowerCase().indexOf(filter) > -1) {
+                        rows[i].style.display = "";
+                    } else {
+                        rows[i].style.display = "none";
+                    }
+                }
+            }
+        }
 
         loadServices();
     </script>
