@@ -592,11 +592,18 @@
             return "<small>" + escapeHtml(allowed.join(", ")) + "</small>";
         }
 
+        /** Self-registered resident: from API (residentSelfRegistered) or legacy browser localStorage. */
+        function isResidentPortalSelfRegisteredProfile(p) {
+            if (String(p?.role || "").trim().toLowerCase() !== "resident") return false;
+            if (p?.residentSelfRegistered === true) return true;
+            const email = String(p.email || "").trim().toLowerCase();
+            return Boolean(email && loadResidentPortalSelfRegEmails().includes(email));
+        }
+
         function permissionsCellHtmlForProfile(p) {
             const r = String(p.role || "").trim().toLowerCase();
             if (r === "resident") {
-                const email = String(p.email || "").trim().toLowerCase();
-                if (loadResidentPortalSelfRegEmails().includes(email)) {
+                if (isResidentPortalSelfRegisteredProfile(p)) {
                     return "<small>Resident portal access</small>";
                 }
                 return '<small style="color:#94a3b8;">—</small>';
@@ -612,9 +619,7 @@
         }
 
         function residentPortalDatasetAttr(p) {
-            if (String(p.role || "").trim().toLowerCase() !== "resident") return "";
-            const email = String(p.email || "").trim().toLowerCase();
-            if (!loadResidentPortalSelfRegEmails().includes(email)) return "";
+            if (!isResidentPortalSelfRegisteredProfile(p)) return "";
             return ' data-account-source="resident-login"';
         }
 

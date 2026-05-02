@@ -373,7 +373,6 @@
     <script src="../shared/routes.js"></script>
     <script src="../shared/admin-access.js"></script>
     <script>
-        window.SB_ADMIN_ACCESS?.requireRole("admin");
         const API_BASE_URL = "http://localhost:4000";
         const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "../landing.html" };
 
@@ -446,7 +445,11 @@
             }
         }
 
-        loadAnalyticsSummary();
+        (async function initReportsAnalytics() {
+            const auth = await window.SB_ADMIN_ACCESS?.requireRole?.("admin");
+            if (!auth) return;
+            await loadAnalyticsSummary();
+        })();
 
         const logoutModal = document.getElementById("logoutModal");
         const logoutCancelBtn = document.getElementById("logoutCancelBtn");
