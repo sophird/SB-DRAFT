@@ -180,6 +180,23 @@
             padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;
         }
 
+        /* Overview Cards Hover Effect */
+        .overview-card {
+            padding: 1.25rem;
+            margin-bottom: 0;
+            border-left: 5px solid;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+        }
+        .overview-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+        }
+        .overview-card.green { border-left-color: #16a34a; }
+        .overview-card.blue { border-left-color: #3b82f6; }
+        .overview-card.amber { border-left-color: #f59e0b; }
+        .overview-card.red { border-left-color: #ef4444; }
+
         table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
         th { text-align: left; padding: 12px; border-bottom: 2px solid #f1f5f9; color: var(--text-muted); font-size: 0.85rem; }
         td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
@@ -256,7 +273,7 @@
             
             <!-- Link to Audit Trail (Security & Sessions) -->
             <a href="audit-logs.html" style="text-decoration: none; display: block;">
-                <div class="card" style="padding: 1.25rem; margin-bottom: 0; border-left: 5px solid #16a34a; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 10px 15px -3px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px -1px rgba(0,0,0,0.05)'">
+                <div class="card overview-card green">
                     <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Active Sessions</p>
                     <h2 style="color: var(--brand-dark); margin: 0.75rem 0;">04 Users</h2>
                     <p style="color: #16a34a; font-size: 0.75rem; font-weight: 500;">2 Admins | 2 Staff</p>
@@ -265,7 +282,7 @@
 
             <!-- Link to Configuration & Maintenance (System Status) -->
             <a href="sys-config.html" style="text-decoration: none; display: block;">
-                <div class="card" style="padding: 1.25rem; margin-bottom: 0; border-left: 5px solid #3b82f6; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
+                <div class="card overview-card blue">
                     <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">System Status</p>
                     <h2 style="color: var(--brand-dark); margin: 0.75rem 0;">Operational</h2>
                     <p style="color: #3b82f6; font-size: 0.75rem; font-weight: 500;">Environment: Production</p>
@@ -274,7 +291,7 @@
 
             <!-- Link to Data Backup & Recovery (Last Backup) -->
             <a href="backup-recovery.html" style="text-decoration: none; display: block;">
-                <div class="card" style="padding: 1.25rem; margin-bottom: 0; border-left: 5px solid #f59e0b; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
+                <div class="card overview-card amber">
                     <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Last Backup</p>
                     <h2 style="color: var(--brand-dark); margin: 0.75rem 0;">2h 15m ago</h2>
                     <p style="color: #f59e0b; font-size: 0.75rem; font-weight: 500;">Status: Successful</p>
@@ -283,7 +300,7 @@
 
             <!-- Link to Audit Trail (Activity Alerts) -->
             <a href="audit-logs.html" style="text-decoration: none; display: block;">
-                <div class="card" style="padding: 1.25rem; margin-bottom: 0; border-left: 5px solid #ef4444; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
+                <div class="card overview-card red">
                     <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Activity Alerts</p>
                     <h2 style="color: var(--brand-dark); margin: 0.75rem 0;">1 Critical</h2>
                     <p style="color: #ef4444; font-size: 0.75rem; font-weight: 500;">Recent permission changes</p>
