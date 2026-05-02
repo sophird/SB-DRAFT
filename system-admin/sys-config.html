@@ -206,9 +206,32 @@
 
         .category-item {
             background: white; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0;
-            margin-bottom: 10px; cursor: pointer; transition: 0.2s;
+            margin-bottom: 10px; cursor: pointer; transition: all 0.3s ease;
         }
-        .category-item.active { border-color: #5f9632; background: #f0fdf4; }
+        .category-item.active { 
+            border-color: #5f9632; background: #f0fdf4; 
+            box-shadow: 0 4px 12px rgba(95, 150, 50, 0.15);
+            transform: translateX(4px);
+        }
+
+        /* Section transitions */
+        #service-types-section, #appointment-types-section {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            opacity: 1;
+            transform: translateY(0);
+        }
+        #service-types-section[style*="display: none"], #appointment-types-section[style*="display: none"] {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        .value-card {
+            animation: slideIn 0.2s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
         
         .toggle-group { display: flex; flex-direction: column; gap: 12px; }
         .toggle-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8fafc; border-radius: 8px; }
@@ -316,11 +339,11 @@
         <div class="config-container">
             <!-- Sidebar Selection -->
             <div class="config-sidebar">
-                <div class="category-item active">
+                <div class="category-item active" data-section="service-types-section">
                     <p style="font-weight: 600;">Service Types</p>
                     <small class="text-muted">2 REQ</small>
                 </div>
-                <div class="category-item">
+                <div class="category-item" data-section="appointment-types-section">
                     <p style="font-weight: 600;">Appointment Types</p>
                     <small class="text-muted">3 APT</small>
                 </div>
@@ -329,34 +352,34 @@
             <!-- Main Content Area -->
             <div class="config-main card">
                 <!-- Service Request Section -->
-                <div id="service-types-section">
+                <div id="service-types-section" style="display: block;">
                     <h3>🏷️ Service Request Types</h3>
                     <p class="page-subtitle" style="margin-bottom: 1.5rem;">Categories shown in service request forms and filters.</p>
                     
                     <div class="input-group">
-                        <input type="text" placeholder="(e.g. Certificate of Residency)" style="flex: 2;">
-                        <input type="text" placeholder="Required Documents (Optional)" style="flex: 1;">
-                        <button class="btn-save" style="background: #5f9632;">+ Add</button>
+                        <input type="text" id="service-name" placeholder="(e.g. Certificate of Residency)" style="flex: 2;">
+                        <input type="text" id="service-docs" placeholder="Required Documents (Optional)" style="flex: 1;">
+                        <button class="btn-save add-service-btn" style="background: #5f9632;">+ Add</button>
                     </div>
 
                     <div class="values-list">
                         <div class="value-card"><span>Barangay Clearance</span><button class="btn-delete">🗑️</button></div>
                         <div class="value-card"><span>Certificate of Indigency</span><button class="btn-delete">🗑️</button></div>
                     </div>
+
+                    <p class="section-warning" style="font-size: 0.75rem; color: #64748b; margin-top: 1rem;">
+                        Warning: Removed categories are permanently deleted from all system records and cannot be recovered.
+                    </p>
                 </div>
 
-                <p style="font-size: 0.75rem; color: #64748b; margin-top: 1.5rem;">Warning: Removed categories are permanently deleted from all system records and cannot be recovered.</p>
-
-                <hr style="margin: 2.5rem 0; border: 0; border-top: 1px solid #e2e8f0;">
-
-                <!-- Appointment Types Section (Mirrored Style) -->
-                <div id="appointment-types-section">
+                <!-- Appointment Types Section -->
+                <div id="appointment-types-section" style="display: none;">
                     <h3>📅 Appointment Types</h3>
                     <p class="page-subtitle" style="margin-bottom: 1.5rem;">Manage the types of scheduled visits available to residents.</p>
                     
                     <div class="input-group">
-                        <input type="text" placeholder="(e.g. Complaint)" style="flex: 2;">
-                        <button class="btn-save" style="background: #5f9632;">+ Add</button>
+                        <input type="text" id="appointment-name" placeholder="(e.g. Complaint)" style="flex: 2;">
+                        <button class="btn-save add-appointment-btn" style="background: #5f9632;">+ Add</button>
                     </div>
 
                     <div class="values-list">
@@ -364,9 +387,12 @@
                         <div class="value-card"><span>Document / ID Pickup</span><button class="btn-delete">🗑️</button></div>
                         <div class="value-card"><span>Face-to-Face Consultation</span><button class="btn-delete">🗑️</button></div>
                     </div>
-                </div>
 
-                <p style="font-size: 0.75rem; color: #64748b; margin-top: 1.5rem;">Warning: Removed categories are permanently deleted from all system records and cannot be recovered.</p>
+                    <!-- MOVE THE WARNING HERE -->
+                    <p class="section-warning" style="font-size: 0.75rem; color: #64748b; margin-top: 1rem;">
+                        Warning: Removed categories are permanently deleted from all system records and cannot be recovered.
+                    </p>
+                </div>
             </div>
         </div>
     </main>
@@ -376,6 +402,100 @@
             event?.preventDefault?.();
             if(confirm("Logout from System Admin Portal?")) window.location.href = "../landing.html";
         }
+
+        // Config management functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Toggle sections
+            const categoryItems = document.querySelectorAll('.category-item');
+            const sections = document.querySelectorAll('#service-types-section, #appointment-types-section');
+            const warnings = document.querySelectorAll('.section-warning');
+
+            categoryItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    categoryItems.forEach(cat => cat.classList.remove('active'));
+                    sections.forEach(sec => sec.style.display = 'none');
+                    warnings.forEach(w => w.style.display = 'none');
+                    this.classList.add('active');
+                    const sectionId = this.dataset.section;
+                    const section = document.getElementById(sectionId);
+                     if (section) {
+                         section.style.display = 'block';
+                         const warning = section.parentElement.querySelector('.section-warning');
+                         if (warning) warning.style.display = 'block';
+                     }
+                });
+            });
+
+            // Add Service Type
+            const addServiceBtn = document.querySelector('.add-service-btn');
+            if (addServiceBtn) {
+                addServiceBtn.addEventListener('click', function() {
+                    const nameInput = document.getElementById('service-name');
+                    const docsInput = document.getElementById('service-docs');
+                    const name = nameInput.value.trim();
+                    const docs = docsInput.value.trim();
+                    
+                    if (name) {
+                        const valuesList = document.querySelector('#service-types-section .values-list');
+                        const newCard = document.createElement('div');
+                        newCard.className = 'value-card';
+                        newCard.innerHTML = `<span>${name}${docs ? ` (${docs})` : ''}</span><button class="btn-delete">🗑️</button>`;
+                        valuesList.appendChild(newCard);
+                        
+                        nameInput.value = '';
+                        docsInput.value = '';
+                        
+                        updateCount('service');
+                    }
+                });
+            }
+
+            // Add Appointment Type
+            const addAppointmentBtn = document.querySelector('.add-appointment-btn');
+            if (addAppointmentBtn) {
+                addAppointmentBtn.addEventListener('click', function() {
+                    const nameInput = document.getElementById('appointment-name');
+                    const name = nameInput.value.trim();
+                    
+                    if (name) {
+                        const valuesList = document.querySelector('#appointment-types-section .values-list');
+                        const newCard = document.createElement('div');
+                        newCard.className = 'value-card';
+                        newCard.innerHTML = `<span>${name}</span><button class="btn-delete">🗑️</button>`;
+                        valuesList.appendChild(newCard);
+                        
+                        nameInput.value = '';
+                        
+                        updateCount('appointment');
+                    }
+                });
+            }
+
+            // Delete functionality (delegated)
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('btn-delete')) {
+                    e.target.closest('.value-card').remove();
+                    updateCounts();
+                }
+            });
+
+            function updateCount(type) {
+                const serviceItem = document.querySelector('[data-section="service-types-section"] small');
+                const appointmentItem = document.querySelector('[data-section="appointment-types-section"] small');
+                if (type === 'service') {
+                    const count = document.querySelectorAll('#service-types-section .value-card').length;
+                    serviceItem.textContent = `${count} REQ`;
+                } else if (type === 'appointment') {
+                    const count = document.querySelectorAll('#appointment-types-section .value-card').length;
+                    appointmentItem.textContent = `${count} APT`;
+                }
+            }
+
+            function updateCounts() {
+                updateCount('service');
+                updateCount('appointment');
+            }
+        });
     </script>
 </body>
 </html>
