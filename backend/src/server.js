@@ -3054,6 +3054,100 @@ app.post("/admin/profiles/delete", async (req, res) => {
   return res.json({ ok: true, message: "Account deleted." });
 });
 
+function getLocalCalendarMonthStartEndIso() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const start = new Date(y, m, 1, 0, 0, 0, 0);
+  const end = new Date(y, m + 1, 0, 23, 59, 59, 999);
+  return { monthStartIso: start.toISOString(), monthEndIso: end.toISOString() };
+}
+
+/** Inclusive YYYY-MM-DD bounds for the current local calendar month (for date columns). */
+function getLocalCalendarMonthDateStrings() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const pad = (n) => String(n).padStart(2, "0");
+  const monthStartDate = `${y}-${pad(m + 1)}-01`;
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  const monthEndDate = `${y}-${pad(m + 1)}-${pad(lastDay)}`;
+  return { monthStartDate, monthEndDate };
+}
+
+function currentMonthYearLabel() {
+  return new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
+}
+
+/** Overview metrics for the admin service management dashboard (catalog table, users, month volume, announcements). */
+app.get("/admin/service-dashboard/summary", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+  if (auth.profile.role !== "admin") {
+    return res.status(403).json({ ok: false, message: "Admin role required to view this summary." });
+  }
+
+  const { monthStartIso, monthEndIso } = getLocalCalendarMonthStartEndIso();
+  const { monthStartDate, monthEndDate } = getLocalCalendarMonthDateStrings();
+
+  const [catalogRes, staffRes, residentRes, reqMonthRes, apptMonthRes, annRes] = await Promise.all([
+    supabaseAdmin.from("service_catalog").select("id", { count: "exact", head: true }).is("archived_at", null),
+    supabaseAdmin.from("profiles").select("email", { count: "exact", head: true }).eq("role", "staff"),
+    supabaseAdmin.from("profiles").select("email", { count: "exact", head: true }).eq("role", "resident"),
+    // Use preferred_date (always present); some DBs omit created_at on service_requests, which breaks timestamptz filters.
+    supabaseAdmin
+      .from("service_requests")
+      .select("id", { count: "exact", head: true })
+      .gte("preferred_date", monthStartDate)
+      .lte("preferred_date", monthEndDate),
+    supabaseAdmin
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", monthStartIso)
+      .lte("created_at", monthEndIso),
+    supabaseAdmin.from("community_announcements").select("id", { count: "exact", head: true })
+  ]);
+
+  const namedErrors = [
+    ["service catalog", catalogRes.error],
+    ["staff count", staffRes.error],
+    ["resident count", residentRes.error],
+    ["requests (month)", reqMonthRes.error],
+    ["appointments (month)", apptMonthRes.error],
+    ["announcements", annRes.error]
+  ];
+  const failed = namedErrors.find(([, err]) => err);
+  if (failed) {
+    return res.status(500).json({
+      ok: false,
+      message: `Unable to load dashboard summary (${failed[0]}).`,
+      detail: failed[1].message
+    });
+  }
+
+  const totalServices = typeof catalogRes.count === "number" ? catalogRes.count : 0;
+  const staffCount = typeof staffRes.count === "number" ? staffRes.count : 0;
+  const residentCount = typeof residentRes.count === "number" ? residentRes.count : 0;
+  const monthRequestsCount = typeof reqMonthRes.count === "number" ? reqMonthRes.count : 0;
+  const monthAppointmentsCount = typeof apptMonthRes.count === "number" ? apptMonthRes.count : 0;
+  const totalAnnouncementsPosted = typeof annRes.count === "number" ? annRes.count : 0;
+
+  return res.json({
+    ok: true,
+    totalServices,
+    staffCount,
+    residentCount,
+    staffAndResidentsTotal: staffCount + residentCount,
+    monthRequestsCount,
+    monthAppointmentsCount,
+    monthRequestsAndAppointmentsTotal: monthRequestsCount + monthAppointmentsCount,
+    monthLabel: currentMonthYearLabel(),
+    monthRangeStartIso: monthStartIso,
+    monthRangeEndIso: monthEndIso,
+    totalAnnouncementsPosted
+  });
+});
+
 // --- Admin service catalog ---
 
 app.get("/admin/service-catalog", async (req, res) => {

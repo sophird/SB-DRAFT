@@ -407,36 +407,36 @@
             <!-- Link to Audit Trail (Security & Sessions) -->
             <a href="service-mngmt.html" style="text-decoration: none; display: block;">
                 <div class="card overview-card green">
-                    <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Active Services</p>
-                    <h2 style="color: var(--brand-dark); margin: 0.75rem 0;">2</h2>
-                    <p style="color: #16a34a; font-size: 0.75rem; font-weight: 500;">View</p>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Total services</p>
+                    <h2 id="statCardTotalServices" style="color: var(--brand-dark); margin: 0.75rem 0;">—</h2>
+                    <p style="color: #16a34a; font-size: 0.75rem; font-weight: 500; margin-top: 0.35rem;">View</p>
                 </div>
             </a>
 
             <!-- Link to Configuration & Maintenance (System Status) -->
             <a href="user-role.html" style="text-decoration: none; display: block;">
                 <div class="card overview-card blue">
-                    <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Total Users</p>
-                    <h2 style="color: var(--brand-dark); margin: 0.75rem 0;">3</h2>
-                    <p style="color: #3b82f6; font-size: 0.75rem; font-weight: 500;">Manage</p>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Staff &amp; residents</p>
+                    <h2 id="statCardStaffResidents" style="color: var(--brand-dark); margin: 0.75rem 0;">—</h2>
+                    <p style="color: #3b82f6; font-size: 0.75rem; font-weight: 500; margin-top: 0.35rem;">Manage</p>
                 </div>
             </a>
 
             <!-- Link to Data Backup & Recovery (Last Backup) -->
             <a href="reports-analytics.html" style="text-decoration: none; display: block;">
                 <div class="card overview-card amber">
-                    <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Monthly Requests</p>
-                    <h2 style="color: var(--brand-dark); margin: 0.75rem 0;">100</h2>
-                    <p style="color: #f59e0b; font-size: 0.75rem; font-weight: 500;">View</p>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">This month</p>
+                    <h2 id="statCardMonthTotal" style="color: var(--brand-dark); margin: 0.75rem 0;">—</h2>
+                    <p style="color: #f59e0b; font-size: 0.75rem; font-weight: 500; margin-top: 0.35rem;">View</p>
                 </div>
             </a>
 
             <!-- Link to Audit Trail (Activity Alerts) -->
             <a href="announcements.html" style="text-decoration: none; display: block;">
                 <div class="card overview-card red">
-                    <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Advisories</p>
-                    <h2 style="color: var(--brand-dark); margin: 0.75rem 0;">1</h2>
-                    <p style="color: #ef4444; font-size: 0.75rem; font-weight: 500;">Manage</p>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Announcements posted</p>
+                    <h2 id="statCardAnnouncements" style="color: var(--brand-dark); margin: 0.75rem 0;">—</h2>
+                    <p style="color: #ef4444; font-size: 0.75rem; font-weight: 500; margin-top: 0.35rem;">Manage</p>
                 </div>
             </a>
         </div>
@@ -567,8 +567,6 @@
     <script src="../shared/routes.js"></script>
     <script src="../shared/admin-access.js"></script>
     <script>
-        window.SB_ADMIN_ACCESS?.requireRole("admin");
-
         const API_BASE_URL = "http://localhost:4000";
         const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "../landing.html" };
         let serviceCatalogCache = [];
@@ -597,6 +595,64 @@
             const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
             if (token) headers.Authorization = `Bearer ${token}`;
             return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+        }
+
+        async function loadServiceDashboardStats() {
+            const elSvc = document.getElementById("statCardTotalServices");
+            const elSvcHint = document.getElementById("statCardTotalServicesHint");
+            const elUsers = document.getElementById("statCardStaffResidents");
+            const elUsersHint = document.getElementById("statCardStaffResidentsHint");
+            const elMonth = document.getElementById("statCardMonthTotal");
+            const elMonthHint = document.getElementById("statCardMonthHint");
+            const elAnn = document.getElementById("statCardAnnouncements");
+            const elAnnHint = document.getElementById("statCardAnnouncementsHint");
+            if (!elSvc || !elUsers || !elMonth || !elAnn) return;
+
+            try {
+                const res = await adminFetch("/admin/service-dashboard/summary");
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok || !json?.ok) {
+                    elSvc.textContent = "—";
+                    elUsers.textContent = "—";
+                    elMonth.textContent = "—";
+                    elAnn.textContent = "—";
+                    if (elSvcHint) elSvcHint.textContent = json?.message || "Unable to load stats.";
+                    if (elUsersHint) elUsersHint.textContent = "";
+                    if (elMonthHint) elMonthHint.textContent = "";
+                    if (elAnnHint) elAnnHint.textContent = "";
+                    return;
+                }
+
+                elSvc.textContent = String(Number(json.totalServices) || 0);
+                if (elSvcHint) elSvcHint.textContent = "In catalog (not archived)";
+
+                const staffN = Number(json.staffCount) || 0;
+                const resN = Number(json.residentCount) || 0;
+                const usersTotal =
+                    typeof json.staffAndResidentsTotal === "number" ? json.staffAndResidentsTotal : staffN + resN;
+                elUsers.textContent = String(usersTotal);
+                if (elUsersHint) {
+                    elUsersHint.textContent = `${staffN.toLocaleString()} staff · ${resN.toLocaleString()} residents`;
+                }
+
+                const mTotal = Number(json.monthRequestsAndAppointmentsTotal) || 0;
+                const mReq = Number(json.monthRequestsCount) || 0;
+                const mAppt = Number(json.monthAppointmentsCount) || 0;
+                elMonth.textContent = String(mTotal);
+                const monthLabel = json.monthLabel || "This month";
+                if (elMonthHint) {
+                    elMonthHint.textContent = `${monthLabel}: ${mReq.toLocaleString()} requests · ${mAppt.toLocaleString()} appointments`;
+                }
+
+                elAnn.textContent = String(Number(json.totalAnnouncementsPosted) || 0);
+                if (elAnnHint) elAnnHint.textContent = "All-time bulletin posts";
+            } catch (_err) {
+                elSvc.textContent = "—";
+                elUsers.textContent = "—";
+                elMonth.textContent = "—";
+                elAnn.textContent = "—";
+                if (elSvcHint) elSvcHint.textContent = "Could not reach the API server.";
+            }
         }
 
         function escapeHtml(value) {
@@ -676,24 +732,25 @@
             if (!tbody) return;
             tbody.innerHTML =
                 '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted);">Loading services…</td></tr>';
-            const response = await adminFetch("/admin/service-catalog");
-            const result = await response.json();
-            if (!response.ok || !result?.ok) {
-                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:2rem;color:#b91c1c;">Unable to load services. Sign in as admin and apply the latest database migration.</td></tr>`;
-                return;
-            }
-            serviceCatalogCache = Array.isArray(result.services) ? result.services : [];
-            if (!serviceCatalogCache.length) {
-                tbody.innerHTML =
-                    '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted);">No active services.</td></tr>';
-                return;
-            }
-            tbody.innerHTML = serviceCatalogCache
-                .map((svc) => {
-                    const name = escapeHtml(svc.name);
-                    const docs = escapeHtml(svc.requiredDocuments || "—");
-                    const timeLabel = processingTimeLabel(svc.processingTime);
-                    return `
+            try {
+                const response = await adminFetch("/admin/service-catalog");
+                const result = await response.json();
+                if (!response.ok || !result?.ok) {
+                    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:2rem;color:#b91c1c;">Unable to load services. Sign in as admin and apply the latest database migration.</td></tr>`;
+                    return;
+                }
+                serviceCatalogCache = Array.isArray(result.services) ? result.services : [];
+                if (!serviceCatalogCache.length) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted);">No active services.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = serviceCatalogCache
+                    .map((svc) => {
+                        const name = escapeHtml(svc.name);
+                        const docs = escapeHtml(svc.requiredDocuments || "—");
+                        const timeLabel = processingTimeLabel(svc.processingTime);
+                        return `
                         <tr data-service-id="${svc.id}">
                             <td style="font-weight: 600;">${name}</td>
                             <td>${docs}</td>
@@ -704,21 +761,24 @@
                                 <button type="button" class="btn-archive" data-action="archive" data-id="${svc.id}">Archive</button>
                             </td>
                         </tr>`;
-                })
-                .join("");
+                    })
+                    .join("");
 
-            tbody.querySelectorAll("button[data-action]").forEach((btn) => {
-                btn.addEventListener("click", () => {
-                    const id = Number(btn.getAttribute("data-id"));
-                    const svc = serviceCatalogCache.find((s) => Number(s.id) === id);
-                    if (!svc) return;
-                    if (btn.getAttribute("data-action") === "configure") {
-                        openConfigureModal(svc);
-                    } else {
-                        archiveServiceById(svc.id);
-                    }
+                tbody.querySelectorAll("button[data-action]").forEach((btn) => {
+                    btn.addEventListener("click", () => {
+                        const id = Number(btn.getAttribute("data-id"));
+                        const svc = serviceCatalogCache.find((s) => Number(s.id) === id);
+                        if (!svc) return;
+                        if (btn.getAttribute("data-action") === "configure") {
+                            openConfigureModal(svc);
+                        } else {
+                            archiveServiceById(svc.id);
+                        }
+                    });
                 });
-            });
+            } finally {
+                loadServiceDashboardStats();
+            }
         }
 
         function openConfigureModal(svc) {
@@ -892,7 +952,11 @@ document.getElementById("btnAddService")?.addEventListener("click", openAddModal
             }
         }
 
-        loadServices();
+        (async function initAdminServiceManagement() {
+            const auth = await window.SB_ADMIN_ACCESS?.requireRole?.("admin");
+            if (!auth) return;
+            await loadServices();
+        })();
     </script>
 </body>
 </html>
