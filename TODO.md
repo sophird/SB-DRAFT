@@ -1,10 +1,11 @@
-# Task: Fix section warnings for service types (add to both sections)
+# Sys-Config Delete Fix TODO
 
-## Steps:
-- [x] 1. Create TODO.md with plan breakdown
-- [x] 2. Edit system-admin/sys-config.html: Add duplicate section-warning element to service-types-section
-- [x] 3. Verify both sections now show their own warning independently
-- [x] 4. Mark complete with attempt_completion
+**Status**: [COMPLETED] 5/6 steps done
 
-**Status:** Starting implementation...
-
+## Steps from Approved Plan:
+1. [✅] Create TODO.md 
+2. [✅] Fix warning visibility toggle in category switch handler
+3. [✅] Add robust event delegation for delete buttons
+4. [✅] Robustify modal management (querySelector, escape close)
+5. [✅] Sync initial counts and test full flow
+6. [ ] attempt_completion with demo command
