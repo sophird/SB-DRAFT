@@ -105,7 +105,7 @@
             background: #5f9632;
             border-right: 1px solid rgba(4, 61, 46, 0.18);
         }
-.sidebar-header {
+        .sidebar-header {
             padding: 1.75rem 1.25rem 1.25rem;
             flex-direction: column;
             justify-content: center;
@@ -174,6 +174,11 @@
             margin-bottom: 2rem;
         }
 
+        .value-card {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px;
+        }
+
         .page-title {
             color: var(--brand-dark); font-weight: 800; font-size: 1.75rem;
         }
@@ -188,6 +193,8 @@
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
         .form-group { margin-bottom: 1.25rem; }
         label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; color: var(--text-main); }
+        .input-group { display: flex; gap: 10px; margin-bottom: 20px; padding: 20px; border: 2px dashed #e2e8f0; border-radius: 12px; }
+        
         input, select, textarea {
             width: 100%;
             padding: 10px 12px;
@@ -196,10 +203,17 @@
             font-family: inherit;
             font-size: 0.95rem;
         }
+
+        .category-item {
+            background: white; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0;
+            margin-bottom: 10px; cursor: pointer; transition: 0.2s;
+        }
+        .category-item.active { border-color: #5f9632; background: #f0fdf4; }
         
         .toggle-group { display: flex; flex-direction: column; gap: 12px; }
         .toggle-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8fafc; border-radius: 8px; }
 
+        .btn-delete { color: #dc2626; border: none; background: none; cursor: pointer; }
         .btn-save {
             background: var(--brand-green);
             color: white;
@@ -212,6 +226,9 @@
         }
         .btn-save:hover { opacity: 0.9; }
 
+        .config-container { display: flex; gap: 2rem; }
+        .config-sidebar { width: 300px; }
+        .config-main { flex: 1; }
     </style>
 </head>
 <body>
@@ -222,11 +239,9 @@
             <span>SerbisyoBurgos</span>
         </div>
         <nav>
-            <a href="rbac.html" class="nav-item">
-                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                </svg>
-                <span>Role-Based Access Control</span>
+            <a href="sysad-dashboard.html" class="nav-item">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                <span>Dashboard</span>
             </a>
 
             <a href="audit-logs.html" class="nav-item">
@@ -297,46 +312,34 @@
             </div>
         </div>
 
-        <div class="card">
-            <h3>Notification Preferences</h3>
-            <div class="toggle-group">
-                <div class="toggle-item">
-                    <span>Enable SMS Alerts for Residents</span>
-                    <input type="checkbox" checked style="width: auto;">
+        <div class="config-container">
+            <div class="config-sidebar">
+                <div class="category-item active">
+                    <p style="font-weight: 600;">Service Types</p>
+                    <small class="text-muted">6 values</small>
                 </div>
-                <div class="toggle-item">
-                    <span>Email Notifications for Staff (New Requests)</span>
-                    <input type="checkbox" checked style="width: auto;">
-                </div>
-                <div class="toggle-item">
-                    <span>Push Notifications (Mobile App)</span>
-                    <input type="checkbox" style="width: auto;">
+                <div class="category-item">
+                    <p style="font-weight: 600;">Document Categories</p>
+                    <small class="text-muted">4 values</small>
                 </div>
             </div>
-        </div>
 
-        <div class="card">
-            <h3>Service Parameters</h3>
-            <div class="form-grid">
-                <div class="form-group">
-                    <label>Default Processing Time (Days)</label>
-                    <input type="number" value="3">
+            <div class="config-main card">
+                <h3>🏷️ Service Types</h3>
+                <p class="page-subtitle" style="margin-bottom: 1.5rem;">Categories shown in service request forms and filters.</p>
+                
+                <div class="input-group">
+                    <input type="text" placeholder="Value (e.g. Health Certificate)" style="flex: 2;">
+                    <input type="text" placeholder="Display label (optional)" style="flex: 1;">
+                    <button class="btn-save" style="background: #5f9632;">+ Add</button>
                 </div>
-                <div class="form-group">
-                    <label>Max Daily Appointments</label>
-                    <input type="number" value="50">
+
+                <div id="values-list">
+                    <div class="value-card"><span>Barangay Clearance</span><button class="btn-delete">🗑️</button></div>
+                    <div class="value-card"><span>Indigency Certificate</span><button class="btn-delete">🗑️</button></div>
+                    <div class="value-card"><span>Business Permit</span><button class="btn-delete">🗑️</button></div>
                 </div>
-                <div class="form-group">
-                    <label>Currency Symbol</label>
-                    <input type="text" value="₱">
-                </div>
-                <div class="form-group">
-                    <label>Inactivity Timeout (Minutes)</label>
-                    <input type="number" value="30">
-                </div>
-            </div>
-            <div style="margin-top: 1rem; border-top: 1px solid #f1f5f9; padding-top: 1.5rem;">
-                <button class="btn-save">Apply Configuration Changes</button>
+                <p style="font-size: 0.75rem; color: #64748b; margin-top: 1rem;">Removed values are soft-deleted — existing records are not affected.</p>
             </div>
         </div>
     </main>

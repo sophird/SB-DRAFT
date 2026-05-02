@@ -388,10 +388,27 @@
             </div>
         </div>
 
-        <div class="card">
-            <div class="card-header">
-                <h3 style="color: var(--brand-dark);">Staff & Resident Directory</h3>
-                <input type="text" class="search-bar" placeholder="Search by name or email...">
+<div class="card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+<div style="position: relative; display: flex; align-items: center;">
+                    <svg style="position: absolute; left: 10px; width: 16px; height: 16px; color: #64748b;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" id="searchStaff" class="search-bar" placeholder="Search by name or email..." style="max-width: 300px; padding-left: 36px;" onkeyup="searchStaff()">
+                </div>
+                <button onclick="openCreateStaffModal()" style="display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--brand-green); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <!-- Person icon -->
+                        <circle cx="12" cy="8" r="4"></circle>
+                        <path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"></path>
+                        <!-- Plus symbol beside head -->
+                        <circle cx="18" cy="6" r="3" fill="currentColor" stroke="none"></circle>
+                        <line x1="18" y1="3" x2="18" y2="9" stroke="white" stroke-width="2"></line>
+                        <line x1="15" y1="6" x2="21" y2="6" stroke="white" stroke-width="2"></line>
+                    </svg>
+                    Create New Staff
+                </button>
             </div>
 
             <div class="table-container">
@@ -485,13 +502,48 @@
                 </div>
             </div>
         </div>
-        <div class="modal-overlay" id="logoutModal" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
+<div class="modal-overlay" id="logoutModal" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
             <div class="modal-card">
                 <h2 class="modal-title" id="logoutModalTitle">Confirm Logout</h2>
                 <p class="modal-text">Are you sure you want to logout from the admin portal?</p>
                 <div class="modal-actions">
                     <button type="button" class="modal-btn modal-btn-cancel" id="logoutCancelBtn">Cancel</button>
                     <button type="button" class="modal-btn modal-btn-confirm" id="logoutConfirmBtn">Logout</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create New Staff Modal -->
+        <div class="modal-overlay" id="createStaffModal">
+            <div class="user-modal">
+                <div class="modal-header">
+                    <h2 style="color: var(--brand-dark);">Create New Staff</h2>
+                    <button onclick="closeCreateStaffModal()" style="background:none; border:none; font-size: 1.5rem; cursor:pointer;">&times;</button>
+                </div>
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="newStaffName" placeholder="Enter full name" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                </div>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="newStaffEmail" placeholder="Enter email address" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="newStaffPassword" placeholder="Enter password" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                </div>
+                <div class="form-group">
+                    <label>Permissions</label>
+                    <div class="permission-grid-staff">
+                        <div class="permission-item"><input type="checkbox" id="permDashboard"> Dashboard</div>
+                        <div class="permission-item"><input type="checkbox" id="permAppt"> Appointment Scheduling</div>
+                        <div class="permission-item"><input type="checkbox" id="permRequest"> Request Processing</div>
+                        <div class="permission-item"><input type="checkbox" id="permDoc"> Document Generator</div>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 2rem;">
+                    <button onclick="closeCreateStaffModal()" style="padding:10px 20px; border:none; background:#e2e8f0; border-radius:8px; cursor:pointer;">Cancel</button>
+                    <button onclick="createNewStaff()" style="padding:10px 20px; border:none; background:var(--brand-green); color:white; border-radius:8px; font-weight:600; cursor:pointer;">Create Staff</button>
                 </div>
             </div>
         </div>
@@ -652,7 +704,7 @@ async function saveUserChanges() {
         document.addEventListener("keydown", (event) => {
             if (event.key === "Escape") closeLogoutModal();
         });
-        logoutConfirmBtn?.addEventListener("click", () => {
+logoutConfirmBtn?.addEventListener("click", () => {
             closeLogoutModal();
             if (window.APP_NAV?.logout) {
                 window.APP_NAV.logout();
@@ -661,6 +713,104 @@ async function saveUserChanges() {
             sessionStorage.removeItem("adminAuth");
             window.location.href = COMMON_ROUTES.landing;
         });
+
+// Search Staff Function
+        function searchStaff() {
+            const input = document.getElementById('searchStaff');
+            const filter = input.value.toLowerCase();
+            const table = document.querySelector('table tbody');
+            const rows = table.getElementsByTagName('tr');
+            
+            for (let i = 0; i < rows.length; i++) {
+                const nameCell = rows[i].getElementsByTagName('td')[0];
+                const emailCell = rows[i].getElementsByTagName('td')[1];
+                
+                if (nameCell || emailCell) {
+                    const nameText = nameCell.textContent || nameCell.innerText;
+                    const emailText = emailCell.textContent || emailCell.innerText;
+                    
+                    if (nameText.toLowerCase().indexOf(filter) > -1 || emailText.toLowerCase().indexOf(filter) > -1) {
+                        rows[i].style.display = '';
+                    } else {
+                        rows[i].style.display = 'none';
+                    }
+                }
+            }
+        }
+
+        // Create New Staff Functions
+        let staffCounter = 3;
+
+        function openCreateStaffModal() {
+            document.getElementById('createStaffModal').style.display = 'flex';
+            document.getElementById('newStaffName').value = '';
+            document.getElementById('newStaffEmail').value = '';
+            document.getElementById('newStaffPassword').value = '';
+            document.getElementById('permDashboard').checked = false;
+            document.getElementById('permAppt').checked = false;
+            document.getElementById('permRequest').checked = false;
+            document.getElementById('permDoc').checked = false;
+        }
+
+        function closeCreateStaffModal() {
+            document.getElementById('createStaffModal').style.display = 'none';
+        }
+
+        async function createNewStaff() {
+            const name = document.getElementById('newStaffName').value.trim();
+            const email = document.getElementById('newStaffEmail').value.trim();
+            const password = document.getElementById('newStaffPassword').value;
+            
+            if (!name || !email || !password) {
+                await showDialog({
+                    title: "Validation Error",
+                    message: "Please fill in all required fields: Full Name, Email Address, and Password.",
+                    confirmLabel: "OK"
+                });
+                return;
+            }
+            
+            const selectedPermissions = [];
+            if (document.getElementById('permDashboard').checked) selectedPermissions.push('Dashboard');
+            if (document.getElementById('permAppt').checked) selectedPermissions.push('Appointment Scheduling');
+            if (document.getElementById('permRequest').checked) selectedPermissions.push('Request Processing');
+            if (document.getElementById('permDoc').checked) selectedPermissions.push('Document Generator');
+            
+            if (selectedPermissions.length === 0) {
+                await showDialog({
+                    title: "Validation Error",
+                    message: "Please select at least one permission.",
+                    confirmLabel: "OK"
+                });
+                return;
+            }
+            
+            staffCounter++;
+            const rowId = 'row-' + staffCounter;
+            
+            const tbody = document.querySelector('table tbody');
+            const newRow = document.createElement('tr');
+            newRow.id = rowId;
+            newRow.innerHTML = `
+                <td style="font-weight: 600;">${name}</td>
+                <td>${email}</td>
+                <td><small>${selectedPermissions.join(', ')}</small></td>
+                <td><span class="status-badge" style="background: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Active</span></td>
+                <td>
+                    <button class="btn-config" onclick="openUserManage('${name}', 'Staff', 'Active', '${rowId}')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
+                    <button class="btn-delete" onclick="deleteUser('${rowId}')" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Delete</button>
+                </td>
+            `;
+            tbody.appendChild(newRow);
+            
+            closeCreateStaffModal();
+            
+            await showDialog({
+                title: "Staff Created",
+                message: name + " has been added as a new staff member.",
+                confirmLabel: "OK"
+            });
+        }
     </script>
 </body>
 </html>

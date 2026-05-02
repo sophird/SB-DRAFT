@@ -109,7 +109,7 @@
             background: #5f9632;
             border-right: 1px solid rgba(4, 61, 46, 0.18);
         }
-.sidebar-header {
+        .sidebar-header {
             padding: 1.75rem 1.25rem 1.25rem;
             flex-direction: column;
             justify-content: center;
@@ -170,9 +170,34 @@
 
         /* DASHBOARD CARDS */
         .card {
-            background: var(--white); padding: 2rem; border-radius: 16px;
-            border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-            width: 100%; margin-bottom: 2rem;
+            background: #ffffff; /* Changed to pure white */
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0; /* Use a standard light border */
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .filter-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #ffffff; /* Changed to white */
+            font-size: 0.9rem;
+        }
+
+        .select-filter {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #ffffff; /* Changed to white */
+            min-width: 150px;
         }
 
         .page-title {
@@ -183,12 +208,99 @@
             color: var(--text-muted); font-size: 0.9rem;
         }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-        th { text-align: left; padding: 12px; border-bottom: 2px solid #f1f5f9; color: var(--text-muted); font-size: 0.85rem; }
-        td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
-        .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
-        .badge-green { background: #dcfce7; color: #166534; }
-        .badge-red { background: #fee2e2; color: #991b1b; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        th {
+            background: #ffffff; /* Removed the beige background[cite: 1, 2] */
+            color: var(--text-muted); /* Using your root muted color */
+            font-weight: 600;
+            text-align: left;
+            padding: 15px;
+            font-size: 0.85rem;
+            border-bottom: 2px solid #f1f5f9;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #f9f9f9;
+            font-size: 0.9rem;
+            color: #444;
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: inline-block;
+        }
+
+.badge-update {
+            background: #e1f0ff;
+            color: #3b82f6;
+            border: 1px solid #bfdbfe;
+        }
+
+        .badge-rejected {
+            background: #fde2e2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        /* Badge color types */
+        .badge-status-update {
+            background: #dbeafe;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+        }
+
+        .badge-completed-request {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .badge-rejected-request {
+            background: #fde2e2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        .badge-updated-slots {
+            background: #fef3c7;
+            color: #a16207;
+            border: 1px solid #fde68a;
+        }
+
+        .badge-printed-document {
+            background: #ede9fe;
+            color: #7c3aed;
+            border: 1px solid #ddd6fe;
+        }
+
+        .badge-updated-record {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+
+        .badge-archived-record {
+            background: #ffedd5;
+            color: #c2410c;
+            border: 1px solid #fed7aa;
+        }
+
+        .badge-deleted-record {
+            background: #fde2e2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
     </style>
 </head>
 <body>
@@ -199,11 +311,9 @@
             <span>SerbisyoBurgos</span>
         </div>
         <nav>
-            <a href="rbac.html" class="nav-item">
-                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                </svg>
-                <span>Role-Based Access Control</span>
+            <a href="sysad-dashboard.html" class="nav-item">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                <span>Dashboard</span>
             </a>
 
             <a href="audit-logs.html" class="nav-item active">
@@ -251,34 +361,165 @@
                 <div class="user-avatar">SA</div>
                 <div style="line-height: 1.2;">
                     <p style="font-weight: 700; font-size: 0.85rem;">System Admin</p>
-                    <p style="font-size: 0.75rem; color: var(--text-muted);">Root Access</p>
+                    <p style="font-size: 0.75rem; color: var(--text-muted);">IT Personnel</p>
                 </div>
             </div>
         </div>
         
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                <h3 style="color: var(--brand-dark);">System Activity Logs</h3>
-                <input type="text" placeholder="Filter by user or action..." style="padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+<div style="position: relative; flex: 1;">
+                <input type="text" id="searchInput" oninput="searchLogs()" placeholder="Search by actions or email..." 
+                    style="width: 100%; padding: 12px 12px 12px 40px; border: 1px solid #ddd; border-radius: 8px; background: #ffffff;">
+                <svg style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #888;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
             </div>
-            <table>
+<select id="actionFilter" onchange="filterByAction(this.value)" style="padding: 10px 20px; border: 1px solid #ddd; border-radius: 8px; background: #ffffff; min-width: 160px;">
+                <option value="">All Actions</option>
+                <option value="Status Update">Status Update</option>
+                <option value="Completed Request">Completed Request</option>
+                <option value="Rejected Request">Rejected Request</option>
+                <option value="Updated Slots">Updated Slots</option>
+                <option value="Printed Document">Printed Document</option>
+                <option value="Updated Record">Updated Record</option>
+                <option value="Archived Record">Archived Record</option>
+                <option value="Deleted Record">Deleted Record</option>
+            </select>
+        </div>
+
+        <div class="card" style="background: #ffffff; border: 1px solid #e2e8f0; padding: 0; overflow: hidden;">
+            <table style="margin-top: 0;">
                 <thead>
-                    <tr><th>Timestamp</th><th>User</th><th>Action</th><th>Module</th><th>IP Address</th></tr>
+                    <tr style="background: #ffffff;">
+                        <th style="color: #000000; padding: 20px;">Actions</th>
+                        <th style="color: #000000;">Descriptions</th>
+                        <th style="color: #000000;">Performed By</th>
+                        <th style="color: #000000;">Date</th>
+                    </tr>
                 </thead>
                 <tbody>
-                    <tr><td>2026-04-27 10:15:22</td><td>Admin_Jane</td><td>Updated Service Fee</td><td>Service Mgmt</td><td>192.168.1.45</td></tr>
-                    <tr><td>2026-04-27 09:44:10</td><td>Staff_Mark</td><td>Published Announcement</td><td>Announcements</td><td>192.168.1.12</td></tr>
-                    <tr><td>2026-04-27 08:30:05</td><td>SA_Root</td><td>Modified RBAC Roles</td><td>System Admin</td><td>127.0.0.1</td></tr>
+<!-- STAFF LOGS -->
+                    <tr data-action="Status Update">
+<td><span class="badge badge-status-update">Status Update</span></td>
+                        <td>Updated the request of Resident 1 to Processing</td>
+                        <td>Staff 1</td>
+                        <td>05/02/2026</td>
+                    </tr>
+                    <tr data-action="Status Update">
+                        <td><span class="badge badge-status-update">Status Update</span></td>
+                        <td>Updated the request of Resident 2 to Approved</td>
+                        <td>Staff 1</td>
+                        <td>05/02/2026</td>
+                    </tr>
+                    <tr data-action="Status Update">
+                        <td><span class="badge badge-status-update">Status Update</span></td>
+                        <td>Updated the request of Resident 1 to Revisions</td>
+                        <td>Staff 1</td>
+                        <td>05/02/2026</td>
+                    </tr>
+                    <tr data-action="Status Update">
+                        <td><span class="badge badge-status-update">Status Update</span></td>
+                        <td>Updated the request of Resident 2 to Ready for Pickup</td>
+                        <td>Staff 1</td>
+                        <td>05/02/2026</td>
+                    </tr>
+                    <tr data-action="Completed Request">
+                        <td><span class="badge badge-completed-request">Completed Request</span></td>
+                        <td>Updated the request of Resident 1 to Completed</td>
+                        <td>Staff 1</td>
+                        <td>05/02/2026</td>
+                    </tr>
+                    <tr data-action="Rejected Request">
+                        <td><span class="badge badge-rejected-request">Rejected Request</span></td>
+                        <td>Updated the request of Resident 3 to Rejected</td>
+                        <td>Staff 1</td>
+                        <td>05/02/2026</td>
+                    </tr>
+                    <tr data-action="Updated Slots">
+                        <td><span class="badge badge-updated-slots">Updated Slots</span></td>
+                        <td>Updated the limited time slots to 15</td>
+                        <td>Staff 2</td>
+                        <td>05/01/2026</td>
+                    </tr>
+                    <tr data-action="Printed Document">
+                        <td><span class="badge badge-printed-document">Printed Document</span></td>
+                        <td>Successfully printed a Barangay Clearance document</td>
+                        <td>Staff 2</td>
+                        <td>05/01/2026</td>
+                    </tr>
+                    <tr data-action="Printed Document">
+                        <td><span class="badge badge-printed-document">Printed Document</span></td>
+                        <td>Successfully printed a Certificate of Indigency document</td>
+                        <td>Staff 2</td>
+                        <td>05/01/2026</td>
+                    </tr>
+
+                    <!-- ADMIN LOGS -->
+                    <tr data-action="Updated Record">
+                        <td><span class="badge badge-updated-record">Updated Record</span></td>
+                        <td>Added a service: Permit</td>
+                        <td>Admin (Kagawad)</td>
+                        <td>04/30/2026</td>
+                    </tr>
+                    <tr data-action="Archived Record">
+                        <td><span class="badge badge-archived-record">Archived Record</span></td>
+                        <td>Archived a service: Certificate of Indigency</td>
+                        <td>Admin (Kagawad)</td>
+                        <td>04/29/2026</td>
+                    </tr>
+                    <tr data-action="Updated Record">
+                        <td><span class="badge badge-updated-record">Updated Record</span></td>
+                        <td>Updated an account for User 1</td>
+                        <td>Secretary</td>
+                        <td>04/28/2026</td>
+                    </tr>
+                    <tr data-action="Deleted Record">
+                        <td><span class="badge badge-deleted-record">Deleted Record</span></td>
+                        <td>Deleted an account for User 2</td>
+                        <td>Secretary</td>
+                        <td>04/27/2026</td>
+                    </tr>
+                    <tr data-action="Updated Record">
+                        <td><span class="badge badge-updated-record">Updated Record</span></td>
+                        <td>Published an announcement: Linggo Ng Kabataan</td>
+                        <td>Secretary</td>
+                        <td>04/26/2026</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
-
     </main>
 
-    <script>
+<script>
         function handleLogout(event) {
             event?.preventDefault?.();
             if(confirm("Logout from System Admin Portal?")) window.location.href = "../landing.html";
+        }
+
+function filterByAction(action) {
+            var rows = document.querySelectorAll('tbody tr');
+            rows.forEach(function(row) {
+                if (action === "" || row.getAttribute('data-action') === action) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            });
+        }
+
+        function searchLogs() {
+            var input = document.getElementById('searchInput');
+            var filter = input.value.toLowerCase();
+            var rows = document.querySelectorAll('tbody tr');
+            rows.forEach(function(row) {
+                var text = row.textContent || row.innerText;
+                if (text.toLowerCase().indexOf(filter) > -1) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            });
         }
     </script>
 </body>

@@ -105,7 +105,7 @@
             background: #5f9632;
             border-right: 1px solid rgba(4, 61, 46, 0.18);
         }
-.sidebar-header {
+        .sidebar-header {
             padding: 1.75rem 1.25rem 1.25rem;
             flex-direction: column;
             justify-content: center;
@@ -202,11 +202,9 @@
             <span>SerbisyoBurgos</span>
         </div>
         <nav>
-            <a href="rbac.html" class="nav-item">
-                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                </svg>
-                <span>Role-Based Access Control</span>
+            <a href="sysad-dashboard.html" class="nav-item">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                <span>Dashboard</span>
             </a>
 
             <a href="audit-logs.html" class="nav-item">
@@ -258,26 +256,38 @@
                 </div>
             </div>
         </div>
-        
+
+<!-- Database Stats Summary -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem;">
+            <div class="card" style="text-align: center; padding: 1.5rem; background: #ffffff;">
+                <h2 style="color: #16a34a;">150</h2><p>Residents</p>
+            </div>
+            <div class="card" style="text-align: center; padding: 1.5rem; background: #ffffff;">
+                <h2 style="color: #ea580c;">45</h2><p>Service Requests</p>
+            </div>
+            <div class="card" style="text-align: center; padding: 1.5rem; background: #ffffff;">
+                <h2 style="color: #ca8a04;">12</h2><p>Appointments</p>
+            </div>
+            <div class="card" style="text-align: center; padding: 1.5rem; background: #ffffff;">
+                <h2 style="color: #2563eb;">8</h2><p>Admins</p>
+            </div>
+        </div>
+
         <div class="card" style="border-left: 5px solid var(--brand-green);">
             <h3>Instant Backup</h3>
             <p style="color: var(--text-muted); margin: 0.5rem 0 1.5rem;">Create a manual snapshot of the current system state and database.</p>
             <button class="btn-primary">Generate Full Backup (.sql/.zip)</button>
         </div>
-        
-        <div class="card">
-            <h3>Backup History</h3>
-            <table>
-                <thead>
-                    <tr><th>Snapshot Date</th><th>Size</th><th>Created By</th><th>Type</th><th>Action</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td>2026-04-26 02:00:00</td><td>450 MB</td><td>System (Auto)</td><td>Scheduled</td><td><a href="#" style="color: var(--brand-green); text-decoration: none; font-weight: 600;">Restore</a></td></tr>
-                    <tr><td>2026-04-25 02:00:00</td><td>448 MB</td><td>System (Auto)</td><td>Scheduled</td><td><a href="#" style="color: var(--brand-green); text-decoration: none; font-weight: 600;">Restore</a></td></tr>
-                </tbody>
-            </table>
-        </div>
 
+        <!-- Recovery Instructions -->
+        <div class="card">
+            <h3>Recovery Instructions</h3>
+            <ol style="margin-left: 1.5rem; line-height: 2;">
+                <li>Download the backup file (.json format).</li>
+                <li>Store the file in a secure location (Google Drive/USB).</li>
+                <li>To restore, contact the system administrator with the latest backup file.</li>
+            </ol>
+        </div>
     </main>
 
     <script>
