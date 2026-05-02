@@ -177,6 +177,24 @@
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
         }
 
+
+        /* Overview Cards Hover Effect */
+        .overview-card {
+            padding: 1.25rem;
+            margin-bottom: 0;
+            border-left: 5px solid;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+        }
+        .overview-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+        }
+        .overview-card.green { border-left-color: #16a34a; }
+        .overview-card.blue { border-left-color: #3b82f6; }
+        .overview-card.amber { border-left-color: #f59e0b; }
+        .overview-card.red { border-left-color: #ef4444; }
+
         .table-container { width: 100%; overflow-x: auto; margin-top: 1.5rem; }
         table { width: 100%; border-collapse: collapse; text-align: left; }
         th { padding: 12px; border-bottom: 2px solid #f1f5f9; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; }
@@ -225,7 +243,7 @@
             transition: background 0.2s;
         }
 
-.btn-archive:hover {
+        .btn-archive:hover {
             background-color: #dc2626; /* Darker red */
         }
 
@@ -383,42 +401,42 @@
             </div>
         </div>
 
-        <!-- OVERALL SYSTEM OVERVIEW -->
+        <!-- SYSTEM OVERVIEW ROW -->
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
             
-            <!-- Link to Service Management -->
-            <a href="service-mngmt.html" style="text-decoration: none;">
-                <div class="card" style="padding: 1.25rem; border-left: 4px solid var(--brand-green); transition: transform 0.2s;">
+            <!-- Link to Audit Trail (Security & Sessions) -->
+            <a href="service-mngmt.html" style="text-decoration: none; display: block;">
+                <div class="card overview-card green">
                     <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Active Services</p>
-                    <h2 style="color: var(--brand-dark); margin-top: 0.5rem;">2</h2>
-                    <p style="color: var(--brand-green); font-size: 0.75rem; margin-top: 0.25rem;">View </p>
+                    <h2 style="color: var(--brand-dark); margin: 0.75rem 0;">2</h2>
+                    <p style="color: #16a34a; font-size: 0.75rem; font-weight: 500;">View</p>
                 </div>
             </a>
 
-            <!-- Link to User & Roles -->
-            <a href="user-role.html" style="text-decoration: none;">
-                <div class="card" style="padding: 1.25rem; border-left: 4px solid #3b82f6;">
+            <!-- Link to Configuration & Maintenance (System Status) -->
+            <a href="user-role.html" style="text-decoration: none; display: block;">
+                <div class="card overview-card blue">
                     <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Total Users</p>
-                    <h2 style="color: var(--brand-dark); margin-top: 0.5rem;">3</h2>
-                    <p style="color: #3b82f6; font-size: 0.75rem; margin-top: 0.25rem;">Manage</p>
+                    <h2 style="color: var(--brand-dark); margin: 0.75rem 0;">3</h2>
+                    <p style="color: #3b82f6; font-size: 0.75rem; font-weight: 500;">Manage</p>
                 </div>
             </a>
 
-            <!-- Link to Analytics -->
-            <a href="reports-analytics.html" style="text-decoration: none;">
-                <div class="card" style="padding: 1.25rem; border-left: 4px solid #f59e0b;">
+            <!-- Link to Data Backup & Recovery (Last Backup) -->
+            <a href="reports-analytics.html" style="text-decoration: none; display: block;">
+                <div class="card overview-card amber">
                     <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Monthly Requests</p>
-                    <h2 style="color: var(--brand-dark); margin-top: 0.5rem;">100</h2>
-                    <p style="color: #f59e0b; font-size: 0.75rem; margin-top: 0.25rem;">View</p>
+                    <h2 style="color: var(--brand-dark); margin: 0.75rem 0;">100</h2>
+                    <p style="color: #f59e0b; font-size: 0.75rem; font-weight: 500;">View</p>
                 </div>
             </a>
 
-            <!-- Link to Announcements -->
-            <a href="announcements.html" style="text-decoration: none;">
-                <div class="card" style="padding: 1.25rem; border-left: 4px solid #ef4444;">
+            <!-- Link to Audit Trail (Activity Alerts) -->
+            <a href="announcements.html" style="text-decoration: none; display: block;">
+                <div class="card overview-card red">
                     <p style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">Advisories</p>
-                    <h2 style="color: var(--brand-dark); margin-top: 0.5rem;">1</h2>
-                    <p style="color: #ef4444; font-size: 0.75rem; margin-top: 0.25rem;">Manage</p>
+                    <h2 style="color: var(--brand-dark); margin: 0.75rem 0;">1</h2>
+                    <p style="color: #ef4444; font-size: 0.75rem; font-weight: 500;">Manage</p>
                 </div>
             </a>
         </div>
