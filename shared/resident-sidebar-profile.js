@@ -67,7 +67,7 @@
   }
 
   async function hydrateUserFromContext() {
-    const baseRaw = String(global.API_BASE_URL || "http://localhost:4000").replace(/\/$/, "");
+    const baseRaw = String(global.API_BASE_URL || "https://sb-draft1.onrender.com").replace(/\/$/, "");
     try {
       const raw = global.sessionStorage.getItem("residentAuth");
       if (!raw) return;

@@ -67,7 +67,7 @@ admin: {
   function inferApiBaseUrl() {
     try {
       const href = globalScope.location?.href;
-      if (!href || href.startsWith("file:")) return "http://localhost:4000";
+      if (!href || href.startsWith("file:")) return "https://sb-draft1.onrender.com";
       const u = new URL(href);
       if ((u.protocol === "http:" || u.protocol === "https:") && u.hostname) {
         return `${u.protocol}//${u.hostname}:4000`;
@@ -75,7 +75,7 @@ admin: {
     } catch (_e) {
       /* ignore */
     }
-    return "http://localhost:4000";
+    return "https://sb-draft1.onrender.com";
   }
 
   const existingApi = typeof globalScope.API_BASE_URL === "string" ? globalScope.API_BASE_URL.trim() : "";

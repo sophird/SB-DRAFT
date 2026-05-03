@@ -16,7 +16,7 @@
       /* ignore */
     }
     const w = String(globalScope.API_BASE_URL || "").trim();
-    return w ? w.replace(/\/$/, "") : "http://localhost:4000";
+    return w ? w.replace(/\/$/, "") : "https://sb-draft1.onrender.com";
   }
 
   const API_BASE_URL = readApiBase();

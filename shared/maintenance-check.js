@@ -3,7 +3,7 @@
  * Include after shared/routes.js when using SB_MAINTENANCE.
  */
 (function initMaintenanceCheck(globalScope) {
-  const API_BASE_URL = "http://localhost:4000";
+  const API_BASE_URL = "https://sb-draft1.onrender.com";
 
   async function fetchPortalEnvironment() {
     try {

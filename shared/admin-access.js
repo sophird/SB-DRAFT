@@ -3,7 +3,7 @@
     const raw =
       typeof globalScope.API_BASE_URL === "string" && globalScope.API_BASE_URL.trim()
         ? globalScope.API_BASE_URL.trim()
-        : "http://localhost:4000";
+        : "https://sb-draft1.onrender.com";
     return raw.replace(/\/$/, "");
   }
   const routes = globalScope.APP_ROUTES || {};
