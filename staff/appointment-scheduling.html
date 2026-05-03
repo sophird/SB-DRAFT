@@ -316,7 +316,7 @@
             </a>
         </nav>
         <div class="sidebar-footer">
-            <a href="landing.html" class="logout-btn" id="adminLogoutBtn">
+            <a href="index.html" class="logout-btn" id="adminLogoutBtn">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                     <polyline points="16 17 21 12 16 7"></polyline>
@@ -462,12 +462,12 @@
     <script>
         const API_BASE_URL = "http://localhost:4000";
         const STAFF_ROUTES = window.APP_ROUTES?.staff || { login: "../admin-login.html", dashboard: "staff-dashboard.html" };
-        const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "landing.html" };
+        const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "index.html" };
         function applyStaffRouteLinks() {
             document.querySelectorAll('a[href="staff-dashboard.html"]').forEach((link) => {
                 link.href = STAFF_ROUTES.dashboard;
             });
-            document.querySelectorAll('a[href="landing.html"]').forEach((link) => {
+            document.querySelectorAll('a[href="index.html"]').forEach((link) => {
                 link.href = COMMON_ROUTES.landing;
             });
         }

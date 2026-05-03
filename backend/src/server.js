@@ -5916,3 +5916,5 @@ function gracefulShutdown(signal) {
 
 process.once("SIGINT", () => gracefulShutdown("SIGINT"));
 process.once("SIGTERM", () => gracefulShutdown("SIGTERM"));
+
+const { supabase } = require('./config/supabaseClient');

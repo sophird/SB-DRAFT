@@ -17,5 +17,8 @@
   "bugs": {
     "url": "https://github.com/sophird/SB-DRAFT/issues"
   },
-  "homepage": "https://github.com/sophird/SB-DRAFT#readme"
+  "homepage": "https://github.com/sophird/SB-DRAFT#readme",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.105.1"
+  }
 }
