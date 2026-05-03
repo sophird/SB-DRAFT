@@ -1,6 +1,6 @@
-# Staff Dashboard Filter Enhancement - COMPLETE
+# Remove Google Login from resident-login.html - COMPLETE
 
 ## Steps:
-- [x] Add Approved, Revisions, Rejected options to status filter dropdown in staff/staff-dashboard.html (values: approved, revisions, rejected)
-- [x] Verify changes
-- [x] Complete task
+- [x] Removed "or" divider div, Google button, .btn-google CSS rules, loginWithGoogle() JS function
+- [x] Verified: clean login form (email/password → submit button directly)
+- [x] Task complete
