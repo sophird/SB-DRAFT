@@ -100,6 +100,12 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
 );
+if (!String(process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim()) {
+  console.warn(
+    "[backend] SUPABASE_SERVICE_ROLE_KEY is not set; using anon key for admin DB client. " +
+      "Writes such as system environment may fail under RLS. Set SUPABASE_SERVICE_ROLE_KEY in backend/.env."
+  );
+}
 const supabaseAuth = createClient(
   process.env.SUPABASE_URL || "",
   process.env.SUPABASE_ANON_KEY || ""
@@ -449,6 +455,19 @@ async function requireStaffPortalUser(req, res) {
   return { profile };
 }
 
+async function requireSystemAdminUser(req, res) {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return null;
+  if (auth.profile.role !== "system-admin") {
+    res.status(403).json({
+      ok: false,
+      message: "System administrator access is required for this action."
+    });
+    return null;
+  }
+  return auth;
+}
+
 function normalizeAnnouncementRow(row) {
   return {
     id: row.id,
@@ -472,6 +491,82 @@ function normalizeServiceCatalogRow(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+function normalizeAppointmentPurposeCatalogRow(row) {
+  return {
+    id: row.id,
+    purposeCode: row.purpose_code,
+    label: row.label,
+    sortOrder: row.sort_order ?? 0,
+    archivedAt: row.archived_at ?? null,
+    createdAt: row.created_at || null
+  };
+}
+
+const PORTAL_ENVIRONMENT_VALUES = new Set(["production", "maintenance"]);
+
+async function getPortalEnvironmentFromDb() {
+  const { data, error } = await supabaseAdmin
+    .from("system_settings")
+    .select("environment")
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) {
+    console.error("[system_settings] read:", error.message);
+    return "production";
+  }
+  const env = String(data?.environment || "production").toLowerCase();
+  return PORTAL_ENVIRONMENT_VALUES.has(env) ? env : "production";
+}
+
+async function savePortalEnvironmentToDb(environment) {
+  const env = PORTAL_ENVIRONMENT_VALUES.has(String(environment || "").toLowerCase())
+    ? String(environment).toLowerCase()
+    : "production";
+  const now = new Date().toISOString();
+  const row = { id: 1, environment: env, updated_at: now };
+
+  const { data: updatedRows, error: updateError } = await supabaseAdmin
+    .from("system_settings")
+    .update({ environment: env, updated_at: now })
+    .eq("id", 1)
+    .select("id");
+
+  if (updateError) {
+    return { ok: false, detail: updateError.message };
+  }
+  if (Array.isArray(updatedRows) && updatedRows.length > 0) {
+    return { ok: true, environment: env };
+  }
+
+  const { error: insertError } = await supabaseAdmin.from("system_settings").insert(row);
+  if (!insertError) {
+    return { ok: true, environment: env };
+  }
+  if (/duplicate|unique/i.test(String(insertError.message || ""))) {
+    const { error: retryErr } = await supabaseAdmin
+      .from("system_settings")
+      .update({ environment: env, updated_at: now })
+      .eq("id", 1);
+    if (retryErr) {
+      return { ok: false, detail: retryErr.message };
+    }
+    return { ok: true, environment: env };
+  }
+  return { ok: false, detail: insertError.message };
+}
+
+/** URL-safe code for appointment purpose (stored in appointments.purpose). */
+function slugifyAppointmentPurposeCode(raw) {
+  let s = String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  if (!s) s = "purpose";
+  return s;
 }
 
 function normalizeFaqSearchText(raw) {
@@ -681,6 +776,142 @@ async function rewriteFaqWithGroq(userQuestion, matches) {
   }
 }
 
+/** Strip optional ```json fences from model output. */
+function extractJsonValueFromGroqText(raw) {
+  let s = String(raw || "").trim();
+  const m = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (m) s = m[1].trim();
+  return s;
+}
+
+function parseGroqJsonArray(text) {
+  const t = extractJsonValueFromGroqText(text);
+  try {
+    const v = JSON.parse(t);
+    return Array.isArray(v) ? v : null;
+  } catch {
+    const start = t.indexOf("[");
+    const end = t.lastIndexOf("]");
+    if (start < 0 || end <= start) return null;
+    try {
+      const v = JSON.parse(t.slice(start, end + 1));
+      return Array.isArray(v) ? v : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
+/**
+ * Ask Groq for one-sentence summaries of audit log descriptions (chunked).
+ * Returns parallel array of strings (summary or original text on failure / skip).
+ */
+async function summarizeAuditDescriptionsWithGroq(logs) {
+  const originals = logs.map((l) => String(l.description || ""));
+  if (!logs.length) return originals;
+
+  const apiKey = String(process.env.GROQ_API_KEY || "").trim();
+  if (!apiKey) return originals;
+  if (String(process.env.AUDIT_LOG_GROQ_SUMMARY || "1").trim() === "0") return originals;
+
+  const model = String(process.env.GROQ_MODEL || "").trim() || GROQ_CHAT_DEFAULT_MODEL;
+  const chunkSizeRaw = Number(process.env.AUDIT_GROQ_SUMMARY_CHUNK_SIZE);
+  const chunkSize =
+    Number.isInteger(chunkSizeRaw) && chunkSizeRaw > 0 ? Math.min(32, chunkSizeRaw) : 18;
+
+  const out = [...originals];
+
+  for (let start = 0; start < logs.length; start += chunkSize) {
+    const end = Math.min(start + chunkSize, logs.length);
+    const bundle = [];
+    for (let i = start; i < end; i++) {
+      bundle.push({
+        i: i - start,
+        action: String(logs[i].displayAction || logs[i].filterAction || "").slice(0, 120),
+        text: originals[i].slice(0, 1400)
+      });
+    }
+
+    const systemPrompt = [
+      "You polish one-line audit log descriptions for a Philippine barangay IT admin dashboard.",
+      "Each input item has: i (0-based index in this batch), action (category label), text (one factual line, often already in final form).",
+      "Output ONE English sentence per item. Preserve all reference codes (REQ-xxxx, APT-xxxx), emails, names, dates, and status wording.",
+      "When text already matches a short factual sentence (e.g. \"Service request REQ-1 (X) status: Pending, changed to Processing\"), return it unchanged or fix only grammar/spacing.",
+      "Do not invent facts. If text is empty, use: \"Audit event recorded with no extra detail.\"",
+      "No markdown, no bullets.",
+      "Return ONLY valid JSON: an array of objects {\"i\":number,\"summary\":\"...\"} — exactly one object per input item, every i from 0 through n-1 exactly once. Use only integer i (not strings)."
+    ].join("\n");
+
+    const userContent = `INPUT_ITEMS_JSON:\n${JSON.stringify(bundle)}`;
+
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 55000);
+    try {
+      const res = await fetch(GROQ_API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent }
+          ],
+          temperature: 0.1,
+          max_tokens: 4096
+        }),
+        signal: ac.signal
+      });
+
+      const rawText = await res.text();
+      let json;
+      try {
+        json = JSON.parse(rawText);
+      } catch {
+        console.warn("[audit groq] bad HTTP body:", rawText.slice(0, 200));
+        continue;
+      }
+      if (!res.ok) {
+        console.warn("[audit groq] HTTP", res.status, json?.error?.message || rawText.slice(0, 200));
+        continue;
+      }
+
+      const content = String(json?.choices?.[0]?.message?.content || "");
+      const arr = parseGroqJsonArray(content);
+      if (!arr) {
+        console.warn("[audit groq] JSON array parse failed:", content.slice(0, 300));
+        continue;
+      }
+
+      const byI = new Map();
+      for (const row of arr) {
+        if (!row || typeof row !== "object") continue;
+        const rawIdx = row.i ?? row.index;
+        const idx = Number(rawIdx);
+        const summary = String(row.summary || row.s || "").trim();
+        const iInt = Number.isFinite(idx) ? Math.floor(idx) : -1;
+        if (iInt >= 0 && iInt < bundle.length && summary) {
+          byI.set(iInt, summary.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "").replace(/[<>]/g, ""));
+        }
+      }
+      for (let k = 0; k < bundle.length; k++) {
+        const s = byI.get(k);
+        if (s) out[start + k] = s.length > 500 ? s.slice(0, 497) + "…" : s;
+      }
+    } catch (err) {
+      if (err?.name !== "AbortError") {
+        console.warn("[audit groq] chunk error:", err?.message || err);
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  return out;
+}
+
 // Return basic API status and whether Supabase env vars are present.
 app.get("/health", async (_req, res) => {
   // Lightweight check that API server is up and env is loaded.
@@ -724,6 +955,16 @@ app.get("/auth/config", async (_req, res) => {
     supabaseUrl,
     supabaseAnonKey
   });
+});
+
+// Public portal mode (used by landing, guards, and login redirects). No auth.
+app.get("/public/system-status", async (_req, res) => {
+  try {
+    const environment = await getPortalEnvironmentFromDb();
+    return res.json({ ok: true, environment });
+  } catch (_err) {
+    return res.json({ ok: true, environment: "production" });
+  }
 });
 
 // Authenticate an admin account and return auth session details.
@@ -1582,6 +1823,28 @@ app.put("/admin/appointment-slot-overrides", async (req, res) => {
     return res.status(500).json({ ok: false, message: "Unable to save slot capacity override.", detail: error.message });
   }
 
+  let slotLabel = "";
+  const { data: slotMeta } = await supabaseAdmin
+    .from("appointment_slots")
+    .select("label, slot_code")
+    .eq("id", parsedSlotId)
+    .maybeSingle();
+  if (slotMeta) {
+    slotLabel = String(slotMeta.label || slotMeta.slot_code || "").trim();
+  }
+  void insertPortalAuditEvent({
+    action: "Updated Slots",
+    description: `Appointment slot capacity override: slot ID ${parsedSlotId}${slotLabel ? ` (${slotLabel})` : ""}, date ${dateISO}, capacity limit set to ${parsedLimit}.`,
+    profile: auth.profile,
+    metadata: {
+      entity: "appointment_slot_override",
+      slotId: parsedSlotId,
+      slotLabel: slotLabel || null,
+      date: dateISO,
+      capacityLimit: parsedLimit
+    }
+  });
+
   return res.json({ ok: true, slotId: parsedSlotId, date: dateISO, capacityLimit: parsedLimit });
 });
 
@@ -1821,6 +2084,27 @@ app.patch("/requests/:id/status", async (req, res) => {
     note: safeNote
   });
 
+  const auditCat = portalAuditCategoryForServiceRequestStatus(nextStatus);
+  const prev = String(existing.status || "").trim();
+  const svcLabel = String(existing.service_type || "").trim() || String(existing.title || "").trim() || "—";
+  const refNo = String(existing.reference_no || id).trim();
+  const oneLine = `Service request ${refNo} (${svcLabel}) status: ${prev}, changed to ${nextStatus}`;
+  void insertPortalAuditEvent({
+    action: auditCat,
+    description: oneLine.slice(0, 2000),
+    profile: auth.profile,
+    metadata: {
+      entity: "service_request",
+      requestId: id,
+      referenceNo: existing.reference_no,
+      previousStatus: prev,
+      newStatus: nextStatus,
+      serviceType: existing.service_type,
+      title: existing.title,
+      staffNote: safeNote || null
+    }
+  });
+
   return res.json({
     ok: true,
     request: requestRow
@@ -1978,6 +2262,21 @@ app.delete("/requests/:id", async (req, res) => {
   const requestRow = normalizeRequestRow(data);
   broadcastRequestEvent({ type: "deleted", request: requestRow });
 
+  void insertPortalAuditEvent({
+    action: "Deleted Record",
+    description: `Deleted service request ${existing.reference_no || id} (${String(existing.service_type || "").trim() || "—"}). Prior status: "${String(existing.status || "").trim() || "—"}". Title: "${String(existing.title || "").trim() || "—"}". Request ID: ${id}.`,
+    profile: actor.profile,
+    metadata: {
+      entity: "service_request",
+      requestId: id,
+      referenceNo: existing.reference_no,
+      serviceType: existing.service_type,
+      title: existing.title,
+      status: existing.status,
+      portal: actor.portal
+    }
+  });
+
   return res.json({
     ok: true,
     request: requestRow
@@ -2133,6 +2432,20 @@ app.post("/appointments", async (req, res) => {
     });
   }
 
+  const { data: purposeAllowed, error: purposeCheckErr } = await supabaseAdmin
+    .from("appointment_purpose_catalog")
+    .select("id")
+    .eq("purpose_code", safePurpose)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (purposeCheckErr || !purposeAllowed) {
+    return res.status(400).json({
+      ok: false,
+      message: "That appointment purpose is not available. Please refresh and choose a valid option."
+    });
+  }
+
   const parsedSlotId = Number(slotId);
   if (!Number.isInteger(parsedSlotId) || parsedSlotId <= 0) {
     return res.status(400).json({
@@ -2191,6 +2504,23 @@ app.post("/appointments", async (req, res) => {
 
   const appointmentRow = normalizeAppointmentRow(data);
   broadcastAppointmentEvent({ type: "created", appointment: appointmentRow });
+
+  void insertPortalAuditEvent({
+    action: "Updated Record",
+    description: `Booked appointment ${referenceNo}. Date: ${safeAppointmentDate}. Time: ${appointmentRow.timeLabel || `slot ID ${parsedSlotId}`}. Purpose: ${safePurpose}. Status: ${appointmentRow.status || "Pending Review"}. Appointment ID: ${data?.id ?? "—"}.`,
+    profile: auth.profile,
+    performedByRole: "resident",
+    metadata: {
+      entity: "appointment",
+      appointmentId: data?.id ?? null,
+      referenceNo,
+      appointmentDate: safeAppointmentDate,
+      slotId: parsedSlotId,
+      timeLabel: appointmentRow.timeLabel,
+      purpose: safePurpose,
+      status: appointmentRow.status
+    }
+  });
 
   return res.status(201).json({
     ok: true,
@@ -2315,6 +2645,26 @@ app.patch("/appointments/:id/status", async (req, res) => {
     note: safeNote || null
   });
 
+  const apAuditCat = portalAuditCategoryForAppointmentStatus(mappedStatus);
+  const apPrev = String(existing.status || "").trim();
+  const apNoteLine = safeNote ? ` Staff note: ${safeNote}` : "";
+  void insertPortalAuditEvent({
+    action: apAuditCat,
+    description: `Appointment ${existing.reference_no || id} (${appointmentRow.timeLabel || `slot ID ${existing.slot_id}`}): status "${apPrev}" → "${mappedStatus}". Date: ${String(existing.appointment_date || "").trim() || "—"}. Purpose: "${String(existing.purpose || "").trim() || "—"}". Appointment ID: ${id}.${apNoteLine}`,
+    profile: staffAuth.profile,
+    metadata: {
+      entity: "appointment",
+      appointmentId: id,
+      referenceNo: existing.reference_no,
+      previousStatus: apPrev,
+      newStatus: mappedStatus,
+      appointmentDate: existing.appointment_date,
+      purpose: existing.purpose,
+      slotId: existing.slot_id,
+      staffNote: safeNote || null
+    }
+  });
+
   return res.json({
     ok: true,
     appointment: appointmentRow
@@ -2388,6 +2738,22 @@ app.delete("/appointments/:id", async (req, res) => {
 
   const appointmentRow = normalizeAppointmentRow(data);
   broadcastAppointmentEvent({ type: "deleted", appointment: appointmentRow });
+
+  void insertPortalAuditEvent({
+    action: "Deleted Record",
+    description: `Deleted appointment ${existing.reference_no || id}. Prior status: "${String(existing.status || "").trim() || "—"}". Date: ${String(existing.appointment_date || "").trim() || "—"}. Purpose: "${String(existing.purpose || "").trim() || "—"}". Slot ID: ${existing.slot_id ?? "—"}. Appointment ID: ${id}.`,
+    profile: actor.profile,
+    metadata: {
+      entity: "appointment",
+      appointmentId: id,
+      referenceNo: existing.reference_no,
+      status: existing.status,
+      appointmentDate: existing.appointment_date,
+      purpose: existing.purpose,
+      slotId: existing.slot_id,
+      portal: actor.portal
+    }
+  });
 
   return res.json({
     ok: true,
@@ -2577,6 +2943,19 @@ app.post("/admin/announcements", async (req, res) => {
   const createdRow = normalizeAnnouncementRow(data);
   broadcastAnnouncementEvent({ type: "created", announcement: createdRow });
 
+  void insertPortalAuditEvent({
+    action: "Updated Record",
+    description: `Posted community announcement ID ${createdRow.id}. Category: "${safeCategory}". Title: "${safeTitle}". Posted by role: ${createdRow.postedByRole || auth.profile?.role || "—"}.`,
+    profile: auth.profile,
+    metadata: {
+      entity: "community_announcement",
+      announcementId: createdRow.id,
+      category: safeCategory,
+      title: safeTitle,
+      postedByRole: createdRow.postedByRole
+    }
+  });
+
   return res.status(201).json({
     ok: true,
     message: "Announcement posted.",
@@ -2629,7 +3008,7 @@ app.delete("/admin/announcements/:id", async (req, res) => {
 
   const { data: existing, error: findErr } = await supabaseAdmin
     .from("community_announcements")
-    .select("id")
+    .select("id, title, category, posted_by_role, is_active, created_at")
     .eq("id", id)
     .maybeSingle();
 
@@ -2655,6 +3034,21 @@ app.delete("/admin/announcements/:id", async (req, res) => {
   }
 
   broadcastAnnouncementEvent({ type: "deleted", id });
+
+  void insertPortalAuditEvent({
+    action: "Deleted Record",
+    description: `Deleted community announcement ID ${id}. Title: "${String(existing.title || "").trim() || "—"}". Category: "${String(existing.category || "").trim() || "—"}". Was active: ${Boolean(existing.is_active)}. Original posted-by role: ${existing.posted_by_role ?? "—"}.`,
+    profile: auth.profile,
+    metadata: {
+      entity: "community_announcement",
+      announcementId: id,
+      title: existing.title,
+      category: existing.category,
+      postedByRole: existing.posted_by_role,
+      isActive: existing.is_active,
+      createdAt: existing.created_at
+    }
+  });
 
   return res.json({ ok: true, message: "Announcement deleted." });
 });
@@ -3130,19 +3524,96 @@ app.post(
 
 // --- Admin user profiles (User & Role management) ---
 
+function mapDirectoryProfileRow(row) {
+  const profile = {
+    email: row.email,
+    fullName: row.full_name,
+    role: row.role,
+    createdAt: row.created_at,
+    residentSelfRegistered: row.role === "resident" && Boolean(row.resident_self_registered)
+  };
+  if (row.role === "staff") {
+    profile.staffPermissions = normalizeStaffPermissionsFromDb(row.staff_permissions);
+  }
+  return profile;
+}
+
 app.get("/admin/profiles", async (req, res) => {
   const auth = await requireStaffPortalUser(req, res);
   if (!auth) return;
-  if (auth.profile.role !== "admin") {
-    return res.status(403).json({ ok: false, message: "Admin role required to list all users." });
+  const actorRole = auth.profile.role;
+  if (actorRole !== "admin" && actorRole !== "system-admin") {
+    return res.status(403).json({
+      ok: false,
+      message: "Barangay admin or system administrator role is required to list users."
+    });
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("profiles")
-    .select("email, full_name, role, created_at, staff_permissions, resident_self_registered")
-    .not("role", "eq", "admin")
-    .not("role", "eq", "system-admin")
-    .order("full_name", { ascending: true });
+  const rawLimit = req.query?.limit;
+  const rawOffset = req.query?.offset;
+  let pageLimit = 0;
+  if (rawLimit !== undefined && rawLimit !== null && String(rawLimit).trim() !== "") {
+    const parsed = Number(rawLimit);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      pageLimit = Math.min(100, parsed);
+    }
+  }
+  const offsetParsed = Number(rawOffset);
+  const pageOffset = Number.isInteger(offsetParsed) && offsetParsed >= 0 ? offsetParsed : 0;
+
+  function filteredProfilesDataQuery() {
+    let q = supabaseAdmin
+      .from("profiles")
+      .select("email, full_name, role, created_at, staff_permissions, resident_self_registered")
+      .order("created_at", { ascending: false, nullsFirst: false })
+      .order("full_name", { ascending: true });
+    if (actorRole === "system-admin") {
+      return q.neq("role", "system-admin");
+    }
+    return q.not("role", "eq", "admin").not("role", "eq", "system-admin");
+  }
+
+  function filteredProfilesCountQuery() {
+    let q = supabaseAdmin.from("profiles").select("email", { count: "exact", head: true });
+    if (actorRole === "system-admin") {
+      return q.neq("role", "system-admin");
+    }
+    return q.not("role", "eq", "admin").not("role", "eq", "system-admin");
+  }
+
+  if (pageLimit > 0) {
+    const dataQuery = filteredProfilesDataQuery().range(pageOffset, pageOffset + pageLimit - 1);
+    const [{ count, error: countError }, { data, error }] = await Promise.all([
+      filteredProfilesCountQuery(),
+      dataQuery
+    ]);
+
+    if (countError) {
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to count user profiles.",
+        detail: countError.message
+      });
+    }
+    if (error) {
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to load user profiles.",
+        detail: error.message
+      });
+    }
+
+    const total = typeof count === "number" ? count : 0;
+    return res.json({
+      ok: true,
+      profiles: (data || []).map(mapDirectoryProfileRow),
+      total,
+      limit: pageLimit,
+      offset: pageOffset
+    });
+  }
+
+  const { data, error } = await filteredProfilesDataQuery();
 
   if (error) {
     return res.status(500).json({
@@ -3154,19 +3625,7 @@ app.get("/admin/profiles", async (req, res) => {
 
   return res.json({
     ok: true,
-    profiles: (data || []).map((row) => {
-      const profile = {
-        email: row.email,
-        fullName: row.full_name,
-        role: row.role,
-        createdAt: row.created_at,
-        residentSelfRegistered: row.role === "resident" && Boolean(row.resident_self_registered)
-      };
-      if (row.role === "staff") {
-        profile.staffPermissions = normalizeStaffPermissionsFromDb(row.staff_permissions);
-      }
-      return profile;
-    })
+    profiles: (data || []).map(mapDirectoryProfileRow)
   });
 });
 
@@ -3286,6 +3745,18 @@ app.post("/admin/staff", adminStaffCreateLimiter, async (req, res) => {
     });
   }
 
+  void insertPortalAuditEvent({
+    action: "Updated Record",
+    description: `Created staff account for ${normalizedEmail}. Name: "${safeFullName}". Permissions JSON keys: ${Object.keys(perms || {}).join(", ") || "—"}.`,
+    profile: auth.profile,
+    metadata: {
+      entity: "staff_account",
+      staffEmail: normalizedEmail,
+      fullName: safeFullName,
+      staffPermissions: perms
+    }
+  });
+
   return res.status(201).json({
     ok: true,
     message: "Staff account created.",
@@ -3354,6 +3825,17 @@ app.patch("/admin/staff/permissions", async (req, res) => {
     });
   }
 
+  void insertPortalAuditEvent({
+    action: "Updated Record",
+    description: `Updated staff page permissions for ${normalizedEmail}. Permission keys: ${Object.keys(perms || {}).join(", ") || "—"}.`,
+    profile: auth.profile,
+    metadata: {
+      entity: "staff_permissions",
+      staffEmail: normalizedEmail,
+      staffPermissions: perms
+    }
+  });
+
   return res.json({
     ok: true,
     message: "Staff permissions updated.",
@@ -3375,12 +3857,13 @@ async function findAuthUserIdByEmail(normalizedEmail) {
   return { id: null, error: null };
 }
 
-/** Remove profile + app user row + Supabase Auth user (admin only; cannot delete self or other admins). */
+/** Remove profile + app user row + Supabase Auth user (barangay admin or system admin; rules differ by actor). */
 app.post("/admin/profiles/delete", async (req, res) => {
   const auth = await requireStaffPortalUser(req, res);
   if (!auth) return;
-  if (auth.profile.role !== "admin") {
-    return res.status(403).json({ ok: false, message: "Admin role required to delete users." });
+  const actorRole = auth.profile.role;
+  if (actorRole !== "admin" && actorRole !== "system-admin") {
+    return res.status(403).json({ ok: false, message: "Barangay admin or system administrator role is required." });
   }
 
   const email = normalizeEmail(req.body?.email ?? "");
@@ -3410,7 +3893,14 @@ app.post("/admin/profiles/delete", async (req, res) => {
     return res.status(404).json({ ok: false, message: "No profile found for that email." });
   }
 
-  if (profile.role === "admin") {
+  if (profile.role === "system-admin") {
+    return res.status(403).json({
+      ok: false,
+      message: "System administrator accounts cannot be deleted from this action."
+    });
+  }
+
+  if (actorRole === "admin" && profile.role === "admin") {
     return res.status(403).json({ ok: false, message: "Deleting admin accounts is not allowed." });
   }
 
@@ -3476,6 +3966,18 @@ app.post("/admin/profiles/delete", async (req, res) => {
       });
     }
   }
+
+  void insertPortalAuditEvent({
+    action: "Deleted Record",
+    description: `Permanently deleted user account for email ${email}. Prior profile role: ${profile.role}. Auth user removed: ${authUserId ? "yes" : "no (no auth id found)"}.`,
+    profile: auth.profile,
+    metadata: {
+      entity: "profile",
+      deletedEmail: email,
+      deletedRole: profile.role,
+      authUserRemoved: Boolean(authUserId)
+    }
+  });
 
   return res.json({ ok: true, message: "Account deleted." });
 });
@@ -3636,9 +4138,24 @@ app.post("/admin/service-catalog", async (req, res) => {
     });
   }
 
+  const svcRow = normalizeServiceCatalogRow(data);
+  void insertPortalAuditEvent({
+    action: "Updated Record",
+    description: `Created catalog service ID ${svcRow.id}. Name: "${svcRow.name}". Status: ${svcRow.status}. Processing time: ${svcRow.processingTime || "—"}. Required documents: ${svcRow.requiredDocuments ? String(svcRow.requiredDocuments).slice(0, 240) + (svcRow.requiredDocuments.length > 240 ? "…" : "") : "—"}.`,
+    profile: auth.profile,
+    metadata: {
+      entity: "service_catalog",
+      serviceId: svcRow.id,
+      name: svcRow.name,
+      status: svcRow.status,
+      processingTime: svcRow.processingTime,
+      requiredDocuments: svcRow.requiredDocuments
+    }
+  });
+
   return res.status(201).json({
     ok: true,
-    service: normalizeServiceCatalogRow(data)
+    service: svcRow
   });
 });
 
@@ -3684,9 +4201,26 @@ app.patch("/admin/service-catalog/:id", async (req, res) => {
     return res.status(404).json({ ok: false, message: "Service not found." });
   }
 
+  const svcPatched = normalizeServiceCatalogRow(data);
+  const changedKeys = Object.keys(updatePayload);
+  void insertPortalAuditEvent({
+    action: "Updated Record",
+    description: `Updated catalog service ID ${id}. Fields changed: ${changedKeys.join(", ") || "—"}. Current name: "${svcPatched.name}". Status: ${svcPatched.status}. Processing time: ${svcPatched.processingTime || "—"}. Required documents: ${String(svcPatched.requiredDocuments || "").slice(0, 400)}${String(svcPatched.requiredDocuments || "").length > 400 ? "…" : ""}.`,
+    profile: auth.profile,
+    metadata: {
+      entity: "service_catalog",
+      serviceId: id,
+      fieldsChanged: changedKeys,
+      name: svcPatched.name,
+      status: svcPatched.status,
+      processingTime: svcPatched.processingTime,
+      requiredDocuments: svcPatched.requiredDocuments
+    }
+  });
+
   return res.json({
     ok: true,
-    service: normalizeServiceCatalogRow(data)
+    service: svcPatched
   });
 });
 
@@ -3719,10 +4253,950 @@ app.post("/admin/service-catalog/:id/archive", async (req, res) => {
     return res.status(404).json({ ok: false, message: "Service not found or already archived." });
   }
 
+  const svcArchived = normalizeServiceCatalogRow(data);
+  void insertPortalAuditEvent({
+    action: "Archived Record",
+    description: `Archived catalog service ID ${id}. Name: "${svcArchived.name}". Status at archive: ${svcArchived.status}. Archived at: ${svcArchived.archivedAt || "—"}.`,
+    profile: auth.profile,
+    metadata: {
+      entity: "service_catalog",
+      serviceId: id,
+      name: svcArchived.name,
+      status: svcArchived.status,
+      archivedAt: svcArchived.archivedAt
+    }
+  });
+
   return res.json({
     ok: true,
-    service: normalizeServiceCatalogRow(data)
+    service: svcArchived
   });
+});
+
+// --- System admin: configuration (service request types & appointment purpose options) ---
+
+app.get("/system-admin/system-environment", async (req, res) => {
+  const auth = await requireSystemAdminUser(req, res);
+  if (!auth) return;
+  const environment = await getPortalEnvironmentFromDb();
+  return res.json({ ok: true, environment });
+});
+
+/** Dashboard overview for system admin home (counts + environment + audit recency). */
+app.get("/system-admin/dashboard-stats", async (req, res) => {
+  const auth = await requireSystemAdminUser(req, res);
+  if (!auth) return;
+
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+
+  const [adminC, staffC, residentC, latestRow, weekCount] = await Promise.all([
+    supabaseAdmin.from("profiles").select("email", { count: "exact", head: true }).eq("role", "admin"),
+    supabaseAdmin.from("profiles").select("email", { count: "exact", head: true }).eq("role", "staff"),
+    supabaseAdmin.from("profiles").select("email", { count: "exact", head: true }).eq("role", "resident"),
+    supabaseAdmin.from("portal_audit_events").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabaseAdmin.from("portal_audit_events").select("id", { count: "exact", head: true }).gte("created_at", sevenDaysAgo)
+  ]);
+
+  if (adminC.error || staffC.error || residentC.error) {
+    const err = adminC.error || staffC.error || residentC.error;
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load profile counts.",
+      detail: err?.message || "unknown"
+    });
+  }
+
+  const admins = typeof adminC.count === "number" ? adminC.count : 0;
+  const staff = typeof staffC.count === "number" ? staffC.count : 0;
+  const residents = typeof residentC.count === "number" ? residentC.count : 0;
+  const portalUserTotal = admins + staff + residents;
+
+  const environment = await getPortalEnvironmentFromDb();
+
+  const lastAuditAt =
+    !latestRow.error && latestRow.data?.created_at ? String(latestRow.data.created_at) : null;
+  const auditEventsLast7Days =
+    !weekCount.error && typeof weekCount.count === "number" ? weekCount.count : 0;
+
+  return res.json({
+    ok: true,
+    portalUsers: {
+      total: portalUserTotal,
+      admins,
+      staff,
+      residents
+    },
+    environment,
+    lastAuditAt,
+    auditEventsLast7Days
+  });
+});
+
+app.put("/system-admin/system-environment", async (req, res) => {
+  const auth = await requireSystemAdminUser(req, res);
+  if (!auth) return;
+  const raw = String((req.body || {}).environment || "").toLowerCase();
+  if (!PORTAL_ENVIRONMENT_VALUES.has(raw)) {
+    return res.status(400).json({
+      ok: false,
+      message: "Invalid environment. Use production or maintenance."
+    });
+  }
+  const result = await savePortalEnvironmentToDb(raw);
+  if (!result.ok) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to update system environment.",
+      detail: result.detail
+    });
+  }
+  void insertPortalAuditEvent({
+    action: "Updated Record",
+    description:
+      result.environment === "maintenance"
+        ? "Portal environment set to maintenance mode (non-system-admin access restricted)."
+        : "Portal environment set to production (full portal access).",
+    profile: auth.profile,
+    metadata: {
+      entity: "system_settings",
+      environment: result.environment,
+      source: "system-admin"
+    }
+  });
+  return res.json({ ok: true, environment: result.environment });
+});
+
+app.get("/system-admin/service-request-types", async (req, res) => {
+  const auth = await requireSystemAdminUser(req, res);
+  if (!auth) return;
+
+  const { data, error } = await supabaseAdmin
+    .from("service_catalog")
+    .select("*")
+    .is("archived_at", null)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load service request types.",
+      detail: error.message
+    });
+  }
+
+  return res.json({
+    ok: true,
+    services: (data || []).map(normalizeServiceCatalogRow)
+  });
+});
+
+app.post("/system-admin/service-request-types", async (req, res) => {
+  const auth = await requireSystemAdminUser(req, res);
+  if (!auth) return;
+
+  const body = req.body || {};
+  const { name, requiredDocuments, processingTime, category, serviceName } = body;
+  const rawName = name ?? category ?? serviceName;
+  const safeName = sanitizePlainTextField(rawName, MAX_SERVICE_TYPE_LEN);
+  if (!safeName) {
+    return res.status(400).json({ ok: false, message: "Service name is required." });
+  }
+
+  const rawDocs = requiredDocuments ?? body.required_documents ?? body.documents ?? "";
+  const insertPayload = {
+    service_name: safeName,
+    required_documents: sanitizePlainTextField(rawDocs, 2000),
+    processing_time: sanitizePlainTextField(processingTime || "1-2 Days", 120),
+    status: "Active",
+    archived_at: null
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from("service_catalog")
+    .insert(insertPayload)
+    .select("*")
+    .single();
+
+  if (error) {
+    const msg = String(error.message || "");
+    if (/duplicate|unique/i.test(msg)) {
+      return res.status(409).json({
+        ok: false,
+        message: "A service with this name already exists in the catalog."
+      });
+    }
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to add service request type.",
+      detail: error.message
+    });
+  }
+
+  const svcRow = normalizeServiceCatalogRow(data);
+  void insertPortalAuditEvent({
+    action: "Updated Record",
+    description: `Service catalog added: "${svcRow.name}" (${svcRow.status}).`,
+    profile: auth.profile,
+    metadata: {
+      entity: "service_catalog",
+      serviceId: svcRow.id,
+      name: svcRow.name,
+      status: svcRow.status,
+      source: "system-admin"
+    }
+  });
+
+  return res.status(201).json({ ok: true, service: svcRow });
+});
+
+app.delete("/system-admin/service-request-types/:id", async (req, res) => {
+  const auth = await requireSystemAdminUser(req, res);
+  if (!auth) return;
+
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, message: "Invalid service id." });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("service_catalog")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("archived_at", null)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to remove service request type.",
+      detail: error.message
+    });
+  }
+
+  if (!data) {
+    return res.status(404).json({ ok: false, message: "Service not found or already removed." });
+  }
+
+  const svcArchived = normalizeServiceCatalogRow(data);
+  void insertPortalAuditEvent({
+    action: "Archived Record",
+    description: `Service catalog archived: "${svcArchived.name}".`,
+    profile: auth.profile,
+    metadata: {
+      entity: "service_catalog",
+      serviceId: id,
+      name: svcArchived.name,
+      source: "system-admin"
+    }
+  });
+
+  return res.json({ ok: true, service: svcArchived });
+});
+
+app.get("/system-admin/appointment-purpose-types", async (req, res) => {
+  const auth = await requireSystemAdminUser(req, res);
+  if (!auth) return;
+
+  const { data, error } = await supabaseAdmin
+    .from("appointment_purpose_catalog")
+    .select("*")
+    .is("archived_at", null)
+    .order("sort_order", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load appointment purpose types.",
+      detail: error.message
+    });
+  }
+
+  return res.json({
+    ok: true,
+    purposes: (data || []).map(normalizeAppointmentPurposeCatalogRow)
+  });
+});
+
+app.post("/system-admin/appointment-purpose-types", async (req, res) => {
+  const auth = await requireSystemAdminUser(req, res);
+  if (!auth) return;
+
+  const { label, purposeCode } = req.body || {};
+  const safeLabel = sanitizePlainTextField(label, MAX_APPOINTMENT_PURPOSE_LEN);
+  if (!safeLabel) {
+    return res.status(400).json({ ok: false, message: "Label is required." });
+  }
+
+  let code = purposeCode != null ? slugifyAppointmentPurposeCode(purposeCode) : slugifyAppointmentPurposeCode(safeLabel);
+
+  const { data: maxRow } = await supabaseAdmin
+    .from("appointment_purpose_catalog")
+    .select("sort_order")
+    .is("archived_at", null)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextOrder = (Number(maxRow?.sort_order) || 0) + 1;
+
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const tryCode = attempt === 0 ? code : `${code}-${attempt + 1}`.slice(0, 80);
+
+    const { data, error } = await supabaseAdmin
+      .from("appointment_purpose_catalog")
+      .insert({
+        purpose_code: tryCode,
+        label: safeLabel,
+        sort_order: nextOrder,
+        archived_at: null
+      })
+      .select("*")
+      .single();
+
+    if (!error && data) {
+      const row = normalizeAppointmentPurposeCatalogRow(data);
+      void insertPortalAuditEvent({
+        action: "Updated Record",
+        description: `Appointment purpose option added: ${row.label} (${row.purposeCode}).`,
+        profile: auth.profile,
+        metadata: {
+          entity: "appointment_purpose_catalog",
+          purposeId: row.id,
+          purposeCode: row.purposeCode,
+          label: row.label,
+          source: "system-admin"
+        }
+      });
+      return res.status(201).json({ ok: true, purpose: row });
+    }
+
+    const detail = String(error?.message || "");
+    if (/duplicate|unique|idx_appointment_purpose_code_active/i.test(detail)) {
+      continue;
+    }
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to add appointment purpose type.",
+      detail: error?.message || "unknown"
+    });
+  }
+
+  return res.status(409).json({
+    ok: false,
+    message: "Could not allocate a unique purpose code. Try a different label or purposeCode."
+  });
+});
+
+app.delete("/system-admin/appointment-purpose-types/:id", async (req, res) => {
+  const auth = await requireSystemAdminUser(req, res);
+  if (!auth) return;
+
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, message: "Invalid purpose id." });
+  }
+
+  const { data: existing, error: loadErr } = await supabaseAdmin
+    .from("appointment_purpose_catalog")
+    .select("*")
+    .eq("id", id)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (loadErr) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load appointment purpose type.",
+      detail: loadErr.message
+    });
+  }
+  if (!existing) {
+    return res.status(404).json({ ok: false, message: "Purpose type not found or already removed." });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("appointment_purpose_catalog")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("archived_at", null)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to remove appointment purpose type.",
+      detail: error.message
+    });
+  }
+
+  const row = data ? normalizeAppointmentPurposeCatalogRow(data) : null;
+  void insertPortalAuditEvent({
+    action: "Archived Record",
+    description: row ? `Appointment purpose archived: "${row.label}" (${row.purposeCode}).` : "Appointment purpose archived.",
+    profile: auth.profile,
+    metadata: {
+      entity: "appointment_purpose_catalog",
+      purposeId: id,
+      purposeCode: existing.purpose_code,
+      label: existing.label,
+      source: "system-admin"
+    }
+  });
+
+  return res.json({ ok: true, purpose: row });
+});
+
+/** Active appointment purposes for resident booking UI (ordered). */
+app.get("/resident/appointment-purpose-types", async (req, res) => {
+  const auth = await requireResidentPortalUser(req, res);
+  if (!auth) return;
+
+  const { data, error } = await supabaseAdmin
+    .from("appointment_purpose_catalog")
+    .select("purpose_code, label, sort_order")
+    .is("archived_at", null)
+    .order("sort_order", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load appointment types.",
+      detail: error.message
+    });
+  }
+
+  return res.json({
+    ok: true,
+    purposes: (data || []).map((r) => ({
+      purposeCode: r.purpose_code,
+      label: r.label,
+      sortOrder: r.sort_order ?? 0
+    }))
+  });
+});
+
+/** Auth audit log action → short label for UI (system-admin audit table). */
+const AUTH_AUDIT_ACTION_LABELS = {
+  login: "User Login",
+  logout: "User Logout",
+  user_signedup: "User Signup",
+  user_deleted: "User Deleted",
+  user_modified: "User Modified",
+  user_invited: "User Invited",
+  invite_accepted: "Invite Accepted",
+  user_recovery_requested: "Password Recovery",
+  user_updated_password: "Password Updated",
+  user_confirmation_requested: "Confirmation Requested",
+  user_reauthenticate_requested: "Reauthentication Requested",
+  user_repeated_signup: "Repeated Signup",
+  token_refreshed: "Token Refreshed",
+  token_revoked: "Token Revoked",
+  generate_recovery_codes: "MFA Recovery Codes",
+  factor_in_progress: "MFA Factor Started",
+  factor_unenrolled: "MFA Factor Removed",
+  challenge_created: "MFA Challenge",
+  verification_attempted: "MFA Verification",
+  factor_deleted: "MFA Factor Deleted",
+  recovery_codes_deleted: "MFA Codes Deleted",
+  factor_updated: "MFA Factor Updated",
+  mfa_code_login: "MFA Login",
+  identity_unlinked: "Identity Unlinked"
+};
+
+function authAuditActionLabel(action) {
+  const key = String(action || "").trim();
+  if (!key) return "Authentication";
+  return AUTH_AUDIT_ACTION_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Audit log table: "May 2, 2026, 3:45 PM" (month day, year + time, no seconds).
+ * Uses a fixed IANA timezone so the wall clock matches what you expect from stored timestamptz
+ * (Node's default locale alone uses the *server's* zone, often UTC, which looks "wrong" vs Supabase UI).
+ */
+function formatAuditDateDisplay(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  const tzRaw = process.env.AUDIT_LOG_DISPLAY_TIMEZONE;
+  const tz =
+    typeof tzRaw === "string" && tzRaw.trim().length ? tzRaw.trim() : "Asia/Manila";
+  const opts = {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: tz
+  };
+  try {
+    return d.toLocaleString("en-US", opts);
+  } catch {
+    return d.toLocaleString("en-US", { ...opts, timeZone: "Asia/Manila" });
+  }
+}
+
+function parseAuthAuditPayload(raw) {
+  let p = raw;
+  if (typeof p === "string") {
+    try {
+      p = JSON.parse(p);
+    } catch {
+      return {};
+    }
+  }
+  return p && typeof p === "object" ? p : {};
+}
+
+function mapDbAuditOpToUiCategory(op) {
+  const o = String(op || "").toUpperCase();
+  if (o === "DELETE") return { filterAction: "Deleted Record", badgeClass: "badge-deleted-record" };
+  return { filterAction: "Updated Record", badgeClass: "badge-updated-record" };
+}
+
+/** Keys must match `system-admin/audit-logs.html` action filter values exactly. */
+const PORTAL_AUDIT_FILTER_TO_BADGE = new Map([
+  ["Status Update", "badge-status-update"],
+  ["Completed Request", "badge-completed-request"],
+  ["Rejected Request", "badge-rejected-request"],
+  ["Updated Slots", "badge-updated-slots"],
+  ["Printed Document", "badge-printed-document"],
+  ["Updated Record", "badge-updated-record"],
+  ["Archived Record", "badge-archived-record"],
+  ["Deleted Record", "badge-deleted-record"]
+]);
+
+function portalAuditBadgeForFilterAction(filterAction) {
+  const k = String(filterAction || "").trim();
+  return PORTAL_AUDIT_FILTER_TO_BADGE.get(k) || "badge-updated-record";
+}
+
+function portalAuditCategoryForServiceRequestStatus(status) {
+  const s = String(status || "").trim();
+  if (s === "Completed") return "Completed Request";
+  if (s === "Rejected") return "Rejected Request";
+  return "Status Update";
+}
+
+function portalAuditCategoryForAppointmentStatus(status) {
+  const s = String(status || "").trim();
+  if (s === "Completed") return "Completed Request";
+  if (s === "Rejected") return "Rejected Request";
+  return "Status Update";
+}
+
+/** Remove legacy trailing `[{...}]` metadata suffix from stored descriptions. */
+function stripTrailingBracketMetadataSuffix(text) {
+  const s = String(text || "");
+  const idx = s.lastIndexOf(" [{");
+  if (idx < 8) return s.trim();
+  return s.slice(0, idx).trim() || s.trim();
+}
+
+/**
+ * One-line audit description for portal events (matches UI expectations).
+ * Example service request status: Service request REQ-7450 (Certificate of Indigency) status: Pending, changed to Processing
+ */
+function formatPortalAuditDisplayDescription(action, metadata, storedDescription) {
+  const m = metadata && typeof metadata === "object" ? metadata : {};
+  const entity = String(m.entity || "");
+  const act = String(action || "").trim();
+
+  if (entity === "service_request" && m.referenceNo != null && m.previousStatus != null && m.newStatus != null) {
+    const ref = String(m.referenceNo).trim();
+    const svc = String(m.serviceType || m.title || "—").trim() || "—";
+    const prev = String(m.previousStatus).trim();
+    const next = String(m.newStatus).trim();
+    let line = `Service request ${ref} (${svc}) status: ${prev}, changed to ${next}`;
+    const note = m.staffNote != null ? String(m.staffNote).trim() : "";
+    if (note) line += `. Note: ${note.slice(0, 220)}`;
+    return line.slice(0, 2000);
+  }
+
+  if (entity === "service_request" && m.referenceNo != null && act === "Deleted Record") {
+    const ref = String(m.referenceNo).trim();
+    const svc = String(m.serviceType || m.title || "—").trim() || "—";
+    const st = String(m.status ?? "—").trim();
+    return `Service request ${ref} (${svc}) deleted (prior status: ${st}).`.slice(0, 2000);
+  }
+
+  if (entity === "appointment" && m.referenceNo != null && m.previousStatus != null && m.newStatus != null) {
+    const ref = String(m.referenceNo).trim();
+    const label = String(m.timeLabel || m.purpose || `slot ${m.slotId ?? "—"}`).trim() || "—";
+    const prev = String(m.previousStatus).trim();
+    const next = String(m.newStatus).trim();
+    let line = `Appointment ${ref} (${label}) status: ${prev}, changed to ${next}`;
+    const note = m.staffNote != null ? String(m.staffNote).trim() : "";
+    if (note) line += `. Note: ${note.slice(0, 220)}`;
+    return line.slice(0, 2000);
+  }
+
+  if (
+    entity === "appointment" &&
+    m.referenceNo != null &&
+    m.appointmentDate &&
+    m.purpose != null &&
+    m.previousStatus == null &&
+    m.newStatus == null
+  ) {
+    const ref = String(m.referenceNo).trim();
+    const date = String(m.appointmentDate).trim();
+    const when = String(m.timeLabel || `slot ${m.slotId ?? "—"}`).trim();
+    const pur = String(m.purpose).trim() || "—";
+    return `Appointment ${ref} booked for ${date} (${when}): ${pur}.`.slice(0, 2000);
+  }
+
+  if (entity === "appointment" && m.referenceNo != null && act === "Deleted Record") {
+    const ref = String(m.referenceNo).trim();
+    const st = String(m.status ?? "—").trim();
+    return `Appointment ${ref} deleted (prior status: ${st}).`.slice(0, 2000);
+  }
+
+  if (entity === "appointment_slot_override" && m.slotId != null && m.date && m.capacityLimit != null) {
+    const lbl = m.slotLabel ? String(m.slotLabel).trim() : `ID ${m.slotId}`;
+    return `Appointment slot ${lbl} on ${String(m.date).trim()}: capacity set to ${m.capacityLimit}.`.slice(0, 2000);
+  }
+
+  if (entity === "community_announcement" && m.title != null && act === "Deleted Record") {
+    return `Announcement deleted: "${String(m.title).trim()}" (${String(m.category || "—").trim()}).`.slice(0, 2000);
+  }
+
+  if (entity === "community_announcement" && m.title != null && m.announcementId != null) {
+    return `Announcement posted: "${String(m.title).trim()}" (${String(m.category || "—").trim()}).`.slice(0, 2000);
+  }
+
+  if (entity === "staff_account" && m.staffEmail) {
+    return `Staff account created: ${String(m.staffEmail).trim()} (${String(m.fullName || "—").trim()}).`.slice(0, 2000);
+  }
+
+  if (entity === "staff_permissions" && m.staffEmail) {
+    return `Staff permissions updated for ${String(m.staffEmail).trim()}.`.slice(0, 2000);
+  }
+
+  if (entity === "profile" && m.deletedEmail) {
+    return `User account deleted: ${String(m.deletedEmail).trim()} (role: ${String(m.deletedRole || "—").trim()}).`.slice(
+      0,
+      2000
+    );
+  }
+
+  if (entity === "service_catalog" && m.name && act === "Archived Record") {
+    return `Service catalog archived: "${String(m.name).trim()}".`.slice(0, 2000);
+  }
+
+  if (entity === "service_catalog" && m.name && Array.isArray(m.fieldsChanged) && m.fieldsChanged.length) {
+    return `Service catalog updated: "${String(m.name).trim()}" (${m.fieldsChanged.join(", ")}).`.slice(0, 2000);
+  }
+
+  if (entity === "service_catalog" && m.name != null && m.serviceId != null) {
+    return `Service catalog added: "${String(m.name).trim()}" (${String(m.status || "—").trim()}).`.slice(0, 2000);
+  }
+
+  if (entity === "appointment_purpose_catalog" && m.label && act === "Archived Record") {
+    return `Appointment purpose archived: "${String(m.label).trim()}" (${String(m.purposeCode || "").trim()}).`.slice(0, 2000);
+  }
+
+  if (entity === "appointment_purpose_catalog" && m.label && m.purposeCode) {
+    return `Appointment purpose added: "${String(m.label).trim()}" (${String(m.purposeCode).trim()}).`.slice(0, 2000);
+  }
+
+  return stripTrailingBracketMetadataSuffix(String(storedDescription || "")).slice(0, 2000);
+}
+
+/** Best-effort application audit row (does not fail the calling request). `action` = UI filter label. */
+async function insertPortalAuditEvent({
+  action,
+  description,
+  profile,
+  performedByEmail,
+  performedByName,
+  performedByRole,
+  metadata
+}) {
+  const email = performedByEmail ?? profile?.email ?? null;
+  const name = performedByName ?? profile?.full_name ?? null;
+  const role = performedByRole ?? profile?.role ?? null;
+  try {
+    const { error } = await supabaseAdmin.from("portal_audit_events").insert({
+      action: String(action || "Updated Record").slice(0, 200),
+      description: String(description || "").slice(0, 2000),
+      performed_by_email: email || null,
+      performed_by_name: name || null,
+      performed_by_role: role || null,
+      metadata: metadata && typeof metadata === "object" ? metadata : {}
+    });
+    if (error) {
+      console.warn("[portal_audit_events] insert failed:", error.message);
+    }
+  } catch (e) {
+    console.warn("[portal_audit_events] insert failed:", e?.message || e);
+  }
+}
+
+/** Load auth audit rows: RPC (migration 20260509) first, then legacy .schema("auth") if available. */
+async function fetchAuthAuditRowsForSystemAdmin(limit) {
+  const lim = Math.min(500, Math.max(1, limit));
+  const rpc = await supabaseAdmin.rpc("list_auth_audit_log_entries", { p_limit: lim });
+  if (!rpc.error && Array.isArray(rpc.data)) {
+    return { rows: rpc.data, error: null, via: "rpc" };
+  }
+  const legacy = await supabaseAdmin
+    .schema("auth")
+    .from("audit_log_entries")
+    .select("id, payload, created_at, ip_address")
+    .order("created_at", { ascending: false })
+    .limit(lim);
+  if (!legacy.error) {
+    return { rows: legacy.data || [], error: null, via: "schema" };
+  }
+  const detail = [rpc.error?.message, legacy.error?.message].filter(Boolean).join(" | ");
+  return { rows: [], error: detail || "Could not load auth audit log.", via: null };
+}
+
+/** Supabase auth + optional audit.record_version rows for system-admin audit UI. */
+app.get("/system-admin/audit-logs", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+  if (auth.profile.role !== "system-admin") {
+    return res.status(403).json({
+      ok: false,
+      message: "System admin role is required to view audit logs."
+    });
+  }
+
+  const offsetRaw = req.query?.offset;
+  const paginate =
+    offsetRaw !== undefined && offsetRaw !== null && String(offsetRaw).trim() !== "";
+
+  let mergeFetchLimit;
+  let pageLimit;
+  let responseOffset = 0;
+  if (paginate) {
+    const off = Number.parseInt(String(offsetRaw), 10);
+    responseOffset = Number.isFinite(off) && off >= 0 ? Math.min(off, 1_000_000) : 0;
+    const limitRaw = Number(req.query?.limit);
+    pageLimit =
+      Number.isInteger(limitRaw) && limitRaw > 0 ? Math.min(100, Math.max(1, limitRaw)) : 15;
+    mergeFetchLimit = 2000;
+  } else {
+    const limitRaw = Number(req.query?.limit);
+    const legacyLimit = Number.isInteger(limitRaw) ? Math.min(500, Math.max(1, limitRaw)) : 150;
+    pageLimit = legacyLimit;
+    mergeFetchLimit = legacyLimit;
+  }
+
+  const rows = [];
+  let authError = null;
+  let authAuditVia = null;
+  let databaseAuditAvailable = false;
+  let portalAuditError = null;
+
+  try {
+    const { data: portalRows, error: portErr } = await supabaseAdmin
+      .from("portal_audit_events")
+      .select("id, action, description, metadata, performed_by_email, performed_by_name, performed_by_role, created_at")
+      .order("created_at", { ascending: false })
+      .limit(mergeFetchLimit);
+
+    if (portErr) {
+      portalAuditError = portErr.message;
+    } else {
+      for (const row of portalRows || []) {
+        const action = String(row.action || "Updated Record").trim();
+        if (action === "New Service Request") continue;
+        const badgeClass = portalAuditBadgeForFilterAction(action);
+        const who = String(row.performed_by_name || row.performed_by_email || "").trim() || "Unknown";
+        rows.push({
+          id: `portal:${row.id}`,
+          source: "portal",
+          displayAction: action,
+          filterAction: action,
+          badgeClass,
+          description: formatPortalAuditDisplayDescription(action, row.metadata, row.description),
+          performedBy: who,
+          occurredAt: row.created_at || null,
+          dateDisplay: formatAuditDateDisplay(row.created_at)
+        });
+      }
+    }
+  } catch (e) {
+    portalAuditError = e?.message || String(e);
+  }
+
+  try {
+    const { rows: authRows, error: fetchErr, via } = await fetchAuthAuditRowsForSystemAdmin(mergeFetchLimit);
+    authAuditVia = via;
+    if (fetchErr) {
+      authError = fetchErr;
+    } else {
+      const actorIds = new Set();
+      for (const row of authRows || []) {
+        const payload = parseAuthAuditPayload(row.payload);
+        const action = String(payload.action || "").trim();
+        const uid = payload.user_id || payload.actor_id || payload.uid || null;
+        if (uid) actorIds.add(String(uid));
+      }
+      const idList = [...actorIds];
+      const emailByUserId = new Map();
+      const nameByUserId = new Map();
+      if (idList.length) {
+        const { data: profs } = await supabaseAdmin
+          .from("profiles")
+          .select("id, email, full_name")
+          .in("id", idList.slice(0, 200));
+        for (const p of profs || []) {
+          if (!p?.id) continue;
+          const sid = String(p.id);
+          if (p.email) emailByUserId.set(sid, String(p.email));
+          if (p.full_name) nameByUserId.set(sid, String(p.full_name));
+        }
+      }
+
+      for (const row of authRows || []) {
+        const payload = parseAuthAuditPayload(row.payload);
+        const action = String(payload.action || "").trim();
+        if (action === "login") continue;
+        const uid = payload.user_id || payload.actor_id || payload.uid || null;
+        const sid = uid ? String(uid) : null;
+        const emailFromPayload =
+          payload.actor_username ||
+          payload.email ||
+          (sid ? emailByUserId.get(sid) : null) ||
+          null;
+        const displayName = sid ? nameByUserId.get(sid) : null;
+        const displayAction = authAuditActionLabel(action);
+        const ip = row.ip_address != null ? String(row.ip_address) : "";
+        const parts = [];
+        if (displayAction) parts.push(displayAction);
+        if (emailFromPayload) parts.push(`(${emailFromPayload})`);
+        if (ip) parts.push(`from ${ip}`);
+        const description = parts.join(" ").trim() || "Authentication event";
+
+        rows.push({
+          id: `auth:${row.id}`,
+          source: "auth",
+          displayAction,
+          filterAction: "Authentication",
+          badgeClass: "badge-authentication",
+          description,
+          performedBy:
+            displayName ||
+            emailFromPayload ||
+            (sid ? `User ${sid.slice(0, 8)}…` : "Unknown"),
+          occurredAt: row.created_at || null,
+          dateDisplay: formatAuditDateDisplay(row.created_at)
+        });
+      }
+    }
+  } catch (e) {
+    authError = e?.message || String(e);
+  }
+
+  try {
+    const { data: dbRows, error: dErr } = await supabaseAdmin
+      .schema("audit")
+      .from("record_version")
+      .select("id, op, ts, table_schema, table_name, record, old_record")
+      .order("ts", { ascending: false })
+      .limit(mergeFetchLimit);
+
+    if (!dErr && Array.isArray(dbRows)) {
+      databaseAuditAvailable = true;
+      for (const row of dbRows) {
+        const tbl = `${row.table_schema || "public"}.${row.table_name || "?"}`;
+        const { filterAction, badgeClass } = mapDbAuditOpToUiCategory(row.op);
+        const op = String(row.op || "").toUpperCase();
+        let description = `${op} on ${tbl}`;
+        if (op === "UPDATE" && row.old_record && row.record) {
+          description = `Updated ${tbl}`;
+        } else if (op === "INSERT") {
+          description = `Inserted row on ${tbl}`;
+        } else if (op === "DELETE") {
+          description = `Deleted row on ${tbl}`;
+        }
+        rows.push({
+          id: `db:${row.id}`,
+          source: "database",
+          displayAction: filterAction,
+          filterAction,
+          badgeClass,
+          description,
+          performedBy: "Database",
+          occurredAt: row.ts || null,
+          dateDisplay: formatAuditDateDisplay(row.ts)
+        });
+      }
+    }
+  } catch (_e) {
+    /* audit schema may be unavailable in API; ignore */
+  }
+
+  rows.sort((a, b) => {
+    const ta = new Date(a.occurredAt || 0).getTime();
+    const tb = new Date(b.occurredAt || 0).getTime();
+    return tb - ta;
+  });
+
+  const totalMerged = rows.length;
+  const trimmed = paginate
+    ? rows.slice(responseOffset, responseOffset + pageLimit)
+    : rows.slice(0, pageLimit);
+
+  if (rows.length === 0 && authError && !databaseAuditAvailable) {
+    return res.status(503).json({
+      ok: false,
+      message:
+        "Unable to read auth audit logs. Apply the SQL migration backend/supabase/migrations/20260509_auth_audit_log_rpc.sql in the Supabase SQL editor (or CLI), then retry.",
+      detail: authError
+    });
+  }
+
+  let auditDescriptionSummaries = false;
+  let logsForResponse = trimmed;
+  try {
+    const summaries = await summarizeAuditDescriptionsWithGroq(trimmed);
+    if (summaries && summaries.length === trimmed.length) {
+      logsForResponse = trimmed.map((log, idx) => ({
+        ...log,
+        description: summaries[idx] ?? log.description
+      }));
+      auditDescriptionSummaries = summaries.some((s, i) => String(s) !== String(trimmed[i]?.description ?? ""));
+    }
+  } catch (e) {
+    console.warn("[audit groq] summarize failed:", e?.message || e);
+  }
+
+  const meta = {
+    limit: pageLimit,
+    authAuditLoaded: !authError,
+    authAuditError: authError || null,
+    authAuditVia,
+    databaseAuditAvailable,
+    portalAuditLoaded: !portalAuditError,
+    portalAuditError: portalAuditError || null,
+    auditDescriptionSummaries
+  };
+  if (paginate) {
+    meta.paginated = true;
+    meta.mergedRowCount = totalMerged;
+  }
+
+  const body = {
+    ok: true,
+    logs: logsForResponse,
+    meta
+  };
+  if (paginate) {
+    body.total = totalMerged;
+    body.limit = pageLimit;
+    body.offset = responseOffset;
+  }
+
+  return res.json(body);
 });
 
 // Start the API server on the configured port (explicit http.Server for error + diagnostics).

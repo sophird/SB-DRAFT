@@ -378,13 +378,14 @@
                     <input type="text" value="Barangay Burgos Web Portal Services" disabled>
                 </div>
                 <div class="form-group">
-                    <label>System Environment</label>
-                    <select>
+                    <label for="systemEnvironmentSelect">System Environment</label>
+                    <select id="systemEnvironmentSelect" aria-describedby="environmentConfirmHint">
                         <option value="" disabled selected>Select environment...</option>
-                        <option>Production</option>
-                        <option>Maintenance Mode</option>
-                        <option>Development</option>
+                        <option value="production">Production</option>
+                        <option value="maintenance">Maintenance Mode</option>
                     </select>
+                    <p id="environmentConfirmHint" style="font-size:0.75rem;color:var(--text-muted);margin-top:0.35rem;">Changes require confirmation.</p>
+                    <p id="sysConfigMessage" role="status" aria-live="polite" style="margin:0.35rem 0 0;font-size:0.9rem;"></p>
                 </div>
             </div>
         </div>
@@ -394,11 +395,11 @@
             <div class="config-sidebar">
                 <div class="category-item active" data-section="service-types-section">
                     <p style="font-weight: 600;">Service Types</p>
-                    <small class="text-muted">2 REQ</small>
+                    <small class="text-muted" data-count="service">0 REQ</small>
                 </div>
                 <div class="category-item" data-section="appointment-types-section">
                     <p style="font-weight: 600;">Appointment Types</p>
-                    <small class="text-muted">3 APT</small>
+                    <small class="text-muted" data-count="appointment">0 APT</small>
                 </div>
             </div>
 
@@ -409,16 +410,13 @@
                     <h3>🏷️ Service Request Types</h3>
                     <p class="page-subtitle" style="margin-bottom: 1.5rem;">Categories shown in service request forms and filters.</p>
                     
-                    <div class="input-group">
-                        <input type="text" id="service-name" placeholder="(e.g. Certificate of Residency)" style="flex: 2;">
-                        <input type="text" id="service-docs" placeholder="Required Documents (Optional)" style="flex: 1;">
-                        <button class="btn-save add-service-btn" style="background: #5f9632;">+ Add</button>
-                    </div>
+                    <form id="addServiceTypeForm" class="input-group" action="#" method="post" style="margin-bottom: 20px;">
+                        <input type="text" id="service-name" name="serviceName" placeholder="(e.g. Certificate of Residency)" style="flex: 2;" autocomplete="off">
+                        <input type="text" id="service-docs" name="requiredDocuments" placeholder="Required Documents (Optional)" style="flex: 1;" autocomplete="off">
+                        <button type="submit" class="btn-save add-service-btn" style="background: #5f9632;">+ Add</button>
+                    </form>
 
-                    <div class="values-list">
-                        <div class="value-card"><span>Barangay Clearance</span><button class="btn-delete" onclick="confirmCategoryDeletion(this)">🗑️</button></div>
-                        <div class="value-card"><span>Certificate of Indigency</span><button class="btn-delete" onclick="confirmCategoryDeletion(this)">🗑️</button></div>
-                    </div>
+                    <div class="values-list" id="serviceTypesList"></div>
 
                     <p class="section-warning" style="font-size: 0.75rem; color: #64748b; margin-top: 1rem;">
                         Warning: Removed categories are permanently deleted from all system records and cannot be recovered.
@@ -430,16 +428,12 @@
                     <h3>📅 Appointment Types</h3>
                     <p class="page-subtitle" style="margin-bottom: 1.5rem;">Manage the types of scheduled visits available to residents.</p>
                     
-                    <div class="input-group">
-                        <input type="text" id="appointment-name" placeholder="(e.g. Complaint)" style="flex: 2;">
-                        <button class="btn-save add-appointment-btn" style="background: #5f9632;">+ Add</button>
-                    </div>
+                    <form id="addAppointmentTypeForm" class="input-group" action="#" method="post" style="margin-bottom: 20px;">
+                        <input type="text" id="appointment-name" name="label" placeholder="(e.g. Complaint)" style="flex: 2;" autocomplete="off">
+                        <button type="submit" class="btn-save add-appointment-btn" style="background: #5f9632;">+ Add</button>
+                    </form>
 
-                    <div class="values-list">
-                        <div class="value-card"><span>In-person Document Processing</span><button class="btn-delete" onclick="confirmCategoryDeletion(this)">🗑️</button></div>
-                        <div class="value-card"><span>Document / ID Pickup</span><button class="btn-delete" onclick="confirmCategoryDeletion(this)">🗑️</button></div>
-                        <div class="value-card"><span>Face-to-Face Consultation</span><button class="btn-delete" onclick="confirmCategoryDeletion(this)">🗑️</button></div>
-                    </div>
+                    <div class="values-list" id="appointmentTypesList"></div>
 
                     <!-- MOVE THE WARNING HERE -->
                     <p class="section-warning" style="font-size: 0.75rem; color: #64748b; margin-top: 1rem;">
@@ -450,15 +444,270 @@
         </div>
     </main>
 
+    <div id="environmentConfirmModal" class="modal-overlay environment-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="environmentConfirmTitle" aria-hidden="true">
+        <div class="confirm-modal">
+            <h3 id="environmentConfirmTitle" style="font-size:1.05rem;color:var(--brand-dark);margin-bottom:0.55rem;">Confirm system environment</h3>
+            <p id="environmentConfirmMessage" style="font-size:0.9rem;color:var(--text-muted);line-height:1.5;margin:0;"></p>
+            <div class="confirm-actions">
+                <button type="button" class="btn-cancel" id="environmentConfirmCancel">Cancel</button>
+                <button type="button" class="btn-confirm" id="environmentConfirmOk">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../shared/routes.js"></script>
+    <script src="../shared/maintenance-check.js"></script>
+    <script src="../shared/admin-access.js"></script>
     <script>
+        const API_BASE_URL = "http://localhost:4000";
+
         function handleLogout(event) {
             event?.preventDefault?.();
-            if(confirm("Logout from System Admin Portal?")) window.location.href = "../landing.html";
+            if (window.APP_NAV?.logout) {
+                if (confirm("Logout from System Admin Portal?")) window.APP_NAV.logout();
+                return;
+            }
+            if (confirm("Logout from System Admin Portal?")) window.location.href = window.APP_ROUTES?.common?.landing || "../landing.html";
+        }
+
+        function getAdminAccessToken() {
+            try {
+                const raw = sessionStorage.getItem("adminAuth");
+                if (!raw) return null;
+                return JSON.parse(raw)?.session?.accessToken || null;
+            } catch (_e) {
+                return null;
+            }
+        }
+
+        async function adminFetch(path, options = {}) {
+            const token = getAdminAccessToken();
+            const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+            if (token) headers.Authorization = `Bearer ${token}`;
+            return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function showConfigMessage(text, isError) {
+            const el = document.getElementById("sysConfigMessage");
+            if (!el) return;
+            el.style.color = isError ? "#b91c1c" : "#15803d";
+            el.textContent = text || "";
+            if (text) setTimeout(() => { el.textContent = ""; }, 6000);
+        }
+
+        function updateCount(type) {
+            const serviceItem = document.querySelector('[data-count="service"]');
+            const appointmentItem = document.querySelector('[data-count="appointment"]');
+            if (type === "service" && serviceItem) {
+                const count = document.querySelectorAll("#serviceTypesList .value-card").length;
+                serviceItem.textContent = `${count} REQ`;
+            } else if (type === "appointment" && appointmentItem) {
+                const count = document.querySelectorAll("#appointmentTypesList .value-card").length;
+                appointmentItem.textContent = `${count} APT`;
+            }
+        }
+
+        function updateCounts() {
+            updateCount("service");
+            updateCount("appointment");
+        }
+
+        async function deleteServiceRequestType(id) {
+            const res = await adminFetch(
+                `/system-admin/service-request-types/${encodeURIComponent(id)}`,
+                { method: "DELETE" }
+            );
+            const json = await res.json().catch(() => ({}));
+            return { ok: Boolean(res.ok && json?.ok), message: json?.message || "" };
+        }
+
+        async function deleteAppointmentPurposeType(id) {
+            const res = await adminFetch(
+                `/system-admin/appointment-purpose-types/${encodeURIComponent(id)}`,
+                { method: "DELETE" }
+            );
+            const json = await res.json().catch(() => ({}));
+            return { ok: Boolean(res.ok && json?.ok), message: json?.message || "" };
+        }
+
+        async function loadServiceRequestTypes() {
+            const list = document.getElementById("serviceTypesList");
+            if (!list) return;
+            list.innerHTML = '<p style="color:var(--text-muted);padding:0.5rem;">Loading…</p>';
+            const res = await adminFetch("/system-admin/service-request-types");
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok || !json?.ok) {
+                list.innerHTML = "";
+                showConfigMessage(json?.message || "Unable to load service types.", true);
+                return;
+            }
+            list.innerHTML = "";
+            const services = Array.isArray(json.services) ? json.services : [];
+            for (const s of services) {
+                if (s.archivedAt) continue;
+                const card = document.createElement("div");
+                card.className = "value-card";
+                card.dataset.serviceId = String(s.id);
+                const docs = s.requiredDocuments ? ` (${escapeHtml(s.requiredDocuments)})` : "";
+                card.innerHTML = `<span>${escapeHtml(s.name)}${docs}</span><button type="button" class="btn-delete" aria-label="Remove">🗑️</button>`;
+                list.appendChild(card);
+            }
+            if (!list.children.length) {
+                list.innerHTML = '<p style="color:var(--text-muted);padding:0.5rem;">No service types yet. Add one below.</p>';
+            }
+            updateCount("service");
+        }
+
+        async function loadAppointmentPurposeTypes() {
+            const list = document.getElementById("appointmentTypesList");
+            if (!list) return;
+            list.innerHTML = '<p style="color:var(--text-muted);padding:0.5rem;">Loading…</p>';
+            const res = await adminFetch("/system-admin/appointment-purpose-types");
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok || !json?.ok) {
+                list.innerHTML = "";
+                showConfigMessage(json?.message || "Unable to load appointment types.", true);
+                return;
+            }
+            list.innerHTML = "";
+            const purposes = Array.isArray(json.purposes) ? json.purposes : [];
+            for (const p of purposes) {
+                if (p.archivedAt) continue;
+                const card = document.createElement("div");
+                card.className = "value-card";
+                card.dataset.purposeId = String(p.id);
+                card.innerHTML = `<span>${escapeHtml(p.label)}</span><button type="button" class="btn-delete" aria-label="Remove">🗑️</button>`;
+                list.appendChild(card);
+            }
+            if (!list.children.length) {
+                list.innerHTML = '<p style="color:var(--text-muted);padding:0.5rem;">No appointment types yet.</p>';
+            }
+            updateCount("appointment");
         }
 
         // Config management functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            updateCounts(); // Sync initial counts
+        document.addEventListener("DOMContentLoaded", async function () {
+            const auth = await window.SB_ADMIN_ACCESS?.requireRole?.("system-admin");
+            if (!auth) return;
+
+            await loadServiceRequestTypes();
+            await loadAppointmentPurposeTypes();
+
+            const environmentSelect = document.getElementById("systemEnvironmentSelect");
+            const environmentConfirmModal = document.getElementById("environmentConfirmModal");
+            const environmentConfirmMessage = document.getElementById("environmentConfirmMessage");
+            const environmentConfirmCancel = document.getElementById("environmentConfirmCancel");
+            const environmentConfirmOk = document.getElementById("environmentConfirmOk");
+            let committedEnvironmentValue = "";
+            let pendingEnvironmentValue = "";
+            let pendingEnvironmentLabel = "";
+
+            try {
+                const envRes = await adminFetch("/system-admin/system-environment");
+                const envJson = await envRes.json().catch(() => ({}));
+                const v = String(envJson?.environment || "").toLowerCase();
+                if (envRes.ok && envJson?.ok && environmentSelect && (v === "production" || v === "maintenance")) {
+                    committedEnvironmentValue = v;
+                    environmentSelect.value = committedEnvironmentValue;
+                } else if (environmentSelect) {
+                    committedEnvironmentValue = "production";
+                    environmentSelect.value = "production";
+                }
+            } catch (_e) {
+                if (environmentSelect) {
+                    committedEnvironmentValue = "production";
+                    environmentSelect.value = "production";
+                }
+            }
+
+            function closeEnvironmentConfirmModal() {
+                environmentConfirmModal?.classList.remove("show");
+                environmentConfirmModal?.setAttribute("aria-hidden", "true");
+                pendingEnvironmentValue = "";
+                pendingEnvironmentLabel = "";
+                environmentSelect?.focus();
+            }
+
+            function openEnvironmentConfirmModal() {
+                if (!environmentConfirmModal || !environmentConfirmMessage) return;
+                const isMaintenance = pendingEnvironmentValue === "maintenance";
+                const extra = isMaintenance
+                    ? " Maintenance mode may limit what residents can do until you switch back to Production."
+                    : " Production is the standard live operating mode.";
+                environmentConfirmMessage.textContent =
+                    `Apply "${pendingEnvironmentLabel}" as the system environment? ${extra}`;
+                environmentConfirmModal.classList.add("show");
+                environmentConfirmModal.setAttribute("aria-hidden", "false");
+                environmentConfirmOk?.focus();
+            }
+
+            async function applyEnvironmentSelection() {
+                if (!environmentSelect || !pendingEnvironmentValue) {
+                    closeEnvironmentConfirmModal();
+                    return;
+                }
+                const target = pendingEnvironmentValue;
+                const label = pendingEnvironmentLabel;
+                if (environmentConfirmOk) environmentConfirmOk.disabled = true;
+                try {
+                    const res = await adminFetch("/system-admin/system-environment", {
+                        method: "PUT",
+                        body: JSON.stringify({ environment: target })
+                    });
+                    const json = await res.json().catch(() => ({}));
+                    if (!res.ok || !json?.ok) {
+                        const errText = json?.message || "Could not update environment on the server.";
+                        const detail = json?.detail ? ` ${String(json.detail)}` : "";
+                        showConfigMessage(`${errText}${detail}`.trim(), true);
+                        closeEnvironmentConfirmModal();
+                        return;
+                    }
+                    committedEnvironmentValue = json.environment || target;
+                    environmentSelect.value = committedEnvironmentValue;
+                    showConfigMessage(
+                        committedEnvironmentValue === "maintenance"
+                            ? "Maintenance mode is active. Resident and staff portals are restricted until you switch back to Production."
+                            : `System environment set to ${label}. Full portal access is restored.`
+                    );
+                    closeEnvironmentConfirmModal();
+                } finally {
+                    if (environmentConfirmOk) environmentConfirmOk.disabled = false;
+                }
+            }
+
+            function revertEnvironmentSelect() {
+                if (!environmentSelect) return;
+                environmentSelect.value = committedEnvironmentValue;
+            }
+
+            environmentSelect?.addEventListener("change", () => {
+                const value = environmentSelect.value;
+                const opt = environmentSelect.selectedOptions[0];
+                const label = opt ? opt.textContent.trim() : value;
+                if (!value) return;
+                pendingEnvironmentValue = value;
+                pendingEnvironmentLabel = label;
+                revertEnvironmentSelect();
+                openEnvironmentConfirmModal();
+            });
+
+            environmentConfirmCancel?.addEventListener("click", () => {
+                closeEnvironmentConfirmModal();
+            });
+            environmentConfirmOk?.addEventListener("click", () => {
+                void applyEnvironmentSelection();
+            });
+            environmentConfirmModal?.addEventListener("click", (ev) => {
+                if (ev.target === environmentConfirmModal) closeEnvironmentConfirmModal();
+            });
 
             // Toggle sections
             const categoryItems = document.querySelectorAll('.category-item');
@@ -480,61 +729,124 @@
                 });
             });
 
-            // Add Service Type
-            const addServiceBtn = document.querySelector('.add-service-btn');
-            if (addServiceBtn) {
-                addServiceBtn.addEventListener('click', function() {
-                    const nameInput = document.getElementById('service-name');
-                    const docsInput = document.getElementById('service-docs');
-                    const name = nameInput.value.trim();
-                    const docs = docsInput.value.trim();
-                    
-                    if (name) {
-                        const valuesList = document.querySelector('#service-types-section .values-list');
-                        const newCard = document.createElement('div');
-                        newCard.className = 'value-card';
-                        newCard.innerHTML = `<span>${name}${docs ? ` (${docs})` : ''}</span><button class="btn-delete">🗑️</button>`;
-                        valuesList.appendChild(newCard);
-                        
-                        nameInput.value = '';
-                        docsInput.value = '';
-                        
-                        updateCount('service');
-                    }
-                });
-            }
-
-            // Add Appointment Type
-            const addAppointmentBtn = document.querySelector('.add-appointment-btn');
-            if (addAppointmentBtn) {
-                addAppointmentBtn.addEventListener('click', function() {
-                    const nameInput = document.getElementById('appointment-name');
-                    const name = nameInput.value.trim();
-                    
-                    if (name) {
-                        const valuesList = document.querySelector('#appointment-types-section .values-list');
-                        const newCard = document.createElement('div');
-                        newCard.className = 'value-card';
-                        newCard.innerHTML = `<span>${name}</span><button class="btn-delete">🗑️</button>`;
-                        valuesList.appendChild(newCard);
-                        
-                        nameInput.value = '';
-                        
-                        updateCount('appointment');
-                    }
-                });
-            }
-
-            // Robust delete delegation + modal (works for dynamic buttons)
-            document.addEventListener('click', function(e) {
-                if (e.target.matches('.btn-delete')) {
-                    e.preventDefault();
-                    confirmCategoryDeletion(e.target);
+            async function submitNewServiceType(event) {
+                event?.preventDefault?.();
+                const form = document.getElementById("addServiceTypeForm");
+                const nameInput = document.getElementById("service-name");
+                const docsInput = document.getElementById("service-docs");
+                const name = nameInput?.value?.trim() || "";
+                const docs = docsInput?.value?.trim() || "";
+                if (!name) {
+                    showConfigMessage("Enter a service name (category).", true);
+                    return;
                 }
-            });
+                const submitBtn = form?.querySelector('button[type="submit"]');
+                if (submitBtn) submitBtn.disabled = true;
+                try {
+                    const res = await adminFetch("/system-admin/service-request-types", {
+                        method: "POST",
+                        body: JSON.stringify({
+                            name,
+                            category: name,
+                            requiredDocuments: docs
+                        })
+                    });
+                    const json = await res.json().catch(() => ({}));
+                    if (!res.ok || !json?.ok) {
+                        showConfigMessage(
+                            json?.message || json?.detail || `Could not add service type (${res.status}).`,
+                            true
+                        );
+                        return;
+                    }
+                    if (nameInput) nameInput.value = "";
+                    if (docsInput) docsInput.value = "";
+                    showConfigMessage("Service type saved.");
+                    await loadServiceRequestTypes();
+                } finally {
+                    if (submitBtn) submitBtn.disabled = false;
+                }
+            }
 
-            let deleteConfirmModal = null;
+            const addServiceForm = document.getElementById("addServiceTypeForm");
+            if (addServiceForm) {
+                addServiceForm.addEventListener("submit", (e) => void submitNewServiceType(e));
+            }
+
+            async function submitNewAppointmentType(event) {
+                event?.preventDefault?.();
+                const form = document.getElementById("addAppointmentTypeForm");
+                const nameInput = document.getElementById("appointment-name");
+                const name = nameInput?.value?.trim() || "";
+                if (!name) {
+                    showConfigMessage("Enter an appointment type label.", true);
+                    return;
+                }
+                const submitBtn = form?.querySelector('button[type="submit"]');
+                if (submitBtn) submitBtn.disabled = true;
+                try {
+                    const res = await adminFetch("/system-admin/appointment-purpose-types", {
+                        method: "POST",
+                        body: JSON.stringify({ label: name })
+                    });
+                    const json = await res.json().catch(() => ({}));
+                    if (!res.ok || !json?.ok) {
+                        showConfigMessage(
+                            json?.message || json?.detail || `Could not add appointment type (${res.status}).`,
+                            true
+                        );
+                        return;
+                    }
+                    if (nameInput) nameInput.value = "";
+                    showConfigMessage("Appointment type saved.");
+                    await loadAppointmentPurposeTypes();
+                } finally {
+                    if (submitBtn) submitBtn.disabled = false;
+                }
+            }
+
+            const addAppointmentForm = document.getElementById("addAppointmentTypeForm");
+            if (addAppointmentForm) {
+                addAppointmentForm.addEventListener("submit", (e) => void submitNewAppointmentType(e));
+            }
+
             let pendingCard = null;
+
+            function closeDeleteConfirmModal() {
+                const modal = document.querySelector(".delete-confirm-modal");
+                modal?.classList.remove("show");
+                modal?.setAttribute("aria-hidden", "true");
+                pendingCard = null;
+            }
+
+            async function handleCategoryDeletion() {
+                if (!pendingCard) return;
+                const section = pendingCard.closest("#service-types-section, #appointment-types-section");
+                const isService = Boolean(section && section.id === "service-types-section");
+                const id = isService ? pendingCard.dataset.serviceId : pendingCard.dataset.purposeId;
+                if (!id) {
+                    closeDeleteConfirmModal();
+                    return;
+                }
+                const confirmBtn = document.querySelector(".delete-confirm-submit");
+                if (confirmBtn) confirmBtn.disabled = true;
+                try {
+                    const result = isService
+                        ? await deleteServiceRequestType(id)
+                        : await deleteAppointmentPurposeType(id);
+                    if (!result.ok) {
+                        showConfigMessage(result.message || "Could not remove this item.", true);
+                        closeDeleteConfirmModal();
+                        return;
+                    }
+                    showConfigMessage(isService ? "Service type removed." : "Appointment type removed.");
+                    closeDeleteConfirmModal();
+                    if (isService) await loadServiceRequestTypes();
+                    else await loadAppointmentPurposeTypes();
+                } finally {
+                    if (confirmBtn) confirmBtn.disabled = false;
+                }
+            }
 
             function confirmCategoryDeletion(btn) {
                 pendingCard = btn.closest('.value-card');
@@ -562,7 +874,9 @@
 
                     // Robust listeners (classes, not IDs)
                     modal.querySelector('.delete-confirm-cancel').addEventListener('click', closeDeleteConfirmModal);
-                    modal.querySelector('.delete-confirm-submit').addEventListener('click', handleCategoryDeletion);
+                    modal.querySelector(".delete-confirm-submit").addEventListener("click", () => {
+                        void handleCategoryDeletion();
+                    });
                     modal.addEventListener('click', (ev) => {
                         if (ev.target.classList.contains('modal-overlay')) closeDeleteConfirmModal();
                     });
@@ -576,51 +890,23 @@
                 modal.setAttribute('aria-hidden', 'false');
             }
 
-            function closeDeleteConfirmModal() {
-                const modal = document.querySelector('.delete-confirm-modal');
-                modal?.classList.remove('show');
-                modal?.setAttribute('aria-hidden', 'true');
-                pendingCard = null;
-            }
-
-            // Escape key support
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') {
-                    closeDeleteConfirmModal();
-                }
+            // Trash: delegate clicks (closest so emoji / inner hits still work)
+            document.addEventListener("click", (e) => {
+                const deleteBtn = e.target.closest(".btn-delete");
+                if (!deleteBtn) return;
+                e.preventDefault();
+                confirmCategoryDeletion(deleteBtn);
             });
 
-            function handleCategoryDeletion() {
-                if (!pendingCard) return;
-                const section = pendingCard.closest('#service-types-section, #appointment-types-section');
-                const type = section.id.includes('service') ? 'service' : 'appointment';
-                
-                pendingCard.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-                pendingCard.style.opacity = '0';
-                pendingCard.style.transform = 'translateX(-20px)';
-                setTimeout(() => {
-                    pendingCard.remove();
-                    updateCounts();
-                    closeDeleteConfirmModal();
-                }, 300);
-            }
-
-            function updateCount(type) {
-                const serviceItem = document.querySelector('[data-section="service-types-section"] small');
-                const appointmentItem = document.querySelector('[data-section="appointment-types-section"] small');
-                if (type === 'service') {
-                    const count = document.querySelectorAll('#service-types-section .value-card').length;
-                    serviceItem.textContent = `${count} REQ`;
-                } else if (type === 'appointment') {
-                    const count = document.querySelectorAll('#appointment-types-section .value-card').length;
-                    appointmentItem.textContent = `${count} APT`;
+            // Escape key support
+            document.addEventListener("keydown", (e) => {
+                if (e.key !== "Escape") return;
+                if (environmentConfirmModal?.classList.contains("show")) {
+                    closeEnvironmentConfirmModal();
+                    return;
                 }
-            }
-
-            function updateCounts() {
-                updateCount('service');
-                updateCount('appointment');
-            }
+                closeDeleteConfirmModal();
+            });
         });
     </script>
 </body>

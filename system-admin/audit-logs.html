@@ -307,6 +307,22 @@
             color: #dc2626;
             border: 1px solid #fecaca;
         }
+
+        #auditPageSummary { font-size: 0.85rem; color: var(--text-muted); margin: 1rem 0 0.65rem; }
+        #auditPagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 0.25rem; }
+        .audit-pag-btn {
+            padding: 0.45rem 0.95rem;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #334155;
+            cursor: pointer;
+        }
+        .audit-pag-btn:hover:not(:disabled) { background: #f8fafc; border-color: #cbd5e1; }
+        .audit-pag-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .audit-pag-meta { font-size: 0.85rem; color: #475569; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -394,6 +410,8 @@
             </select>
         </div>
 
+        <p id="auditLogsMeta" style="display: none; font-size: 0.8rem; color: #b45309; margin-bottom: 12px;"></p>
+
         <div class="card" style="background: #ffffff; border: 1px solid #e2e8f0; padding: 0; overflow: hidden;">
             <table style="margin-top: 0;">
                 <thead>
@@ -404,91 +422,79 @@
                         <th style="color: #000000;">Date</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <!-- STAFF LOGS -->
-                    <tr data-action="Status Update">
-                        <td><span class="badge badge-status-update">Status Update</span></td>
-                        <td>Updated a request of Resident 1</td>
-                        <td>Staff 1</td>
-                        <td>05/02/2026</td>
-                    </tr>
-                    <tr data-action="Completed Request">
-                        <td><span class="badge badge-completed-request">Completed Request</span></td>
-                        <td>Completed a request of Resident 1</td>
-                        <td>Staff 1</td>
-                        <td>05/02/2026</td>
-                    </tr>
-                    <tr data-action="Rejected Request">
-                        <td><span class="badge badge-rejected-request">Rejected Request</span></td>
-                        <td>Rejected a request of Resident 3</td>
-                        <td>Staff 1</td>
-                        <td>05/02/2026</td>
-                    </tr>
-                    <tr data-action="Updated Slots">
-                        <td><span class="badge badge-updated-slots">Updated Slots</span></td>
-                        <td>Updated the limited time slots to 15</td>
-                        <td>Staff 2</td>
-                        <td>05/01/2026</td>
-                    </tr>
-                    <tr data-action="Printed Document">
-                        <td><span class="badge badge-printed-document">Printed Document</span></td>
-                        <td>Successfully printed a document</td>
-                        <td>Staff 2</td>
-                        <td>05/01/2026</td>
-                    </tr>
-
-                    <!-- ADMIN LOGS -->
-                    <tr data-action="Archived Record">
-                        <td><span class="badge badge-archived-record">Archived Record</span></td>
-                        <td>Archived a service: Certificate of Indigency</td>
-                        <td>Admin (Kagawad)</td>
-                        <td>04/29/2026</td>
-                    </tr>
-                    <tr data-action="Updated Record">
-                        <td><span class="badge badge-updated-record">Updated Record</span></td>
-                        <td>Added a service: Permit</td>
-                        <td>Admin (Kagawad)</td>
-                        <td>04/30/2026</td>
-                    </tr>
-                    <tr data-action="Updated Record">
-                        <td><span class="badge badge-updated-record">Updated Record</span></td>
-                        <td>Updated an account</td>
-                        <td>Secretary</td>
-                        <td>04/28/2026</td>
-                    </tr>
-                    <tr data-action="Updated Record">
-                        <td><span class="badge badge-updated-record">Updated Record</span></td>
-                        <td>Published an announcement: Linggo Ng Kabataan</td>
-                        <td>Secretary</td>
-                        <td>04/26/2026</td>
-                    </tr>
-                    <tr data-action="Deleted Record">
-                        <td><span class="badge badge-deleted-record">Deleted Record</span></td>
-                        <td>Deleted an account</td>
-                        <td>Secretary</td>
-                        <td>04/27/2026</td>
-                    </tr>
-                    <tr data-action="Deleted Record">
-                        <td><span class="badge badge-deleted-record">Deleted Record</span></td>
-                        <td>Deleted a Category Type</td>
-                        <td>System Admin</td>
-                        <td>04/27/2026</td>
+                <tbody id="auditLogsBody">
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading audit logs…</td>
                     </tr>
                 </tbody>
             </table>
+            <div style="padding: 0 1.25rem 1.25rem;">
+                <p id="auditPageSummary" aria-live="polite"></p>
+                <div id="auditPagination" role="navigation" aria-label="Audit log pages"></div>
+            </div>
         </div>
     </main>
 
-<script>
-        function handleLogout(event) {
-            event?.preventDefault?.();
-            if(confirm("Logout from System Admin Portal?")) window.location.href = "../landing.html";
+    <script src="../shared/routes.js"></script>
+    <script src="../shared/maintenance-check.js"></script>
+    <script src="../shared/admin-access.js"></script>
+    <script>
+        const API_BASE_URL = "http://localhost:4000";
+
+        function getAdminAccessToken() {
+            try {
+                const raw = sessionStorage.getItem("adminAuth");
+                if (!raw) return null;
+                return JSON.parse(raw)?.session?.accessToken || null;
+            } catch (_e) {
+                return null;
+            }
         }
 
-function filterByAction(action) {
-            var rows = document.querySelectorAll('tbody tr');
-            rows.forEach(function(row) {
-                if (action === "" || row.getAttribute('data-action') === action) {
+        async function adminFetch(path, options = {}) {
+            const token = getAdminAccessToken();
+            const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+            if (token) headers.Authorization = `Bearer ${token}`;
+            return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        const AUDIT_BADGE_CLASSES = new Set([
+            "badge-authentication",
+            "badge-status-update",
+            "badge-completed-request",
+            "badge-rejected-request",
+            "badge-updated-slots",
+            "badge-printed-document",
+            "badge-updated-record",
+            "badge-archived-record",
+            "badge-deleted-record"
+        ]);
+
+        function handleLogout(event) {
+            event?.preventDefault?.();
+            if (!confirm("Logout from System Admin Portal?")) return;
+            if (window.APP_NAV?.logout) {
+                window.APP_NAV.logout();
+                return;
+            }
+            sessionStorage.removeItem("adminAuth");
+            window.location.href = window.APP_ROUTES?.common?.landing || "../landing.html";
+        }
+
+        function filterByAction(action) {
+            const tbody = document.getElementById("auditLogsBody");
+            if (!tbody) return;
+            const rows = tbody.querySelectorAll("tr[data-action]");
+            rows.forEach(function (row) {
+                if (action === "" || row.getAttribute("data-action") === action) {
                     row.style.display = "";
                 } else {
                     row.style.display = "none";
@@ -497,18 +503,177 @@ function filterByAction(action) {
         }
 
         function searchLogs() {
-            var input = document.getElementById('searchInput');
-            var filter = input.value.toLowerCase();
-            var rows = document.querySelectorAll('tbody tr');
-            rows.forEach(function(row) {
-                var text = row.textContent || row.innerText;
-                if (text.toLowerCase().indexOf(filter) > -1) {
+            const input = document.getElementById("searchInput");
+            const tbody = document.getElementById("auditLogsBody");
+            if (!input || !tbody) return;
+            const filter = input.value.toLowerCase();
+            const rows = tbody.querySelectorAll("tr[data-action]");
+            rows.forEach(function (row) {
+                const text = row.textContent || row.innerText || "";
+                if (!filter || text.toLowerCase().indexOf(filter) > -1) {
                     row.style.display = "";
                 } else {
                     row.style.display = "none";
                 }
             });
         }
+
+        const AUDIT_PAGE_SIZE = 15;
+        let auditCurrentPage = 1;
+
+        function renderAuditPagination(total) {
+            const wrap = document.getElementById("auditPagination");
+            const summary = document.getElementById("auditPageSummary");
+            if (!wrap) return;
+            const n = Number(total);
+            const totalCount = Number.isFinite(n) ? n : 0;
+            const maxPage = Math.max(1, Math.ceil(totalCount / AUDIT_PAGE_SIZE));
+
+            if (summary) {
+                if (totalCount <= 0) {
+                    summary.textContent = "";
+                } else if (totalCount <= AUDIT_PAGE_SIZE) {
+                    summary.textContent = `Showing all ${totalCount} entr${totalCount === 1 ? "y" : "ies"}`;
+                } else {
+                    const from = (auditCurrentPage - 1) * AUDIT_PAGE_SIZE + 1;
+                    const to = Math.min(totalCount, auditCurrentPage * AUDIT_PAGE_SIZE);
+                    summary.textContent = `Showing ${from}–${to} of ${totalCount}`;
+                }
+            }
+
+            if (totalCount <= AUDIT_PAGE_SIZE) {
+                wrap.innerHTML = "";
+                return;
+            }
+
+            wrap.innerHTML = `
+                <button type="button" class="audit-pag-btn" data-audit-prev ${auditCurrentPage <= 1 ? "disabled" : ""}>Previous</button>
+                <span class="audit-pag-meta">Page ${auditCurrentPage} of ${maxPage}</span>
+                <button type="button" class="audit-pag-btn" data-audit-next ${auditCurrentPage >= maxPage ? "disabled" : ""}>Next</button>
+            `;
+
+            if (!wrap.dataset.paginationBound) {
+                wrap.dataset.paginationBound = "1";
+                wrap.addEventListener("click", function (e) {
+                    if (e.target.closest("[data-audit-prev]")) {
+                        auditCurrentPage = Math.max(1, auditCurrentPage - 1);
+                        void loadAuditLogs();
+                        return;
+                    }
+                    if (e.target.closest("[data-audit-next]")) {
+                        auditCurrentPage += 1;
+                        void loadAuditLogs();
+                    }
+                });
+            }
+        }
+
+        function renderAuditRows(logs) {
+            const tbody = document.getElementById("auditLogsBody");
+            if (!tbody) return;
+            tbody.innerHTML = "";
+            if (!logs.length) {
+                tbody.innerHTML =
+                    '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:2rem;">No audit entries yet.</td></tr>';
+                return;
+            }
+            logs.forEach(function (log) {
+                const filterAction = escapeHtml(log.filterAction || "");
+                const displayAction = escapeHtml(log.displayAction || "");
+                const badgeClass = escapeHtml(
+                    AUDIT_BADGE_CLASSES.has(log.badgeClass) ? log.badgeClass : "badge-updated-record"
+                );
+                const description = escapeHtml(log.description || "");
+                const performedBy = escapeHtml(log.performedBy || "");
+                const dateDisplay = escapeHtml(log.dateDisplay || "—");
+                const tr = document.createElement("tr");
+                tr.setAttribute("data-action", log.filterAction || "");
+                tr.innerHTML = `
+                    <td><span class="badge ${badgeClass}">${displayAction}</span></td>
+                    <td>${description}</td>
+                    <td>${performedBy}</td>
+                    <td>${dateDisplay}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function loadAuditLogs() {
+            const tbody = document.getElementById("auditLogsBody");
+            const metaEl = document.getElementById("auditLogsMeta");
+            const summary = document.getElementById("auditPageSummary");
+            const pag = document.getElementById("auditPagination");
+            if (tbody) {
+                tbody.innerHTML =
+                    '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:2rem;">Loading audit logs…</td></tr>';
+            }
+            if (summary) summary.textContent = "";
+            if (pag) pag.innerHTML = "";
+            if (metaEl) {
+                metaEl.style.display = "none";
+                metaEl.textContent = "";
+            }
+            try {
+                const offset = (auditCurrentPage - 1) * AUDIT_PAGE_SIZE;
+                const res = await adminFetch(
+                    `/system-admin/audit-logs?limit=${encodeURIComponent(AUDIT_PAGE_SIZE)}&offset=${encodeURIComponent(offset)}`
+                );
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok || !json?.ok) {
+                    if (tbody) {
+                        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#b91c1c;padding:2rem;">${escapeHtml(
+                            json?.message || "Unable to load audit logs."
+                        )}</td></tr>`;
+                    }
+                    return;
+                }
+                const total =
+                    typeof json.total === "number" && Number.isFinite(json.total)
+                        ? json.total
+                        : Array.isArray(json.logs)
+                          ? json.logs.length
+                          : 0;
+                const maxPage = Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE));
+                if (auditCurrentPage > maxPage) {
+                    auditCurrentPage = maxPage;
+                    return loadAuditLogs();
+                }
+                renderAuditRows(Array.isArray(json.logs) ? json.logs : []);
+                const actionSel = document.getElementById("actionFilter");
+                filterByAction(actionSel ? actionSel.value : "");
+                searchLogs();
+                renderAuditPagination(total);
+                if (metaEl && json.meta) {
+                    const parts = [];
+                    if (json.meta.authAuditLoaded === false && json.meta.authAuditError) {
+                        parts.push(
+                            "Auth audit logs could not be read (showing other sources if any). " +
+                            escapeHtml(String(json.meta.authAuditError))
+                        );
+                    }
+                    if (json.meta.portalAuditLoaded === false && json.meta.portalAuditError) {
+                        parts.push(
+                            "Portal activity events could not be read (apply migration 20260510_portal_audit_events.sql). " +
+                            escapeHtml(String(json.meta.portalAuditError))
+                        );
+                    }
+                    if (parts.length) {
+                        metaEl.style.display = "block";
+                        metaEl.textContent = parts.join(" ");
+                    }
+                }
+            } catch (_err) {
+                if (tbody) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="4" style="text-align:center;color:#b91c1c;padding:2rem;">Could not reach the API server.</td></tr>';
+                }
+            }
+        }
+
+        (async function initAuditLogsPage() {
+            const auth = await window.SB_ADMIN_ACCESS?.requireRole?.("system-admin");
+            if (!auth) return;
+            await loadAuditLogs();
+        })();
     </script>
 </body>
 </html>

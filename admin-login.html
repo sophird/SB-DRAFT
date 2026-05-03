@@ -65,6 +65,7 @@
     </div>
 </div>
 <script src="shared/routes.js"></script>
+<script src="shared/maintenance-check.js"></script>
 <script>
     const API_BASE_URL = "http://localhost:4000";
     const STAFF_ROUTES = window.APP_ROUTES?.staff || { dashboard: "staff/staff-dashboard.html" };
@@ -115,7 +116,23 @@
                 return;
             }
             sessionStorage.setItem("adminAuth", JSON.stringify({ user: result.user, session: result.session }));
-            window.location.href = redirectTarget;
+            const role = result.user?.role;
+            let maintenanceMode = false;
+            if (role !== "system-admin") {
+                try {
+                    const statusRes = await fetch(`${API_BASE_URL}/public/system-status`);
+                    const statusJson = await statusRes.json().catch(() => ({}));
+                    maintenanceMode = statusJson?.environment === "maintenance";
+                } catch (_e) {
+                    maintenanceMode = false;
+                }
+            }
+            window.location.href =
+                maintenanceMode && role !== "system-admin"
+                    ? window.SB_MAINTENANCE?.maintenancePageHref?.() ||
+                      window.APP_ROUTES?.common?.maintenance ||
+                      "maintenance.html"
+                    : redirectTarget;
         } catch (_error) {
             loginError.innerText = "Cannot connect to backend. Make sure API server is running.";
         } finally {

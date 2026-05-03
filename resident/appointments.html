@@ -424,38 +424,39 @@
     <div id="bookingModal" class="modal-overlay">
         <div class="modal">
             <h2 style="margin-bottom:1.5rem;">Schedule Appointment</h2>
-            <div class="form-group">
-<label class="form-label">Purpose of Appointment</label>
-                <select class="form-input" id="appointmentPurpose">
-                    <option value="" disabled selected>Select appointment...</option>
-                    <option value="in-person">In-person Document Processing</option>
-                    <option value="pickup">Document / ID Pickup</option>
-                    <option value="consultation">Face-to-Face Consultation</option>
-                </select>
+            <form id="bookingAppointmentForm" action="#" method="post">
+                <div class="form-group">
+                    <label class="form-label">Purpose of Appointment</label>
+                    <select class="form-input" id="appointmentPurpose" name="purpose" required>
+                        <option value="" disabled selected>Loading purposes…</option>
+                    </select>
 
-                <div style="display:flex; gap:1.25rem;">
-                    <div style="flex:1;">
-                        <label class="form-label">Select Date</label>
-                        <input type="date" class="form-input" id="aptDate">
+                    <div style="display:flex; gap:1.25rem;">
+                        <div style="flex:1;">
+                            <label class="form-label">Select Date</label>
+                            <input type="date" class="form-input" id="aptDate" name="appointmentDate" required>
+                        </div>
+                        <div style="flex:1;">
+                            <label class="form-label">Available Time Slots</label>
+                            <select class="form-input" id="aptTime" name="slotId" required>
+                                <option value="" disabled selected>Select Time...</option>
+                                <optgroup label="Afternoon">
+                                    <option value="1">01:00 PM - 02:00 PM</option>
+                                    <option value="2">02:00 PM - 03:00 PM</option>
+                                    <option value="3">03:00 PM - 04:00 PM</option>
+                                    <option value="4">04:00 PM - 05:00 PM</option>
+                                </optgroup>
+                            </select>
+                        </div>
                     </div>
-                    <div style="flex:1;">
-                        <label class="form-label">Available Time Slots</label>
-<select class="form-input" id="aptTime">
-                            <option value="" disabled selected>Select Time...</option>
-                            <optgroup label="Afternoon">
-                                <option value="1">01:00 PM - 02:00 PM</option>
-                                <option value="2">02:00 PM - 03:00 PM</option>
-                                <option value="3">03:00 PM - 04:00 PM</option>
-                                <option value="4">04:00 PM - 05:00 PM</option>
-                            </optgroup>
-                        </select>
-                    </div>
+
+                    <button type="submit" class="btn-primary" style="width:100%; justify-content:center;">Book Appointment</button>
                 </div>
-
-
-<button onclick="submitBooking()" class="btn-primary" style="width:100%; justify-content:center;">Book Appointment</button>
-            </div> <button onclick="closeModal()" style="width:100%; background:none; border:none; color:var(--text-muted); margin-top:10px; cursor:pointer;">Cancel</button>
-        </div> </div> <div id="chatToggle" onclick="toggleChat()">
+            </form>
+            <button type="button" onclick="closeModal()" style="width:100%; background:none; border:none; color:var(--text-muted); margin-top:10px; cursor:pointer;">Cancel</button>
+        </div>
+    </div>
+    <div id="chatToggle" onclick="toggleChat()">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
     </div>
 
@@ -509,6 +510,7 @@
     </div>
 
     <script src="../shared/routes.js"></script>
+    <script src="../shared/maintenance-check.js"></script>
     <script src="../shared/resident-auth-guard.js"></script>
     <script src="../shared/resident-sidebar-profile.js"></script>
     <script>
@@ -573,12 +575,50 @@ function statusBadgeClass(status) {
             if (normalized === "rejected") return "status-rejected";
             return "status-pending";
         }
+        let purposeLabelByCode = {
+            "in-person": "In-person Document Processing",
+            pickup: "Document / ID Pickup",
+            consultation: "Face-to-Face Consultation"
+        };
+
+        async function loadAppointmentPurposeOptions() {
+            const sel = document.getElementById("appointmentPurpose");
+            try {
+                const response = await residentApiFetch(`${API_BASE_URL}/resident/appointment-purpose-types`);
+                const result = await response.json();
+                if (!response.ok || !result?.ok || !Array.isArray(result.purposes)) {
+                    throw new Error(result?.message || "bad response");
+                }
+                const map = {};
+                const opts = ['<option value="" disabled selected>Select appointment...</option>'];
+                for (const p of result.purposes) {
+                    const code = String(p.purposeCode || "").trim();
+                    if (!code) continue;
+                    const label = String(p.label || code).trim() || code;
+                    map[code] = label;
+                    opts.push(`<option value="${escapeHtmlText(code)}">${escapeHtmlText(label)}</option>`);
+                }
+                purposeLabelByCode = map;
+                if (sel) sel.innerHTML = opts.join("");
+            } catch (_e) {
+                if (sel) {
+                    sel.innerHTML = `
+                        <option value="" disabled selected>Select appointment...</option>
+                        <option value="in-person">In-person Document Processing</option>
+                        <option value="pickup">Document / ID Pickup</option>
+                        <option value="consultation">Face-to-Face Consultation</option>`;
+                }
+            }
+        }
+
         function getPurposeLabel(value) {
-            const normalized = String(value || "").toLowerCase();
+            const key = String(value || "").trim();
+            if (purposeLabelByCode[key]) return purposeLabelByCode[key];
+            const normalized = key.toLowerCase();
             if (normalized === "in-person") return "In-person Document Processing";
             if (normalized === "pickup") return "Document / ID Pickup";
             if (normalized === "consultation") return "Face-to-Face Consultation";
-            return value || "Appointment";
+            return key || "Appointment";
         }
         async function getResidentUserId() {
             try {
@@ -640,8 +680,31 @@ function renderAppointments(appointments) {
         document.getElementById("aptDate")?.addEventListener("change", (event) => {
             refreshAppointmentSlotsForDate(event.target?.value);
         });
+        document.getElementById("bookingAppointmentForm")?.addEventListener("submit", (event) => {
+            void submitBooking(event);
+        });
         
-        async function submitBooking() {
+        function resetBookingFormAfterSuccess() {
+            const purposeEl = document.getElementById("appointmentPurpose");
+            const aptDateEl = document.getElementById("aptDate");
+            const aptTimeEl = document.getElementById("aptTime");
+            if (aptDateEl) aptDateEl.value = "";
+            if (aptTimeEl) aptTimeEl.value = "";
+            if (purposeEl && purposeEl.options.length) {
+                let set = false;
+                for (let i = 0; i < purposeEl.options.length; i++) {
+                    if (purposeEl.options[i].value) {
+                        purposeEl.selectedIndex = i;
+                        set = true;
+                        break;
+                    }
+                }
+                if (!set) purposeEl.selectedIndex = 0;
+            }
+        }
+
+        async function submitBooking(event) {
+            event?.preventDefault?.();
             const purposeEl = document.getElementById("appointmentPurpose");
             const aptDateEl = document.getElementById("aptDate");
             const aptTimeEl = document.getElementById("aptTime");
@@ -670,9 +733,7 @@ function renderAppointments(appointments) {
                     "Booking submitted successfully. Awaiting office confirmation."
                 );
                 closeModal();
-                if (aptDateEl) aptDateEl.value = "";
-                if (aptTimeEl) aptTimeEl.value = "";
-                if (purposeEl) purposeEl.value = "in-person";
+                resetBookingFormAfterSuccess();
                 await loadAppointments();
             } catch (error) {
                 openFeedbackModal("Booking Failed", error?.message || "Unable to submit booking right now. Please try again.");
@@ -787,7 +848,10 @@ feedbackModal?.addEventListener("click", (event) => {
             }
             window.location.href = COMMON_ROUTES.landing;
         });
-        loadAppointments();
+        (async () => {
+            await loadAppointmentPurposeOptions();
+            loadAppointments();
+        })();
     </script>
     <script src="../shared/resident-faq-chat.js" data-api-base="http://localhost:4000"></script>
 </body>

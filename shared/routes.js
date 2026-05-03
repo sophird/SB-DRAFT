@@ -23,7 +23,8 @@
 
   const ROUTES = {
     common: {
-      landing: `${rootPrefix}landing.html`
+      landing: `${rootPrefix}landing.html`,
+      maintenance: `${rootPrefix}maintenance.html`
     },
     entry: {
       residentLogin: `${rootPrefix}resident-login.html`,

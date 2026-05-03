@@ -5,6 +5,14 @@
     return globalScope.APP_ROUTES?.resident?.login || "../resident-login.html";
   }
 
+  function maintenanceHref() {
+    return (
+      globalScope.SB_MAINTENANCE?.maintenancePageHref?.() ||
+      globalScope.APP_ROUTES?.common?.maintenance ||
+      "../maintenance.html"
+    );
+  }
+
   function readAccessToken() {
     try {
       const raw = globalScope.sessionStorage.getItem(STORAGE_KEY);
@@ -17,9 +25,25 @@
     }
   }
 
-  function guard() {
+  async function guard() {
     if (!readAccessToken()) {
       globalScope.location.href = loginHref();
+      return;
+    }
+    try {
+      let env = "production";
+      if (globalScope.SB_MAINTENANCE?.fetchPortalEnvironment) {
+        env = await globalScope.SB_MAINTENANCE.fetchPortalEnvironment();
+      } else {
+        const response = await globalScope.fetch("http://localhost:4000/public/system-status");
+        const json = await response.json().catch(() => ({}));
+        if (json?.environment === "maintenance") env = "maintenance";
+      }
+      if (env === "maintenance") {
+        globalScope.location.href = maintenanceHref();
+      }
+    } catch (_err) {
+      /* fail open: allow portal if status check fails */
     }
   }
 
@@ -52,9 +76,13 @@
     return `${urlPath}${joiner}access_token=${encodeURIComponent(token)}`;
   };
 
+  function scheduleGuard() {
+    void guard();
+  }
+
   if (globalScope.document.readyState === "loading") {
-    globalScope.document.addEventListener("DOMContentLoaded", guard);
+    globalScope.document.addEventListener("DOMContentLoaded", scheduleGuard);
   } else {
-    guard();
+    scheduleGuard();
   }
 })(window);
