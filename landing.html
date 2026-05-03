@@ -73,20 +73,7 @@
             position: relative;
         }
 
-        .btn-nav::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 0;
-            height: 2px;
-            background: var(--primary-green);
-            transition: width 0.3s ease;
-        }
-
-        .btn-nav:hover::after {
-            width: 100%;
-        }
+        /* No slide animation for nav buttons */
 
         .btn-residents {
             background: var(--primary-green);
@@ -105,12 +92,10 @@
         }
 
         .btn-nav:hover {
-            transform: translateY(-2px);
-            opacity: 0.9;
+            opacity: 0.8;
         }
 
         .btn-residents:hover, .btn-admins:hover {
-            transform: translateY(-2px);
             opacity: 0.9;
         }
 
