@@ -299,7 +299,7 @@
 
         (async function showMaintenanceLandingNotice() {
             try {
-                const response = await fetch("http://localhost:4000/public/system-status");
+                const response = await fetch("https://sb-draft1.onrender.com");
                 const json = await response.json().catch(() => ({}));
                 if (json?.environment !== "maintenance") return;
                 const banner = document.getElementById("maintenanceLandingBanner");
