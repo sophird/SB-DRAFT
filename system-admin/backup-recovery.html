@@ -457,7 +457,7 @@
                     <p style="color: #166534; font-size: 0.95rem;">No backup has been exported from this session. Download a backup now to ensure data safety.</p>
                 </div>
             </div>
-            <button class="btn-export" onclick="alert('Generating Backup...')">
+            <button class="btn-export" onclick="showComingSoonModal()">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                 Export Backup
             </button>
@@ -543,6 +543,17 @@
             </div>
         </div>
 
+    <div id="comingSoonModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="comingSoonTitle" aria-hidden="true">
+        <div class="confirm-modal" style="max-width: 500px; text-align: center; background: linear-gradient(135deg, #064e3b 0%, #047857 100%); border: 2px solid #065f46; color: white;">
+            <div style="font-size: 2rem; margin-bottom: 1rem;">🔧</div>
+            <h3 id="comingSoonTitle" style="font-size:1.3rem; color: #10b981; margin-bottom: 1rem;">Coming Soon: Enhanced Data Protection</h3>
+            <p style="font-size:0.95rem; color: #d1fae5; line-height:1.6; margin-bottom: 1.5rem;">
+                We are currently upgrading our backup systems. While the Export Backup feature is under construction, all data remains securely stored within our primary database. We appreciate your patience as we finalize this security module.
+            </p>
+            <button type="button" class="btn-confirm" style="background: #047857; color: white; padding: 0.75rem 1.5rem; font-weight: 600; border-radius: 8px; border: none; cursor: pointer;" onclick="closeComingSoonModal()">Got it, Thanks!</button>
+        </div>
+    </div>
+
         <!-- Recovery Instructions Card -->
         <div class="card">
             <h3 style="margin-bottom: 1.5rem;">Recovery Instructions</h3>
@@ -617,6 +628,26 @@
             }
             sessionStorage.removeItem("adminAuth");
             window.location.href = COMMON_ROUTES.landing;
+        });
+
+        function showComingSoonModal() {
+            const modal = document.getElementById("comingSoonModal");
+            if (modal) {
+                modal.classList.add("show");
+                modal.setAttribute("aria-hidden", "false");
+            }
+        }
+
+        function closeComingSoonModal() {
+            const modal = document.getElementById("comingSoonModal");
+            if (modal) {
+                modal.classList.remove("show");
+                modal.setAttribute("aria-hidden", "true");
+            }
+        }
+
+        document.getElementById("comingSoonModal")?.addEventListener("click", (event) => {
+            if (event.target.id === "comingSoonModal") closeComingSoonModal();
         });
 
         function getAdminAccessToken() {
