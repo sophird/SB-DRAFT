@@ -63,6 +63,28 @@
 
     try {
       await verifyBackendRole(requiredRole, accessToken);
+      if (requiredRole !== "system-admin") {
+        let env = "production";
+        try {
+          if (globalScope.SB_MAINTENANCE?.fetchPortalEnvironment) {
+            env = await globalScope.SB_MAINTENANCE.fetchPortalEnvironment();
+          } else {
+            const response = await fetch(`${API_BASE_URL}/public/system-status`);
+            const json = await response.json().catch(() => ({}));
+            if (json?.environment === "maintenance") env = "maintenance";
+          }
+        } catch (_e) {
+          env = "production";
+        }
+        if (env === "maintenance") {
+          const target =
+            globalScope.SB_MAINTENANCE?.maintenancePageHref?.() ||
+            globalScope.APP_ROUTES?.common?.maintenance ||
+            "../maintenance.html";
+          globalScope.location.href = target;
+          return null;
+        }
+      }
       return auth;
     } catch (_error) {
       redirectToLogin();
