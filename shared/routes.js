@@ -40,7 +40,7 @@ admin: {
     },
     systemAdmin: {
       login: `${rootPrefix}admin-login.html`,
-      dashboard: `${rootPrefix}system-admin/sys-config.html`
+      dashboard: `${rootPrefix}system-admin/sysad-dashboard.html`
     },
     resident: {
       login: `${rootPrefix}resident-login.html`,

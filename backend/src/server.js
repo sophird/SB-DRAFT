@@ -4289,10 +4289,12 @@ app.get("/system-admin/dashboard-stats", async (req, res) => {
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
-  const [adminC, staffC, residentC, latestRow, weekCount] = await Promise.all([
+  const [adminC, staffC, residentC, reqC, apptC, latestRow, weekCount] = await Promise.all([
     supabaseAdmin.from("profiles").select("email", { count: "exact", head: true }).eq("role", "admin"),
     supabaseAdmin.from("profiles").select("email", { count: "exact", head: true }).eq("role", "staff"),
     supabaseAdmin.from("profiles").select("email", { count: "exact", head: true }).eq("role", "resident"),
+    supabaseAdmin.from("service_requests").select("id", { count: "exact", head: true }),
+    supabaseAdmin.from("appointments").select("id", { count: "exact", head: true }),
     supabaseAdmin.from("portal_audit_events").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     supabaseAdmin.from("portal_audit_events").select("id", { count: "exact", head: true }).gte("created_at", sevenDaysAgo)
   ]);
@@ -4305,11 +4307,27 @@ app.get("/system-admin/dashboard-stats", async (req, res) => {
       detail: err?.message || "unknown"
     });
   }
+  if (reqC.error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to count service requests.",
+      detail: reqC.error.message
+    });
+  }
+  if (apptC.error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to count appointments.",
+      detail: apptC.error.message
+    });
+  }
 
   const admins = typeof adminC.count === "number" ? adminC.count : 0;
   const staff = typeof staffC.count === "number" ? staffC.count : 0;
   const residents = typeof residentC.count === "number" ? residentC.count : 0;
   const portalUserTotal = admins + staff + residents;
+  const serviceRequestsTotal = typeof reqC.count === "number" ? reqC.count : 0;
+  const appointmentsTotal = typeof apptC.count === "number" ? apptC.count : 0;
 
   const environment = await getPortalEnvironmentFromDb();
 
@@ -4326,6 +4344,8 @@ app.get("/system-admin/dashboard-stats", async (req, res) => {
       staff,
       residents
     },
+    serviceRequestsTotal,
+    appointmentsTotal,
     environment,
     lastAuditAt,
     auditEventsLast7Days
