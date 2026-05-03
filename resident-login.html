@@ -471,6 +471,7 @@
 </div>
 
 <script src="shared/routes.js"></script>
+<script src="shared/maintenance-check.js"></script>
 <script>
     const API_BASE_URL = "http://localhost:4000";
     const RESIDENT_CONTEXT_KEY = "residentContext";
@@ -654,7 +655,19 @@
                 return;
             }
             persistResidentAuth(result);
-            window.location.href = RESIDENT_ROUTES.dashboard;
+            let maintenanceMode = false;
+            try {
+                const statusRes = await fetch(`${API_BASE_URL}/public/system-status`);
+                const statusJson = await statusRes.json().catch(() => ({}));
+                maintenanceMode = statusJson?.environment === "maintenance";
+            } catch (_e) {
+                maintenanceMode = false;
+            }
+            window.location.href = maintenanceMode
+                ? window.SB_MAINTENANCE?.maintenancePageHref?.() ||
+                  window.APP_ROUTES?.common?.maintenance ||
+                  "maintenance.html"
+                : RESIDENT_ROUTES.dashboard;
         } catch (_error) {
             if (errorEl) errorEl.innerText = "Cannot connect to backend. Make sure API server is running.";
         } finally {

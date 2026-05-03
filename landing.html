@@ -239,6 +239,7 @@
     </nav>
 
     <div class="page-content">
+    <div id="maintenanceLandingBanner" role="status" style="display:none; margin:0 4rem 1rem; padding:0.85rem 1.1rem; background:#fef3c7; border:1px solid #fbbf24; border-radius:12px; color:#92400e; font-weight:600; font-size:0.9rem; text-align:center; line-height:1.45;"></div>
     <main class="hero-section">
         <div class="container">
             
@@ -313,6 +314,21 @@
                 if(bar) bar.style.width = '75%';
             }, 500);
         });
+
+        (async function showMaintenanceLandingNotice() {
+            try {
+                const response = await fetch("http://localhost:4000/public/system-status");
+                const json = await response.json().catch(() => ({}));
+                if (json?.environment !== "maintenance") return;
+                const banner = document.getElementById("maintenanceLandingBanner");
+                if (!banner) return;
+                banner.style.display = "block";
+                banner.textContent =
+                    "The portal is in maintenance mode. You can still open this page and sign in; resident and staff services are paused until a system administrator restores production.";
+            } catch (_e) {
+                /* ignore */
+            }
+        })();
     </script>
 </body>
 </html>
