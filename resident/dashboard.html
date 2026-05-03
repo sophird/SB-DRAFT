@@ -655,7 +655,7 @@
     <div id="profileModal" class="modal-overlay" role="dialog" aria-modal="true">
         <div class="modal-content" style="max-width: 500px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem;">
-                <h2 style="font-size: 1.25rem; color: var(--brand-dark); font-weight: 700;">Account Settings</h2>
+                <h2 style="font-size: 1.25rem; color: var(--brand-dark); font-weight: 700;">Profile Settings</h2>
                 <button onclick="closeProfileModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
             </div>
             
@@ -663,17 +663,23 @@
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="text-align: center; margin-bottom: 1rem;">
                         <div class="user-avatar" style="width: 80px; height: 80px; font-size: 2rem; margin: 0 auto 0.5rem;">SD</div>
-                        <p style="font-size: 0.85rem; color: var(--brand-green); cursor: pointer; font-weight: 600;">Change Photo</p>
+                        <p style="font-size: 0.85rem; color: var(--brand-green); cursor: pointer; font-weight: 600;" onclick="document.getElementById('profilePhotoInput').click();">Change Photo</p>
+                        <input type="file" id="profilePhotoInput" accept="image/*" style="display: none;" onchange="previewProfilePhoto(event)">
                     </div>
 
                     <div class="form-group">
                         <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Full Name</label>
-                        <input type="text" value="Sophia Dumayas" style="width: 100%; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px;" readonly>
+                        <input type="text" value="Sophia Dumayas" style="width: 100%; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #f8fafc;" readonly disabled>
                     </div>
 
                     <div class="form-group">
                         <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Email Address</label>
-                        <input type="email" placeholder="sophia.d@example.com" style="width: 100%; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                        <input type="email" placeholder="user@gmail.com" style="width: 100%; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Password</label>
+                        <input type="password" placeholder="Enter new password" style="width: 100%; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px;">
                     </div>
 
                     <div class="form-group">
@@ -687,6 +693,17 @@
                     <button type="submit" style="padding: 0.75rem 1.25rem; border-radius: 10px; border: none; background: var(--brand-green); color: white; font-weight: 600; cursor: pointer;">Save Changes</button>
                 </div>
             </form>
+    </div>
+    </div>
+
+    <!-- Profile Update Progress Notification Modal -->
+    <div id="profileProgressModal" class="modal-overlay" role="dialog" aria-modal="true">
+        <div class="modal-content" style="max-width: 420px;">
+            <h2 style="font-size: 1.25rem; color: var(--brand-dark); font-weight: 700; margin-bottom: 1rem;">Profile Update</h2>
+            <p style="color: var(--text-main); margin-bottom: 1.5rem;">Profile update is under progress. This feature is coming soon!</p>
+            <div style="display: flex; justify-content: flex-end;">
+                <button onclick="closeProfileProgressModal()" style="padding: 0.75rem 1.5rem; border-radius: 10px; border: none; background: var(--brand-green); color: white; font-weight: 600; cursor: pointer;">OK</button>
+            </div>
         </div>
     </div>
 
@@ -1029,6 +1046,47 @@
                 closeProfileModal();
             }
         });
+
+        // Profile Form Submit Handler
+        document.getElementById('profileForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            closeProfileModal();
+            document.getElementById('profileProgressModal').classList.add('active');
+        });
+
+        function closeProfileProgressModal() {
+            document.getElementById('profileProgressModal').classList.remove('active');
+        }
+
+        // Close progress modal on outside click
+        window.addEventListener('click', (event) => {
+            if (event.target.id === 'profileProgressModal') {
+                closeProfileProgressModal();
+            }
+        });
+
+        // Profile Photo Preview (Facebook-style)
+        function previewProfilePhoto(event) {
+            const file = event.target.files[0];
+            if (!file || !file.type.startsWith('image/')) {
+                alert('Please select a valid image file.');
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) { // 5MB limit
+                alert('Image size too large. Max 5MB.');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const avatar = document.querySelector('#profileModal .user-avatar');
+                avatar.style.backgroundImage = `url(${e.target.result})`;
+                avatar.style.backgroundSize = 'cover';
+                avatar.style.backgroundPosition = 'center';
+                avatar.textContent = ''; // Remove initials
+                avatar.style.color = 'transparent';
+            };
+            reader.readAsDataURL(file);
+        }
 
         function handleLogout(event) {
             event.preventDefault();

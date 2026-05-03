@@ -1,11 +1,13 @@
-# Sys-Config Delete Fix TODO
+# Profile Form Update Task - Resident Dashboard
 
-**Status**: [COMPLETED] 5/6 steps done
+## Steps:
+# Profile Form Update Task - Resident Dashboard
 
-## Steps from Approved Plan:
-1. [✅] Create TODO.md 
-2. [✅] Fix warning visibility toggle in category switch handler
-3. [✅] Add robust event delegation for delete buttons
-4. [✅] Robustify modal management (querySelector, escape close)
-5. [✅] Sync initial counts and test full flow
-6. [ ] attempt_completion with demo command
+## Steps:
+- [x] 1. Create TODO.md with task steps 
+- [x] 2. Edit resident/dashboard.html: Add password field below email
+- [x] 3. Edit resident/dashboard.html: Add notification modal HTML
+- [x] 4. Edit resident/dashboard.html: Add JavaScript submit handler
+- [x] 5. Test changes: Open dashboard.html, profile modal, verify password field and popup
+- [x] Complete task
+
