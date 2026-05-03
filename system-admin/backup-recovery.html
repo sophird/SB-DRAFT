@@ -188,8 +188,8 @@
 
         /* Specific Styles for Backup Design */
         .alert-box {
-            background: #fffcf0;
-            border: 1px solid #fde68a;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
             border-radius: 12px;
             padding: 1.5rem;
             display: flex;
@@ -205,20 +205,20 @@
         }
 
         .warning-icon {
-            background: #fef3c7;
-            color: #92400e;
+            background: #dcfce7;
+            color: #166534;
             width: 48px;
             height: 48px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             flex-shrink: 0;
         }
 
         .btn-export {
-            background: #9a3412;
+            background: #043d2e;
             color: white;
             padding: 12px 24px;
             border-radius: 8px;
@@ -231,6 +231,78 @@
             cursor: pointer;
         }
         
+        /* Inclusion Grid Styles */
+        .inclusion-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .inclusion-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            transition: background-color 0.2s;
+        }
+
+        .inclusion-item:hover {
+            background-color: #f8fafc;
+        }
+
+        .check-icon {
+            color: #16a34a; /* Brand Green */
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .inclusion-text h4 {
+            font-size: 1rem;
+            color: var(--brand-dark);
+            margin-bottom: 2px;
+        }
+
+        .inclusion-text p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        /* Recovery Instructions Styling */
+        .recovery-list {
+            margin-left: 1.5rem;
+            line-height: 1.8;
+            color: var(--text-main);
+        }
+
+        .recovery-list li {
+            margin-bottom: 0.75rem;
+            font-size: 0.95rem;
+        }
+
+        .code-inline {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: #475569;
+        }
+
+        .note-box {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            margin-top: 1.5rem;
+            color: #166534;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
         table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
         th { text-align: left; padding: 12px; border-bottom: 2px solid #f1f5f9; color: var(--text-muted); font-size: 0.85rem; }
         td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
@@ -321,10 +393,10 @@
         <!-- Warning Alert Section -->
         <div class="alert-box">
             <div class="alert-content">
-                <div class="warning-icon">⚠️</div>
+                <div class="warning-icon">📦</div>
                 <div>
-                    <h3 style="margin-bottom: 4px;">No Recent Backup</h3>
-                    <p style="color: #92400e; font-size: 0.95rem;">No backup has been exported from this session. Download a backup now to prevent data loss.</p>
+                    <h3 style="margin-bottom: 4px; color: #166534;">Backup Reminder</h3>
+                    <p style="color: #166534; font-size: 0.95rem;">No backup has been exported from this session. Download a backup now to ensure data safety.</p>
                 </div>
             </div>
             <button class="btn-export" onclick="alert('Generating Backup...')">
@@ -333,6 +405,113 @@
             </button>
         </div>
 
+        <!-- What's Included Section -->
+        <div class="card">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1rem;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--brand-dark);">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                </svg>
+                <h3 style="margin: 0;">What's Included in the Backup</h3>
+            </div>
+
+            <div class="inclusion-grid">
+                <!-- Residents -->
+                <div class="inclusion-item">
+                    <div class="check-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
+                    <div class="inclusion-text">
+                        <h4>All Resident Profiles</h4>
+                        <p>Full names, addresses, contact details, and residency status.</p>
+                    </div>
+                </div>
+
+                <!-- Service Requests -->
+                <div class="inclusion-item">
+                    <div class="check-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
+                    <div class="inclusion-text">
+                        <h4>Service Requests</h4>
+                        <p>Full history of document requests and review status.</p>
+                    </div>
+                </div>
+
+                <!-- Appointments -->
+                <div class="inclusion-item">
+                    <div class="check-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
+                    <div class="inclusion-text">
+                        <h4>Appointment Records</h4>
+                        <p>Scheduled face-to-face consultations and pickup times.</p>
+                    </div>
+                </div>
+
+                <!-- User Accounts -->
+                <div class="inclusion-item">
+                    <div class="check-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
+                    <div class="inclusion-text">
+                        <h4>User Accounts</h4>
+                        <p>All staff and resident accounts (passwords encrypted for security).</p>
+                    </div>
+                </div>
+
+                <!-- Audit Trail -->
+                <div class="inclusion-item">
+                    <div class="check-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
+                    <div class="inclusion-text">
+                        <h4>Audit Trail Logs</h4>
+                        <p>Complete system activity history for security tracking.</p>
+                    </div>
+                </div>
+
+                <!-- Metadata -->
+                <div class="inclusion-item">
+                    <div class="check-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
+                    <div class="inclusion-text">
+                        <h4>Metadata</h4>
+                        <p>Export timestamp, schema version, and summary counts.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recovery Instructions Card -->
+        <div class="card">
+            <h3 style="margin-bottom: 1.5rem;">Recovery Instructions</h3>
+            
+            <ol class="recovery-list">
+                <li>
+                    <strong>Supabase Integration:</strong> Our primary database is hosted on <span class="code-inline">Supabase</span>. Please note that automated backup triggers within this portal are currently <strong>under maintenance</strong>.
+                </li>
+                <li>
+                    <strong>Manual Export:</strong> Until the maintenance is complete, use the "Export Backup" button above to generate a manual snapshot. The file will be saved as a <span class="code-inline">.json</span> file.
+                </li>
+                <li>
+                    <strong>Secure Storage:</strong> Store the exported file in a secure location—a password-protected cloud drive or an encrypted external storage device is highly recommended.
+                </li>
+                <li>
+                    <strong>Data Restoration:</strong> To restore data after a system failure or accidental deletion, contact the lead developer or system administrator and provide the latest valid <span class="code-inline">.json</span> backup file.
+                </li>
+                <li>
+                    <strong>Advanced Recovery:</strong> For critical technical recovery, database administrators can use the Supabase CLI or PostgreSQL <span class="code-inline">pg_restore</span> tools to re-import collections from the exported data.
+                </li>
+            </ol>
+
+            <!-- Bottom Note/Recommendation -->
+            <div class="note-box">
+                <strong>Recommendation:</strong> To ensure data integrity for <strong>SerbisyoBurgos</strong>, please export a manual backup at least once a week, or immediately after a large batch of resident registrations or document approvals.
+            </div>
+        </div>
 
     <script>
         function handleLogout(event) {
