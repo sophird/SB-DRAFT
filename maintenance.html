@@ -81,14 +81,14 @@
             Please check back later, or return to the home page.
         </p>
         <div class="actions">
-            <a class="btn btn-primary" id="homeLink" href="landing.html">Back to home</a>
+            <a class="btn btn-primary" id="homeLink" href="index.html">Back to home</a>
             <a class="btn btn-ghost" id="logoutResidentBtn" href="#" style="display:none;">Log out (resident)</a>
             <a class="btn btn-ghost" id="logoutAdminPortalBtn" href="#" style="display:none;">Log out (admin portal)</a>
         </div>
     </div>
     <script src="shared/routes.js"></script>
     <script>
-        const LANDING = window.APP_ROUTES?.common?.landing || "landing.html";
+        const LANDING = window.APP_ROUTES?.common?.landing || "index.html";
         const homeLink = document.getElementById("homeLink");
         if (homeLink) homeLink.href = LANDING;
 

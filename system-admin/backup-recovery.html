@@ -586,18 +586,6 @@
             </div>
         </div>
 
-    <div id="exportBackupModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="exportBackupModalTitle" aria-hidden="true">
-        <div class="confirm-modal backup-soon-modal">
-            <h3 id="exportBackupModalTitle">Coming Soon: Enhanced Data Protection</h3>
-            <p class="backup-soon-body">
-                We are currently upgrading our backup systems. While the Export Backup feature is under construction, all data remains securely stored within our primary database. We appreciate your patience as we finalize this security module.
-            </p>
-            <div class="confirm-actions">
-                <button type="button" class="btn-confirm" id="exportBackupModalClose">OK</button>
-            </div>
-        </div>
-    </div>
-
     <div id="logoutModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle" aria-hidden="true">
         <div class="confirm-modal">
             <h3 id="logoutModalTitle" style="font-size:1.05rem;color:var(--brand-dark);margin-bottom:0.55rem;">Confirm Logout</h3>
@@ -615,26 +603,9 @@
     <script>
         const API_BASE_URL = "http://localhost:4000";
         const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "../landing.html" };
-        const exportBackupModal = document.getElementById("exportBackupModal");
-        const exportBackupBtn = document.getElementById("exportBackupBtn");
-        const exportBackupModalClose = document.getElementById("exportBackupModalClose");
         const logoutModal = document.getElementById("logoutModal");
         const logoutCancelBtn = document.getElementById("logoutCancelBtn");
         const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
-
-        function openExportBackupModal() {
-            exportBackupModal?.classList.add("show");
-            if (exportBackupModal) exportBackupModal.setAttribute("aria-hidden", "false");
-        }
-        function closeExportBackupModal() {
-            exportBackupModal?.classList.remove("show");
-            if (exportBackupModal) exportBackupModal.setAttribute("aria-hidden", "true");
-        }
-        exportBackupBtn?.addEventListener("click", openExportBackupModal);
-        exportBackupModalClose?.addEventListener("click", closeExportBackupModal);
-        exportBackupModal?.addEventListener("click", (event) => {
-            if (event.target === exportBackupModal) closeExportBackupModal();
-        });
 
         function handleLogout(event) {
             event?.preventDefault?.();
@@ -651,10 +622,6 @@
         });
         document.addEventListener("keydown", (event) => {
             if (event.key !== "Escape") return;
-            if (exportBackupModal?.classList.contains("show")) {
-                closeExportBackupModal();
-                return;
-            }
             if (logoutModal?.classList.contains("show")) closeLogoutModal();
         });
         logoutConfirmBtn?.addEventListener("click", () => {
