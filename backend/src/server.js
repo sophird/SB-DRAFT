@@ -100,6 +100,12 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
 );
+if (!String(process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim()) {
+  console.warn(
+    "[backend] SUPABASE_SERVICE_ROLE_KEY is not set; using anon key for admin DB client. " +
+      "Writes such as system environment may fail under RLS. Set SUPABASE_SERVICE_ROLE_KEY in backend/.env."
+  );
+}
 const supabaseAuth = createClient(
   process.env.SUPABASE_URL || "",
   process.env.SUPABASE_ANON_KEY || ""
@@ -496,6 +502,59 @@ function normalizeAppointmentPurposeCatalogRow(row) {
     archivedAt: row.archived_at ?? null,
     createdAt: row.created_at || null
   };
+}
+
+const PORTAL_ENVIRONMENT_VALUES = new Set(["production", "maintenance"]);
+
+async function getPortalEnvironmentFromDb() {
+  const { data, error } = await supabaseAdmin
+    .from("system_settings")
+    .select("environment")
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) {
+    console.error("[system_settings] read:", error.message);
+    return "production";
+  }
+  const env = String(data?.environment || "production").toLowerCase();
+  return PORTAL_ENVIRONMENT_VALUES.has(env) ? env : "production";
+}
+
+async function savePortalEnvironmentToDb(environment) {
+  const env = PORTAL_ENVIRONMENT_VALUES.has(String(environment || "").toLowerCase())
+    ? String(environment).toLowerCase()
+    : "production";
+  const now = new Date().toISOString();
+  const row = { id: 1, environment: env, updated_at: now };
+
+  const { data: updatedRows, error: updateError } = await supabaseAdmin
+    .from("system_settings")
+    .update({ environment: env, updated_at: now })
+    .eq("id", 1)
+    .select("id");
+
+  if (updateError) {
+    return { ok: false, detail: updateError.message };
+  }
+  if (Array.isArray(updatedRows) && updatedRows.length > 0) {
+    return { ok: true, environment: env };
+  }
+
+  const { error: insertError } = await supabaseAdmin.from("system_settings").insert(row);
+  if (!insertError) {
+    return { ok: true, environment: env };
+  }
+  if (/duplicate|unique/i.test(String(insertError.message || ""))) {
+    const { error: retryErr } = await supabaseAdmin
+      .from("system_settings")
+      .update({ environment: env, updated_at: now })
+      .eq("id", 1);
+    if (retryErr) {
+      return { ok: false, detail: retryErr.message };
+    }
+    return { ok: true, environment: env };
+  }
+  return { ok: false, detail: insertError.message };
 }
 
 /** URL-safe code for appointment purpose (stored in appointments.purpose). */
@@ -896,6 +955,16 @@ app.get("/auth/config", async (_req, res) => {
     supabaseUrl,
     supabaseAnonKey
   });
+});
+
+// Public portal mode (used by landing, guards, and login redirects). No auth.
+app.get("/public/system-status", async (_req, res) => {
+  try {
+    const environment = await getPortalEnvironmentFromDb();
+    return res.json({ ok: true, environment });
+  } catch (_err) {
+    return res.json({ ok: true, environment: "production" });
+  }
 });
 
 // Authenticate an admin account and return auth session details.
@@ -3455,19 +3524,96 @@ app.post(
 
 // --- Admin user profiles (User & Role management) ---
 
+function mapDirectoryProfileRow(row) {
+  const profile = {
+    email: row.email,
+    fullName: row.full_name,
+    role: row.role,
+    createdAt: row.created_at,
+    residentSelfRegistered: row.role === "resident" && Boolean(row.resident_self_registered)
+  };
+  if (row.role === "staff") {
+    profile.staffPermissions = normalizeStaffPermissionsFromDb(row.staff_permissions);
+  }
+  return profile;
+}
+
 app.get("/admin/profiles", async (req, res) => {
   const auth = await requireStaffPortalUser(req, res);
   if (!auth) return;
-  if (auth.profile.role !== "admin") {
-    return res.status(403).json({ ok: false, message: "Admin role required to list all users." });
+  const actorRole = auth.profile.role;
+  if (actorRole !== "admin" && actorRole !== "system-admin") {
+    return res.status(403).json({
+      ok: false,
+      message: "Barangay admin or system administrator role is required to list users."
+    });
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("profiles")
-    .select("email, full_name, role, created_at, staff_permissions, resident_self_registered")
-    .not("role", "eq", "admin")
-    .not("role", "eq", "system-admin")
-    .order("full_name", { ascending: true });
+  const rawLimit = req.query?.limit;
+  const rawOffset = req.query?.offset;
+  let pageLimit = 0;
+  if (rawLimit !== undefined && rawLimit !== null && String(rawLimit).trim() !== "") {
+    const parsed = Number(rawLimit);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      pageLimit = Math.min(100, parsed);
+    }
+  }
+  const offsetParsed = Number(rawOffset);
+  const pageOffset = Number.isInteger(offsetParsed) && offsetParsed >= 0 ? offsetParsed : 0;
+
+  function filteredProfilesDataQuery() {
+    let q = supabaseAdmin
+      .from("profiles")
+      .select("email, full_name, role, created_at, staff_permissions, resident_self_registered")
+      .order("created_at", { ascending: false, nullsFirst: false })
+      .order("full_name", { ascending: true });
+    if (actorRole === "system-admin") {
+      return q.neq("role", "system-admin");
+    }
+    return q.not("role", "eq", "admin").not("role", "eq", "system-admin");
+  }
+
+  function filteredProfilesCountQuery() {
+    let q = supabaseAdmin.from("profiles").select("email", { count: "exact", head: true });
+    if (actorRole === "system-admin") {
+      return q.neq("role", "system-admin");
+    }
+    return q.not("role", "eq", "admin").not("role", "eq", "system-admin");
+  }
+
+  if (pageLimit > 0) {
+    const dataQuery = filteredProfilesDataQuery().range(pageOffset, pageOffset + pageLimit - 1);
+    const [{ count, error: countError }, { data, error }] = await Promise.all([
+      filteredProfilesCountQuery(),
+      dataQuery
+    ]);
+
+    if (countError) {
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to count user profiles.",
+        detail: countError.message
+      });
+    }
+    if (error) {
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to load user profiles.",
+        detail: error.message
+      });
+    }
+
+    const total = typeof count === "number" ? count : 0;
+    return res.json({
+      ok: true,
+      profiles: (data || []).map(mapDirectoryProfileRow),
+      total,
+      limit: pageLimit,
+      offset: pageOffset
+    });
+  }
+
+  const { data, error } = await filteredProfilesDataQuery();
 
   if (error) {
     return res.status(500).json({
@@ -3479,19 +3625,7 @@ app.get("/admin/profiles", async (req, res) => {
 
   return res.json({
     ok: true,
-    profiles: (data || []).map((row) => {
-      const profile = {
-        email: row.email,
-        fullName: row.full_name,
-        role: row.role,
-        createdAt: row.created_at,
-        residentSelfRegistered: row.role === "resident" && Boolean(row.resident_self_registered)
-      };
-      if (row.role === "staff") {
-        profile.staffPermissions = normalizeStaffPermissionsFromDb(row.staff_permissions);
-      }
-      return profile;
-    })
+    profiles: (data || []).map(mapDirectoryProfileRow)
   });
 });
 
@@ -3723,12 +3857,13 @@ async function findAuthUserIdByEmail(normalizedEmail) {
   return { id: null, error: null };
 }
 
-/** Remove profile + app user row + Supabase Auth user (admin only; cannot delete self or other admins). */
+/** Remove profile + app user row + Supabase Auth user (barangay admin or system admin; rules differ by actor). */
 app.post("/admin/profiles/delete", async (req, res) => {
   const auth = await requireStaffPortalUser(req, res);
   if (!auth) return;
-  if (auth.profile.role !== "admin") {
-    return res.status(403).json({ ok: false, message: "Admin role required to delete users." });
+  const actorRole = auth.profile.role;
+  if (actorRole !== "admin" && actorRole !== "system-admin") {
+    return res.status(403).json({ ok: false, message: "Barangay admin or system administrator role is required." });
   }
 
   const email = normalizeEmail(req.body?.email ?? "");
@@ -3758,7 +3893,14 @@ app.post("/admin/profiles/delete", async (req, res) => {
     return res.status(404).json({ ok: false, message: "No profile found for that email." });
   }
 
-  if (profile.role === "admin") {
+  if (profile.role === "system-admin") {
+    return res.status(403).json({
+      ok: false,
+      message: "System administrator accounts cannot be deleted from this action."
+    });
+  }
+
+  if (actorRole === "admin" && profile.role === "admin") {
     return res.status(403).json({ ok: false, message: "Deleting admin accounts is not allowed." });
   }
 
@@ -4132,6 +4274,97 @@ app.post("/admin/service-catalog/:id/archive", async (req, res) => {
 });
 
 // --- System admin: configuration (service request types & appointment purpose options) ---
+
+app.get("/system-admin/system-environment", async (req, res) => {
+  const auth = await requireSystemAdminUser(req, res);
+  if (!auth) return;
+  const environment = await getPortalEnvironmentFromDb();
+  return res.json({ ok: true, environment });
+});
+
+/** Dashboard overview for system admin home (counts + environment + audit recency). */
+app.get("/system-admin/dashboard-stats", async (req, res) => {
+  const auth = await requireSystemAdminUser(req, res);
+  if (!auth) return;
+
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+
+  const [adminC, staffC, residentC, latestRow, weekCount] = await Promise.all([
+    supabaseAdmin.from("profiles").select("email", { count: "exact", head: true }).eq("role", "admin"),
+    supabaseAdmin.from("profiles").select("email", { count: "exact", head: true }).eq("role", "staff"),
+    supabaseAdmin.from("profiles").select("email", { count: "exact", head: true }).eq("role", "resident"),
+    supabaseAdmin.from("portal_audit_events").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabaseAdmin.from("portal_audit_events").select("id", { count: "exact", head: true }).gte("created_at", sevenDaysAgo)
+  ]);
+
+  if (adminC.error || staffC.error || residentC.error) {
+    const err = adminC.error || staffC.error || residentC.error;
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load profile counts.",
+      detail: err?.message || "unknown"
+    });
+  }
+
+  const admins = typeof adminC.count === "number" ? adminC.count : 0;
+  const staff = typeof staffC.count === "number" ? staffC.count : 0;
+  const residents = typeof residentC.count === "number" ? residentC.count : 0;
+  const portalUserTotal = admins + staff + residents;
+
+  const environment = await getPortalEnvironmentFromDb();
+
+  const lastAuditAt =
+    !latestRow.error && latestRow.data?.created_at ? String(latestRow.data.created_at) : null;
+  const auditEventsLast7Days =
+    !weekCount.error && typeof weekCount.count === "number" ? weekCount.count : 0;
+
+  return res.json({
+    ok: true,
+    portalUsers: {
+      total: portalUserTotal,
+      admins,
+      staff,
+      residents
+    },
+    environment,
+    lastAuditAt,
+    auditEventsLast7Days
+  });
+});
+
+app.put("/system-admin/system-environment", async (req, res) => {
+  const auth = await requireSystemAdminUser(req, res);
+  if (!auth) return;
+  const raw = String((req.body || {}).environment || "").toLowerCase();
+  if (!PORTAL_ENVIRONMENT_VALUES.has(raw)) {
+    return res.status(400).json({
+      ok: false,
+      message: "Invalid environment. Use production or maintenance."
+    });
+  }
+  const result = await savePortalEnvironmentToDb(raw);
+  if (!result.ok) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to update system environment.",
+      detail: result.detail
+    });
+  }
+  void insertPortalAuditEvent({
+    action: "Updated Record",
+    description:
+      result.environment === "maintenance"
+        ? "Portal environment set to maintenance mode (non-system-admin access restricted)."
+        : "Portal environment set to production (full portal access).",
+    profile: auth.profile,
+    metadata: {
+      entity: "system_settings",
+      environment: result.environment,
+      source: "system-admin"
+    }
+  });
+  return res.json({ ok: true, environment: result.environment });
+});
 
 app.get("/system-admin/service-request-types", async (req, res) => {
   const auth = await requireSystemAdminUser(req, res);
@@ -4735,8 +4968,26 @@ app.get("/system-admin/audit-logs", async (req, res) => {
     });
   }
 
-  const limitRaw = Number(req.query?.limit);
-  const limit = Number.isInteger(limitRaw) ? Math.min(500, Math.max(1, limitRaw)) : 150;
+  const offsetRaw = req.query?.offset;
+  const paginate =
+    offsetRaw !== undefined && offsetRaw !== null && String(offsetRaw).trim() !== "";
+
+  let mergeFetchLimit;
+  let pageLimit;
+  let responseOffset = 0;
+  if (paginate) {
+    const off = Number.parseInt(String(offsetRaw), 10);
+    responseOffset = Number.isFinite(off) && off >= 0 ? Math.min(off, 1_000_000) : 0;
+    const limitRaw = Number(req.query?.limit);
+    pageLimit =
+      Number.isInteger(limitRaw) && limitRaw > 0 ? Math.min(100, Math.max(1, limitRaw)) : 15;
+    mergeFetchLimit = 2000;
+  } else {
+    const limitRaw = Number(req.query?.limit);
+    const legacyLimit = Number.isInteger(limitRaw) ? Math.min(500, Math.max(1, limitRaw)) : 150;
+    pageLimit = legacyLimit;
+    mergeFetchLimit = legacyLimit;
+  }
 
   const rows = [];
   let authError = null;
@@ -4749,7 +5000,7 @@ app.get("/system-admin/audit-logs", async (req, res) => {
       .from("portal_audit_events")
       .select("id, action, description, metadata, performed_by_email, performed_by_name, performed_by_role, created_at")
       .order("created_at", { ascending: false })
-      .limit(limit);
+      .limit(mergeFetchLimit);
 
     if (portErr) {
       portalAuditError = portErr.message;
@@ -4777,7 +5028,7 @@ app.get("/system-admin/audit-logs", async (req, res) => {
   }
 
   try {
-    const { rows: authRows, error: fetchErr, via } = await fetchAuthAuditRowsForSystemAdmin(limit);
+    const { rows: authRows, error: fetchErr, via } = await fetchAuthAuditRowsForSystemAdmin(mergeFetchLimit);
     authAuditVia = via;
     if (fetchErr) {
       authError = fetchErr;
@@ -4851,7 +5102,7 @@ app.get("/system-admin/audit-logs", async (req, res) => {
       .from("record_version")
       .select("id, op, ts, table_schema, table_name, record, old_record")
       .order("ts", { ascending: false })
-      .limit(limit);
+      .limit(mergeFetchLimit);
 
     if (!dErr && Array.isArray(dbRows)) {
       databaseAuditAvailable = true;
@@ -4890,9 +5141,12 @@ app.get("/system-admin/audit-logs", async (req, res) => {
     return tb - ta;
   });
 
-  const trimmed = rows.slice(0, limit);
+  const totalMerged = rows.length;
+  const trimmed = paginate
+    ? rows.slice(responseOffset, responseOffset + pageLimit)
+    : rows.slice(0, pageLimit);
 
-  if (!trimmed.length && authError && !databaseAuditAvailable) {
+  if (rows.length === 0 && authError && !databaseAuditAvailable) {
     return res.status(503).json({
       ok: false,
       message:
@@ -4916,20 +5170,33 @@ app.get("/system-admin/audit-logs", async (req, res) => {
     console.warn("[audit groq] summarize failed:", e?.message || e);
   }
 
-  return res.json({
+  const meta = {
+    limit: pageLimit,
+    authAuditLoaded: !authError,
+    authAuditError: authError || null,
+    authAuditVia,
+    databaseAuditAvailable,
+    portalAuditLoaded: !portalAuditError,
+    portalAuditError: portalAuditError || null,
+    auditDescriptionSummaries
+  };
+  if (paginate) {
+    meta.paginated = true;
+    meta.mergedRowCount = totalMerged;
+  }
+
+  const body = {
     ok: true,
     logs: logsForResponse,
-    meta: {
-      limit,
-      authAuditLoaded: !authError,
-      authAuditError: authError || null,
-      authAuditVia,
-      databaseAuditAvailable,
-      portalAuditLoaded: !portalAuditError,
-      portalAuditError: portalAuditError || null,
-      auditDescriptionSummaries
-    }
-  });
+    meta
+  };
+  if (paginate) {
+    body.total = totalMerged;
+    body.limit = pageLimit;
+    body.offset = responseOffset;
+  }
+
+  return res.json(body);
 });
 
 // Start the API server on the configured port (explicit http.Server for error + diagnostics).
