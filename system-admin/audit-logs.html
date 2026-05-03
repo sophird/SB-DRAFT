@@ -307,6 +307,22 @@
             color: #dc2626;
             border: 1px solid #fecaca;
         }
+
+        #auditPageSummary { font-size: 0.85rem; color: var(--text-muted); margin: 1rem 0 0.65rem; }
+        #auditPagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 0.25rem; }
+        .audit-pag-btn {
+            padding: 0.45rem 0.95rem;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #334155;
+            cursor: pointer;
+        }
+        .audit-pag-btn:hover:not(:disabled) { background: #f8fafc; border-color: #cbd5e1; }
+        .audit-pag-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .audit-pag-meta { font-size: 0.85rem; color: #475569; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -412,10 +428,15 @@
                     </tr>
                 </tbody>
             </table>
+            <div style="padding: 0 1.25rem 1.25rem;">
+                <p id="auditPageSummary" aria-live="polite"></p>
+                <div id="auditPagination" role="navigation" aria-label="Audit log pages"></div>
+            </div>
         </div>
     </main>
 
     <script src="../shared/routes.js"></script>
+    <script src="../shared/maintenance-check.js"></script>
     <script src="../shared/admin-access.js"></script>
     <script>
         const API_BASE_URL = "http://localhost:4000";
@@ -497,6 +518,56 @@
             });
         }
 
+        const AUDIT_PAGE_SIZE = 15;
+        let auditCurrentPage = 1;
+
+        function renderAuditPagination(total) {
+            const wrap = document.getElementById("auditPagination");
+            const summary = document.getElementById("auditPageSummary");
+            if (!wrap) return;
+            const n = Number(total);
+            const totalCount = Number.isFinite(n) ? n : 0;
+            const maxPage = Math.max(1, Math.ceil(totalCount / AUDIT_PAGE_SIZE));
+
+            if (summary) {
+                if (totalCount <= 0) {
+                    summary.textContent = "";
+                } else if (totalCount <= AUDIT_PAGE_SIZE) {
+                    summary.textContent = `Showing all ${totalCount} entr${totalCount === 1 ? "y" : "ies"}`;
+                } else {
+                    const from = (auditCurrentPage - 1) * AUDIT_PAGE_SIZE + 1;
+                    const to = Math.min(totalCount, auditCurrentPage * AUDIT_PAGE_SIZE);
+                    summary.textContent = `Showing ${from}–${to} of ${totalCount}`;
+                }
+            }
+
+            if (totalCount <= AUDIT_PAGE_SIZE) {
+                wrap.innerHTML = "";
+                return;
+            }
+
+            wrap.innerHTML = `
+                <button type="button" class="audit-pag-btn" data-audit-prev ${auditCurrentPage <= 1 ? "disabled" : ""}>Previous</button>
+                <span class="audit-pag-meta">Page ${auditCurrentPage} of ${maxPage}</span>
+                <button type="button" class="audit-pag-btn" data-audit-next ${auditCurrentPage >= maxPage ? "disabled" : ""}>Next</button>
+            `;
+
+            if (!wrap.dataset.paginationBound) {
+                wrap.dataset.paginationBound = "1";
+                wrap.addEventListener("click", function (e) {
+                    if (e.target.closest("[data-audit-prev]")) {
+                        auditCurrentPage = Math.max(1, auditCurrentPage - 1);
+                        void loadAuditLogs();
+                        return;
+                    }
+                    if (e.target.closest("[data-audit-next]")) {
+                        auditCurrentPage += 1;
+                        void loadAuditLogs();
+                    }
+                });
+            }
+        }
+
         function renderAuditRows(logs) {
             const tbody = document.getElementById("auditLogsBody");
             if (!tbody) return;
@@ -529,16 +600,23 @@
         async function loadAuditLogs() {
             const tbody = document.getElementById("auditLogsBody");
             const metaEl = document.getElementById("auditLogsMeta");
+            const summary = document.getElementById("auditPageSummary");
+            const pag = document.getElementById("auditPagination");
             if (tbody) {
                 tbody.innerHTML =
                     '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:2rem;">Loading audit logs…</td></tr>';
             }
+            if (summary) summary.textContent = "";
+            if (pag) pag.innerHTML = "";
             if (metaEl) {
                 metaEl.style.display = "none";
                 metaEl.textContent = "";
             }
             try {
-                const res = await adminFetch("/system-admin/audit-logs?limit=200");
+                const offset = (auditCurrentPage - 1) * AUDIT_PAGE_SIZE;
+                const res = await adminFetch(
+                    `/system-admin/audit-logs?limit=${encodeURIComponent(AUDIT_PAGE_SIZE)}&offset=${encodeURIComponent(offset)}`
+                );
                 const json = await res.json().catch(() => ({}));
                 if (!res.ok || !json?.ok) {
                     if (tbody) {
@@ -548,7 +626,22 @@
                     }
                     return;
                 }
+                const total =
+                    typeof json.total === "number" && Number.isFinite(json.total)
+                        ? json.total
+                        : Array.isArray(json.logs)
+                          ? json.logs.length
+                          : 0;
+                const maxPage = Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE));
+                if (auditCurrentPage > maxPage) {
+                    auditCurrentPage = maxPage;
+                    return loadAuditLogs();
+                }
                 renderAuditRows(Array.isArray(json.logs) ? json.logs : []);
+                const actionSel = document.getElementById("actionFilter");
+                filterByAction(actionSel ? actionSel.value : "");
+                searchLogs();
+                renderAuditPagination(total);
                 if (metaEl && json.meta) {
                     const parts = [];
                     if (json.meta.authAuditLoaded === false && json.meta.authAuditError) {
