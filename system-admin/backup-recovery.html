@@ -362,6 +362,21 @@
             cursor: pointer;
         }
         .btn-confirm.danger { background: #dc2626; }
+        .confirm-modal.backup-soon-modal {
+            max-width: 520px;
+        }
+        .backup-soon-modal .backup-soon-body {
+            margin: 0;
+            font-size: 0.92rem;
+            color: var(--text-muted);
+            line-height: 1.55;
+        }
+        .confirm-modal.backup-soon-modal h3 {
+            font-size: 1.08rem;
+            color: var(--brand-dark);
+            margin: 0 0 0.75rem;
+            line-height: 1.3;
+        }
     </style>
 </head>
 <body>
@@ -457,7 +472,7 @@
                     <p style="color: #166534; font-size: 0.95rem;">No backup has been exported from this session. Download a backup now to ensure data safety.</p>
                 </div>
             </div>
-            <button class="btn-export" onclick="alert('Generating Backup...')">
+            <button type="button" class="btn-export" id="exportBackupBtn" aria-haspopup="dialog" aria-controls="exportBackupModal">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                 Export Backup
             </button>
@@ -571,6 +586,18 @@
             </div>
         </div>
 
+    <div id="exportBackupModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="exportBackupModalTitle" aria-hidden="true">
+        <div class="confirm-modal backup-soon-modal">
+            <h3 id="exportBackupModalTitle">Coming Soon: Enhanced Data Protection</h3>
+            <p class="backup-soon-body">
+                We are currently upgrading our backup systems. While the Export Backup feature is under construction, all data remains securely stored within our primary database. We appreciate your patience as we finalize this security module.
+            </p>
+            <div class="confirm-actions">
+                <button type="button" class="btn-confirm" id="exportBackupModalClose">OK</button>
+            </div>
+        </div>
+    </div>
+
     <div id="logoutModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle" aria-hidden="true">
         <div class="confirm-modal">
             <h3 id="logoutModalTitle" style="font-size:1.05rem;color:var(--brand-dark);margin-bottom:0.55rem;">Confirm Logout</h3>
@@ -588,9 +615,26 @@
     <script>
         const API_BASE_URL = "http://localhost:4000";
         const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "../landing.html" };
+        const exportBackupModal = document.getElementById("exportBackupModal");
+        const exportBackupBtn = document.getElementById("exportBackupBtn");
+        const exportBackupModalClose = document.getElementById("exportBackupModalClose");
         const logoutModal = document.getElementById("logoutModal");
         const logoutCancelBtn = document.getElementById("logoutCancelBtn");
         const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
+
+        function openExportBackupModal() {
+            exportBackupModal?.classList.add("show");
+            if (exportBackupModal) exportBackupModal.setAttribute("aria-hidden", "false");
+        }
+        function closeExportBackupModal() {
+            exportBackupModal?.classList.remove("show");
+            if (exportBackupModal) exportBackupModal.setAttribute("aria-hidden", "true");
+        }
+        exportBackupBtn?.addEventListener("click", openExportBackupModal);
+        exportBackupModalClose?.addEventListener("click", closeExportBackupModal);
+        exportBackupModal?.addEventListener("click", (event) => {
+            if (event.target === exportBackupModal) closeExportBackupModal();
+        });
 
         function handleLogout(event) {
             event?.preventDefault?.();
@@ -607,6 +651,10 @@
         });
         document.addEventListener("keydown", (event) => {
             if (event.key !== "Escape") return;
+            if (exportBackupModal?.classList.contains("show")) {
+                closeExportBackupModal();
+                return;
+            }
             if (logoutModal?.classList.contains("show")) closeLogoutModal();
         });
         logoutConfirmBtn?.addEventListener("click", () => {

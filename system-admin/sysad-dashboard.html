@@ -503,9 +503,6 @@
         function permissionsCellHtml(p) {
             const r = String(p?.role || "").trim().toLowerCase();
             if (r === "resident") {
-                if (p?.residentSelfRegistered === true) {
-                    return "<small>Resident portal (self-registered)</small>";
-                }
                 return "<small>Resident portal</small>";
             }
             if (r === "admin") return "<small>Administration, catalog, users, announcements</small>";

@@ -63,4 +63,23 @@ admin: {
 
   globalScope.APP_ROUTES = ROUTES;
   globalScope.APP_NAV = { logout };
+
+  function inferApiBaseUrl() {
+    try {
+      const href = globalScope.location?.href;
+      if (!href || href.startsWith("file:")) return "http://localhost:4000";
+      const u = new URL(href);
+      if ((u.protocol === "http:" || u.protocol === "https:") && u.hostname) {
+        return `${u.protocol}//${u.hostname}:4000`;
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+    return "http://localhost:4000";
+  }
+
+  const existingApi = typeof globalScope.API_BASE_URL === "string" ? globalScope.API_BASE_URL.trim() : "";
+  if (!existingApi) {
+    globalScope.API_BASE_URL = inferApiBaseUrl();
+  }
 })(window);

@@ -519,6 +519,17 @@
 
     registerSuccessContinueBtn?.addEventListener("click", closeRegisterSuccessAndGoLogin);
 
+    try {
+        const blockedMsg = sessionStorage.getItem("residentPortalBlockedReason");
+        if (blockedMsg) {
+            sessionStorage.removeItem("residentPortalBlockedReason");
+            const blockedEl = document.getElementById("resident-login-error");
+            if (blockedEl) blockedEl.textContent = blockedMsg;
+        }
+    } catch (_e) {
+        /* ignore */
+    }
+
     function getLoginElements() {
         return {
             emailInput: document.getElementById("resident-login-email"),

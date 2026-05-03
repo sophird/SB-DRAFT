@@ -449,9 +449,9 @@
 <div class="form-group">
                     <label>Account Status</label>
                     <select id="userStatusSelect" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px;">
-                        <option value="Active">Active</option>
-                        <option value="Suspended">Suspended</option>
-                        <option value="Deactivated">Deactivated</option>
+                        <option value="Active" title="Resident can log in and use the resident portal">Active</option>
+                        <option value="Suspended" title="Resident cannot log in or use the resident portal">Suspended</option>
+                        <option value="Deactivated" title="Resident cannot log in or use the resident portal">Deactivated</option>
                     </select>
                 </div>
 
@@ -615,8 +615,20 @@
             return "<small>—</small>";
         }
 
-        function defaultAccountStatusBadge() {
-            return '<span class="status-badge" style="background: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">Active</span>';
+        function accountStatusBadgeHtml(statusLabel) {
+            const s = String(statusLabel || "Active").trim();
+            let bg = "#f0fdf4";
+            let color = "#16a34a";
+            if (s === "Suspended") {
+                bg = "#fff7ed";
+                color = "#ea580c";
+            } else if (s === "Deactivated") {
+                bg = "#f1f5f9";
+                color = "#64748b";
+            }
+            return `<span class="status-badge" style="background: ${bg}; color: ${color}; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">${escapeHtml(
+                s
+            )}</span>`;
         }
 
         function residentPortalDatasetAttr(p) {
@@ -736,11 +748,13 @@
                         const perms = permissionsCellHtmlForProfile(p);
                         const portalAttr = residentPortalDatasetAttr(p);
                         const staffPermAttr = staffPermissionDataAttrsForRow(p);
-                        return `<tr id="${rowId}" data-user-name="${nameAttr}" data-user-role="${roleAttr}" data-search="${searchAttr}"${portalAttr}${staffPermAttr}>
+                        const accLabel = String(p.accountStatus || "Active").trim();
+                        const accAttr = escapeHtml(accLabel);
+                        return `<tr id="${rowId}" data-user-name="${nameAttr}" data-user-role="${roleAttr}" data-search="${searchAttr}" data-account-status="${accAttr}"${portalAttr}${staffPermAttr}>
                             <td style="font-weight: 600;">${name}</td>
                             <td>${email}</td>
                             <td>${perms}</td>
-                            <td data-cell="account-status">${defaultAccountStatusBadge()}</td>
+                            <td data-cell="account-status">${accountStatusBadgeHtml(accLabel)}</td>
                             <td>
                                 <button type="button" class="btn-config" onclick="openUserManageFromRow('${rowId}')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
                                 <button type="button" class="btn-delete-user" onclick="deleteUserAccount('${rowId}')" style="background-color: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Delete</button>
@@ -881,6 +895,8 @@
         }
 
         function readRowAccountStatus(row) {
+            const ds = String(row?.dataset?.accountStatus || "").trim();
+            if (ds) return ds;
             const cell = getAccountStatusCell(row);
             const badge = cell?.querySelector(".status-badge");
             return badge ? badge.textContent.trim() : "Active";
@@ -938,9 +954,41 @@ async function saveUserChanges() {
             const row = document.getElementById(targetUserRow);
             if (!row) return;
             
-            // Get selected status
             const newStatus = document.getElementById('userStatusSelect').value;
-            
+
+            const targetEmailForStatus = getRowProfileEmail(row);
+            if (!targetEmailForStatus) {
+                await showDialog({
+                    title: "Cannot update",
+                    message: "No email found for this user.",
+                    confirmLabel: "OK"
+                });
+                return;
+            }
+
+            try {
+                const statusRes = await adminFetch("/admin/profiles/account-status", {
+                    method: "PATCH",
+                    body: JSON.stringify({ email: targetEmailForStatus, accountStatus: newStatus })
+                });
+                const statusJson = await statusRes.json().catch(() => ({}));
+                if (!statusRes.ok || !statusJson?.ok) {
+                    await showDialog({
+                        title: "Update failed",
+                        message: statusJson?.message || "Could not save account status.",
+                        confirmLabel: "OK"
+                    });
+                    return;
+                }
+            } catch (_err) {
+                await showDialog({
+                    title: "Update failed",
+                    message: "Could not reach the server. Check that the API is running.",
+                    confirmLabel: "OK"
+                });
+                return;
+            }
+
             const permissionLabels = [
                 ["dashboard", "Dashboard"],
                 ["appointmentScheduling", "Appointment Scheduling"],
@@ -993,22 +1041,10 @@ async function saveUserChanges() {
                 });
             }
             
-            // Update the table row
+            row.dataset.accountStatus = newStatus;
             const statusCell = getAccountStatusCell(row);
             if (statusCell) {
-                let bg = "#f1f5f9";
-                let color = "#64748b";
-                if (newStatus === "Active") {
-                    bg = "#f0fdf4";
-                    color = "#16a34a";
-                } else if (newStatus === "Suspended") {
-                    bg = "#fff7ed";
-                    color = "#ea580c";
-                } else if (newStatus === "Deactivated") {
-                    bg = "#f1f5f9";
-                    color = "#64748b";
-                }
-                statusCell.innerHTML = `<span class="status-badge" style="background: ${bg}; color: ${color}; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">${newStatus}</span>`;
+                statusCell.innerHTML = accountStatusBadgeHtml(newStatus);
             }
             row.classList.remove("archived-row");
             setRowActionsCell(targetUserRow);

@@ -371,11 +371,11 @@
             </a>
         </nav>
         <div class="sidebar-footer">
-            <div class="user-profile">
+            <div class="user-profile" id="residentProfileBtn" style="cursor: pointer;">
                 <div class="user-avatar" id="residentSidebarAvatar" aria-hidden="true">?</div>
                 <div class="user-info">
                     <span class="user-name" id="residentSidebarName">Resident</span>
-                    <span class="user-role">Resident</span>
+                    <span class="user-role">View Profile</span>
                 </div>
             </div>
             <a href="landing.html" class="logout-btn" onclick="handleLogout(event)">
@@ -470,6 +470,7 @@
     <script src="../shared/maintenance-check.js"></script>
     <script src="../shared/resident-auth-guard.js"></script>
     <script src="../shared/resident-sidebar-profile.js"></script>
+    <script src="../shared/resident-profile-modal.js" data-api-base="http://localhost:4000"></script>
     <script>
         const API_BASE_URL = "http://localhost:4000";
         const SUPPORTING_DOCS_KEY = "residentSupportingDocsByReference";
@@ -490,6 +491,10 @@
         const repeatCancelBtn = document.getElementById("repeatCancelBtn");
         const repeatConfirmBtn = document.getElementById("repeatConfirmBtn");
         let repeatConfirmAction = null;
+        /** Same key as `resident/appointments.html` — draft for reopening the booking modal. */
+        const RESIDENT_APPOINTMENT_REPEAT_KEY = "sb_resident_appointment_repeat_v1";
+        let repeatConfirmKind = null;
+        let repeatConfirmPayload = null;
         function applyResidentRouteLinks() {
             const hrefMap = {
                 "dashboard.html": RESIDENT_ROUTES.dashboard || "dashboard.html",
@@ -523,6 +528,8 @@
         function closeRepeatConfirmModal() {
             if (repeatConfirmModal) repeatConfirmModal.style.display = "none";
             repeatConfirmAction = null;
+            repeatConfirmKind = null;
+            repeatConfirmPayload = null;
         }
         /* BUTTON ACTIONS */
         function escapeHtml(value) {
@@ -566,16 +573,48 @@
             return `<span style="font-size:0.78rem;color:#166534;">${text}</span>`;
         }
 
-        function handleRepeat(serviceName) {
-            const label = serviceName || "this service";
-            repeatConfirmAction = () => {
-                const base = RESIDENT_ROUTES.serviceRequests || "service-requests.html";
-                window.location.href = `${base}?service=${encodeURIComponent(label)}`;
-            };
+        function openRepeatConfirm(kind, payload) {
+            repeatConfirmKind = kind;
+            repeatConfirmPayload = payload;
+            repeatConfirmAction = null;
             if (repeatConfirmText) {
-                repeatConfirmText.textContent = `Start a new request for ${label}?`;
+                if (kind === "appointment") {
+                    repeatConfirmText.textContent =
+                        "Open the Book Appointment form with the same purpose? You can choose a new date and time before submitting.";
+                } else {
+                    const label = payload?.label || "this service";
+                    repeatConfirmText.textContent = `Start a new service request for ${label}?`;
+                }
             }
             if (repeatConfirmModal) repeatConfirmModal.style.display = "flex";
+        }
+
+        function historyListClickHandler(event) {
+            const btn = event.target.closest(".btn-repeat");
+            if (!btn) return;
+            const kind = btn.getAttribute("data-repeat-kind");
+            if (kind === "appointment") {
+                const raw = btn.getAttribute("data-repeat-appointment");
+                let payload = null;
+                try {
+                    payload = raw ? JSON.parse(decodeURIComponent(raw)) : null;
+                } catch (_e) {
+                    payload = null;
+                }
+                if (!payload || typeof payload !== "object") return;
+                openRepeatConfirm("appointment", payload);
+                return;
+            }
+            if (kind === "request") {
+                const enc = btn.getAttribute("data-repeat-label") || "";
+                let label = "this service";
+                try {
+                    label = enc ? decodeURIComponent(enc).trim() || "this service" : "this service";
+                } catch (_e) {
+                    label = enc.trim() || "this service";
+                }
+                openRepeatConfirm("request", { label });
+            }
         }
 
         async function loadHistory() {
@@ -601,17 +640,20 @@
                         if (entry.kind === "request") {
                             const r = entry.request || {};
                             const title = escapeHtml(r.title || r.serviceType || "Service request");
+                            const labelPlain = String(r.title || r.serviceType || "Service request").trim();
                             const ref = escapeHtml(r.referenceNo || "—");
                             const status = escapeHtml(r.status || "Pending");
                             const submitted = formatHistoryDate(r.createdAt || r.preferredDate);
                             const pref = r.preferredDate
                                 ? `${formatHistoryDate(r.preferredDate)} · ${escapeHtml(r.preferredTimeSlot || "—")}`
                                 : escapeHtml(r.preferredTimeSlot || "—");
-const docs = supportingDocsLine(r.referenceNo);
+                            const docs = supportingDocsLine(r.referenceNo);
+                            const labelAttr = encodeURIComponent(labelPlain);
                             return `
                                 <div class="history-item">
                                     <div class="service-info">
                                         <span class="type-badge request" style="margin-bottom:6px;">Request</span>
+                                        <small style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Service detail: Request</small>
                                         <b>${title}</b>
                                         <small>Ref: #${ref}</small>
                                         <small>Status: ${status}</small>
@@ -623,7 +665,7 @@ const docs = supportingDocsLine(r.referenceNo);
                                     </div>
                                     <div>${docs}</div>
                                     <div style="display:flex; justify-content:flex-end; padding-right:8px;">
-                                        <button class="action-btn btn-repeat" onclick="handleRepeat('${title}')" title="Request this service again">
+                                        <button type="button" class="action-btn btn-repeat" data-repeat-kind="request" data-repeat-label="${labelAttr}" title="Request this service again">
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                 <path d="M17 1l4 4-4 4"></path>
                                                 <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
@@ -642,10 +684,16 @@ const docs = supportingDocsLine(r.referenceNo);
                         const sched = formatHistoryDate(a.appointmentDate);
                         const slot = escapeHtml(a.timeLabel || "—");
                         const created = formatHistoryDate(a.createdAt);
-return `
+                        const repeatPayload = encodeURIComponent(
+                            JSON.stringify({
+                                purpose: String(a.purpose || "").trim()
+                            })
+                        );
+                        return `
                             <div class="history-item">
                                 <div class="service-info">
                                     <span class="type-badge appointment" style="margin-bottom:6px;">Appointment</span>
+                                    <small style="display:block;font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Service detail: Appointment</small>
                                     <b>${purpose}</b>
                                     <small>Ref: #${ref}</small>
                                     <small>Status: ${status}</small>
@@ -657,7 +705,7 @@ return `
                                 </div>
                                 <div><span style="font-size:0.78rem;color:#94a3b8;">No uploads</span></div>
                                 <div style="display:flex; justify-content:flex-end; padding-right:8px;">
-                                    <button class="action-btn btn-repeat" onclick="handleRepeat('${purpose}')" title="Book this appointment again">
+                                    <button type="button" class="action-btn btn-repeat" data-repeat-kind="appointment" data-repeat-appointment="${repeatPayload}" title="Book this appointment again">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                             <path d="M17 1l4 4-4 4"></path>
                                             <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
@@ -677,6 +725,8 @@ return `
                     '<p style="text-align:center; padding:2rem; color:#b91c1c;">Unable to load history. Ensure the API server is running.</p>';
             }
         }
+
+        document.getElementById("historyList")?.addEventListener("click", historyListClickHandler);
 
         window.onload = loadHistory;
 
@@ -698,8 +748,38 @@ return `
         repeatCancelBtn?.addEventListener("click", closeRepeatConfirmModal);
         repeatConfirmBtn?.addEventListener("click", () => {
             const action = repeatConfirmAction;
+            const kind = repeatConfirmKind;
+            const payload = repeatConfirmPayload;
             closeRepeatConfirmModal();
-            if (typeof action === "function") action();
+            if (typeof action === "function") {
+                action();
+                return;
+            }
+            if (kind === "appointment" && payload && typeof payload === "object") {
+                try {
+                    const purposeOnly = { purpose: String(payload.purpose || "").trim() };
+                    sessionStorage.setItem(RESIDENT_APPOINTMENT_REPEAT_KEY, JSON.stringify(purposeOnly));
+                } catch (_e) {
+                    openFeedbackModal("Notice", "Could not save appointment details. Try again.");
+                    return;
+                }
+                const base = RESIDENT_ROUTES.appointments || "appointments.html";
+                window.location.href = base;
+                return;
+            }
+            if (kind === "request" && payload?.label) {
+                try {
+                    sessionStorage.setItem(
+                        "sb_resident_service_request_repeat_v1",
+                        JSON.stringify({ serviceName: String(payload.label).trim() })
+                    );
+                } catch (_e) {
+                    openFeedbackModal("Notice", "Could not save service selection. Try again.");
+                    return;
+                }
+                const base = RESIDENT_ROUTES.serviceRequests || "service-requests.html";
+                window.location.href = base;
+            }
         });
         logoutConfirmBtn?.addEventListener("click", () => {
             if (window.APP_NAV?.logout) {

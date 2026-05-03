@@ -34,7 +34,68 @@
     return e || "Resident";
   }
 
-  function apply() {
+  function bustUrl(u) {
+    const s = String(u || "").trim();
+    if (!s) return "";
+    const q = s.includes("?") ? "&" : "?";
+    return `${s}${q}cb=${Date.now()}`;
+  }
+
+  function applySidebarAvatar(avatarEl, avatarUrl, user) {
+    if (!avatarEl) return;
+    const u = String(avatarUrl || "").trim();
+    if (u) {
+      const urlWithBust = bustUrl(u);
+      avatarEl.style.backgroundImage = "url(" + JSON.stringify(urlWithBust) + ")";
+      avatarEl.style.backgroundSize = "cover";
+      avatarEl.style.backgroundPosition = "center";
+      avatarEl.textContent = "";
+      avatarEl.style.color = "transparent";
+      avatarEl.style.border = "2px solid rgba(255, 255, 255, 0.45)";
+      avatarEl.setAttribute("aria-label", "Profile photo");
+    } else {
+      avatarEl.style.backgroundImage = "";
+      avatarEl.style.backgroundSize = "";
+      avatarEl.style.backgroundPosition = "";
+      avatarEl.style.border = "";
+      avatarEl.removeAttribute("aria-label");
+      let initials = initialsForUser(user);
+      if (!initials || initials === "?") initials = "R";
+      avatarEl.textContent = initials.slice(0, 2);
+      avatarEl.style.color = "";
+    }
+  }
+
+  async function hydrateUserFromContext() {
+    const baseRaw = String(global.API_BASE_URL || "http://localhost:4000").replace(/\/$/, "");
+    try {
+      const raw = global.sessionStorage.getItem("residentAuth");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      const token = parsed?.session?.accessToken;
+      if (typeof token !== "string" || !token.length) return;
+
+      const res = await global.fetch(`${baseRaw}/resident/context`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+      if (!data || !data.ok) return;
+
+      const prev = parsed.user || {};
+      parsed.user = {
+        ...prev,
+        email: data.email != null ? data.email : prev.email,
+        fullName: data.fullName != null ? data.fullName : prev.fullName,
+        avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : prev.avatarUrl
+      };
+      global.sessionStorage.setItem("residentAuth", JSON.stringify(parsed));
+    } catch (_e) {
+      /* offline or blocked */
+    }
+  }
+
+  function applyVisual() {
     const avatarEl =
       global.document.getElementById("residentSidebarAvatar") ||
       global.document.getElementById("sidebarUserAvatar");
@@ -55,11 +116,8 @@
     }
 
     const display = displayNameForUser(user);
-    let initials = initialsForUser(user);
-    if (!initials || initials === "?") initials = "R";
-
     if (nameEl) nameEl.textContent = display;
-    if (avatarEl) avatarEl.textContent = initials.slice(0, 2);
+    applySidebarAvatar(avatarEl, user?.avatarUrl, user);
 
     const welcomeEl = global.document.getElementById("residentWelcomeHeading");
     if (welcomeEl && user) {
@@ -67,9 +125,23 @@
     }
   }
 
+  /** @param {{ skipHydrate?: boolean }} [options] */
+  async function apply(options) {
+    if (!options?.skipHydrate) {
+      await hydrateUserFromContext();
+    }
+    applyVisual();
+  }
+
+  global.applyResidentSidebarProfile = apply;
+
+  const scheduleApply = () => {
+    void apply();
+  };
+
   if (global.document.readyState === "loading") {
-    global.document.addEventListener("DOMContentLoaded", apply);
+    global.document.addEventListener("DOMContentLoaded", scheduleApply);
   } else {
-    apply();
+    scheduleApply();
   }
 })(window);

@@ -252,6 +252,7 @@
 
         /* MODAL STYLES */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        #bookingModal.modal-overlay { z-index: 5000; }
         .modal { background: white; padding: 2.5rem; border-radius: 24px; width: 100%; max-width: 850px; }
         .form-group { margin-bottom: 1.25rem; }
         .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.9rem; }
@@ -361,11 +362,11 @@
             </a>
         </nav>
         <div class="sidebar-footer">
-            <div class="user-profile">
+            <div class="user-profile" id="residentProfileBtn" style="cursor: pointer;">
                 <div class="user-avatar" id="residentSidebarAvatar" aria-hidden="true">?</div>
                 <div class="user-info">
                     <span class="user-name" id="residentSidebarName">Resident</span>
-                    <span class="user-role">Resident</span>
+                    <span class="user-role">View Profile</span>
                 </div>
             </div>
             <a href="landing.html" class="logout-btn" onclick="handleLogout(event)">
@@ -513,11 +514,14 @@
     <script src="../shared/maintenance-check.js"></script>
     <script src="../shared/resident-auth-guard.js"></script>
     <script src="../shared/resident-sidebar-profile.js"></script>
+    <script src="../shared/resident-profile-modal.js" data-api-base="http://localhost:4000"></script>
     <script>
         const API_BASE_URL = "http://localhost:4000";
         const RESIDENT_CONTEXT_KEY = "residentContext";
         const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "landing.html" };
         const RESIDENT_ROUTES = window.APP_ROUTES?.resident || {};
+        /** Must match `resident/request-history.html` — prefills booking after "Request again" on an appointment row. */
+        const RESIDENT_APPOINTMENT_REPEAT_KEY = "sb_resident_appointment_repeat_v1";
         const logoutModal = document.getElementById("logoutModal");
         const logoutCancelBtn = document.getElementById("logoutCancelBtn");
         const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
@@ -546,8 +550,77 @@
             if (modal) modal.style.display = 'flex';
             const aptDateEl = document.getElementById("aptDate");
             if (aptDateEl?.value) {
-                refreshAppointmentSlotsForDate(aptDateEl.value);
+                void refreshAppointmentSlotsForDate(aptDateEl.value);
             }
+        }
+
+        function applyPurposeSelectionFromDraft(draft) {
+            const purposeEl = document.getElementById("appointmentPurpose");
+            const want = String(draft?.purpose || "").trim();
+            if (!purposeEl || !want) return false;
+            const opts = [...purposeEl.options].filter((o) => String(o.value || "").trim());
+            if (!opts.length) return false;
+            const wantLower = want.toLowerCase();
+            let match = opts.find((o) => String(o.value).trim() === want);
+            if (!match) match = opts.find((o) => String(o.value).trim().toLowerCase() === wantLower);
+            if (!match) match = opts.find((o) => String(o.textContent || "").trim().toLowerCase() === wantLower);
+            if (!match) {
+                match = opts.find(
+                    (o) =>
+                        String(o.value).toLowerCase().includes(wantLower) ||
+                        String(o.textContent || "").toLowerCase().includes(wantLower)
+                );
+            }
+            if (match) {
+                purposeEl.value = match.value;
+                return true;
+            }
+            return false;
+        }
+
+        async function applyRepeatAppointmentDraft(draft) {
+            if (!draft || typeof draft !== "object") return;
+            const aptDateEl = document.getElementById("aptDate");
+            const aptTimeEl = document.getElementById("aptTime");
+            if (aptDateEl) aptDateEl.value = "";
+            if (aptTimeEl) {
+                aptTimeEl.innerHTML = `<option value="" disabled selected>Select Time...</option>`;
+            }
+            openModal();
+            if (!applyPurposeSelectionFromDraft(draft)) {
+                await loadAppointmentPurposeOptions();
+                applyPurposeSelectionFromDraft(draft);
+            }
+        }
+
+        function stripRepeatQueryParamIfPresent() {
+            try {
+                const search = window.location.search || "";
+                const p = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+                if (!p.has("repeat")) return;
+                p.delete("repeat");
+                const qs = p.toString();
+                const next = window.location.pathname + (qs ? `?${qs}` : "");
+                history.replaceState(null, "", next);
+            } catch (_e) {
+                /* ignore */
+            }
+        }
+
+        /** Draft is stored in sessionStorage right before navigation (see request-history). Do not rely on ?repeat= — it can be dropped by redirects or open modes. */
+        async function tryConsumeRepeatAppointmentDraft() {
+            let draft = null;
+            try {
+                const raw = sessionStorage.getItem(RESIDENT_APPOINTMENT_REPEAT_KEY);
+                if (raw) draft = JSON.parse(raw);
+            } catch (_e) {
+                draft = null;
+            }
+            if (!draft || typeof draft !== "object") return;
+            sessionStorage.removeItem(RESIDENT_APPOINTMENT_REPEAT_KEY);
+            stripRepeatQueryParamIfPresent();
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            await applyRepeatAppointmentDraft(draft);
         }
         function closeModal() { document.getElementById('bookingModal').style.display = 'none'; }
         function formatAppointmentDate(value) {
@@ -850,7 +923,8 @@ feedbackModal?.addEventListener("click", (event) => {
         });
         (async () => {
             await loadAppointmentPurposeOptions();
-            loadAppointments();
+            await loadAppointments();
+            await tryConsumeRepeatAppointmentDraft();
         })();
     </script>
     <script src="../shared/resident-faq-chat.js" data-api-base="http://localhost:4000"></script>

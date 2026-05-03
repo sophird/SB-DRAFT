@@ -64,6 +64,30 @@ const authResidentLoginLimiter = rateLimit({
   message: { ok: false, message: "Too many login attempts. Please try again later." }
 });
 
+const residentChangePasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, message: "Too many password change attempts. Please try again later." }
+});
+
+const residentAvatarUploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, message: "Too many profile photo uploads. Please try again later." }
+});
+
+const RESIDENT_AVATAR_BUCKET = "resident-avatars";
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+
+const residentAvatarRawBodyParser = express.raw({
+  limit: "5mb",
+  type: ["image/jpeg", "image/png", "image/webp", "image/gif", "application/octet-stream"]
+});
+
 const adminStaffCreateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 40,
@@ -111,6 +135,26 @@ const supabaseAuth = createClient(
   process.env.SUPABASE_ANON_KEY || ""
 );
 
+function hasSupabaseServiceRoleKey() {
+  return Boolean(String(process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim());
+}
+
+/**
+ * DB client for `profiles` reads/writes from resident routes: bypasses RLS with service role,
+ * or uses the caller's access token (authenticated) so RLS policies apply.
+ */
+function createResidentProfilesDbClient(req) {
+  if (hasSupabaseServiceRoleKey()) {
+    return supabaseAdmin;
+  }
+  const token = getBearerToken(req);
+  if (!token) return null;
+  return createClient(process.env.SUPABASE_URL || "", process.env.SUPABASE_ANON_KEY || "", {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  });
+}
+
 const requestEventClients = new Set();
 const appointmentEventClients = new Set();
 const announcementEventClients = new Set();
@@ -124,6 +168,22 @@ function normalizeEmail(value) {
     .trim()
     .toLowerCase()
     .slice(0, MAX_EMAIL_LEN);
+}
+
+/** Return image/* mime from magic bytes, or null if unsupported. */
+function sniffImageMimeFromBuffer(buf) {
+  if (!buf || buf.length < 12) return null;
+  const b0 = buf[0];
+  const b1 = buf[1];
+  const b2 = buf[2];
+  const b3 = buf[3];
+  if (b0 === 0xff && b1 === 0xd8 && b2 === 0xff) return "image/jpeg";
+  if (b0 === 0x89 && b1 === 0x50 && b2 === 0x4e && b3 === 0x47) return "image/png";
+  if (b0 === 0x47 && b1 === 0x49 && b2 === 0x46) return "image/gif";
+  const riff = buf.toString("ascii", 0, 4);
+  const webp = buf.toString("ascii", 8, 12);
+  if (riff === "RIFF" && webp === "WEBP") return "image/webp";
+  return null;
 }
 
 function isValidEmailFormat(email) {
@@ -140,6 +200,40 @@ function sanitizeFullNameForStorage(raw) {
   if (s.length > MAX_FULL_NAME_LEN) s = s.slice(0, MAX_FULL_NAME_LEN);
   s = s.replace(/[<>]/g, "");
   return s.trim();
+}
+
+/**
+ * DB value: active | suspended | deactivated.
+ * - active: resident may log in and use the resident portal normally.
+ * - suspended | deactivated: login and resident portal APIs are blocked (see residentPortalAccountBlockMessage).
+ */
+function normalizeAccountStatusFromInput(raw) {
+  const s = String(raw ?? "")
+    .trim()
+    .toLowerCase();
+  if (s === "active" || s === "suspended" || s === "deactivated") return s;
+  return null;
+}
+
+function mapAccountStatusToUiLabel(dbValue) {
+  const s = String(dbValue ?? "active")
+    .trim()
+    .toLowerCase();
+  if (s === "suspended") return "Suspended";
+  if (s === "deactivated") return "Deactivated";
+  return "Active";
+}
+
+/** If resident is not active, return login/API error message; active residents get null (full portal access). */
+function residentPortalAccountBlockMessage(accountStatusRaw) {
+  const s = String(accountStatusRaw ?? "active")
+    .trim()
+    .toLowerCase();
+  if (s === "suspended") return "Your account is suspended.";
+  if (s === "deactivated") {
+    return "Your account is deactivated. Please visit the barangay hall if you wish to activate your account.";
+  }
+  return null;
 }
 
 const STAFF_PERMISSION_KEYS = ["dashboard", "appointmentScheduling", "requestProcessing", "documentGenerator"];
@@ -197,12 +291,26 @@ async function resolveProfileFromToken(req) {
     return { error: { status: 401, message: "Invalid or expired session token." } };
   }
 
-  const userEmail = authUserData.user.email;
-  const { data: profile, error: profileError } = await supabaseAdmin
+  const profileDb = createResidentProfilesDbClient(req);
+  if (!profileDb) {
+    return { error: { status: 500, message: "Server is not configured for resident profile access." } };
+  }
+
+  const userEmailRaw = String(authUserData.user.email || "").trim();
+  const userEmailNorm = normalizeEmail(userEmailRaw);
+  let { data: profile, error: profileError } = await profileDb
     .from("profiles")
-    .select("email, full_name, role")
-    .eq("email", userEmail)
+    .select("email, full_name, role, contact_number, avatar_url, account_status")
+    .eq("email", userEmailRaw)
     .maybeSingle();
+
+  if (!profile && !profileError && userEmailNorm && userEmailNorm !== userEmailRaw) {
+    ({ data: profile, error: profileError } = await profileDb
+      .from("profiles")
+      .select("email, full_name, role, contact_number, avatar_url, account_status")
+      .eq("email", userEmailNorm)
+      .maybeSingle());
+  }
 
   if (profileError) {
     return { error: { status: 500, message: "Unable to load user profile." } };
@@ -212,13 +320,21 @@ async function resolveProfileFromToken(req) {
     return { error: { status: 403, message: "Profile record not found." } };
   }
 
-  return { profile };
+  if (profile.role === "resident") {
+    const blockMsg = residentPortalAccountBlockMessage(profile.account_status);
+    if (blockMsg) {
+      return { error: { status: 403, message: blockMsg } };
+    }
+  }
+
+  const authUserId = authUserData.user?.id ? String(authUserData.user.id) : null;
+  return { profile, authUserId };
 }
 
 const STAFF_PORTAL_ROLES = new Set(["admin", "staff", "system-admin"]);
 
 async function requireResidentPortalUser(req, res) {
-  const { profile, error } = await resolveProfileFromToken(req);
+  const { profile, authUserId, error } = await resolveProfileFromToken(req);
   if (error) {
     res.status(error.status).json({ ok: false, message: error.message });
     return null;
@@ -232,7 +348,7 @@ async function requireResidentPortalUser(req, res) {
     res.status(500).json({ ok: false, message: "Unable to resolve resident account." });
     return null;
   }
-  return { profile, residentUserId };
+  return { profile, residentUserId, authUserId };
 }
 
 async function requireStaffOrAuthenticatedResident(req, res) {
@@ -266,7 +382,7 @@ async function validateSseAccess(req) {
   const userEmail = authUserData.user.email;
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
-    .select("email, role")
+    .select("email, role, account_status")
     .eq("email", userEmail)
     .maybeSingle();
   if (profileError || !profile) {
@@ -274,6 +390,12 @@ async function validateSseAccess(req) {
   }
   if (profile.role !== "resident" && !STAFF_PORTAL_ROLES.has(profile.role)) {
     return { ok: false, status: 403, message: "Access denied." };
+  }
+  if (profile.role === "resident") {
+    const blockMsg = residentPortalAccountBlockMessage(profile.account_status);
+    if (blockMsg) {
+      return { ok: false, status: 403, message: blockMsg };
+    }
   }
   return { ok: true, profile };
 }
@@ -1495,7 +1617,7 @@ app.post("/auth/resident/login", authResidentLoginLimiter, async (req, res) => {
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
-    .select("email, full_name, role")
+    .select("email, full_name, role, avatar_url, account_status")
     .eq("email", normalizedEmail)
     .maybeSingle();
 
@@ -1514,6 +1636,15 @@ app.post("/auth/resident/login", authResidentLoginLimiter, async (req, res) => {
     });
   }
 
+  const blockMsg = residentPortalAccountBlockMessage(profile.account_status);
+  if (blockMsg) {
+    await supabaseAuth.auth.signOut();
+    return res.status(403).json({
+      ok: false,
+      message: blockMsg
+    });
+  }
+
   const residentUserId = await ensureResidentUserRow(normalizedEmail);
   if (!residentUserId) {
     return res.status(500).json({
@@ -1529,7 +1660,8 @@ app.post("/auth/resident/login", authResidentLoginLimiter, async (req, res) => {
       email: profile.email,
       fullName: profile.full_name,
       role: profile.role,
-      residentUserId
+      residentUserId,
+      avatarUrl: profile.avatar_url ?? null
     },
     session: {
       accessToken: authData.session?.access_token || null,
@@ -1562,7 +1694,8 @@ app.get("/auth/resident/authorize", async (req, res) => {
       email: profile.email,
       fullName: profile.full_name,
       role: profile.role,
-      residentUserId
+      residentUserId,
+      avatarUrl: profile.avatar_url ?? null
     }
   });
 });
@@ -1574,8 +1707,325 @@ app.get("/resident/context", async (req, res) => {
     ok: true,
     residentUserId: auth.residentUserId,
     fullName: auth.profile?.full_name || null,
-    email: auth.profile?.email || null
+    email: auth.profile?.email || null,
+    contactNumber: auth.profile?.contact_number ?? null,
+    avatarUrl: auth.profile?.avatar_url ?? null
   });
+});
+
+const MAX_CONTACT_NUMBER_LEN = 40;
+
+function sanitizeResidentContactNumber(raw) {
+  const s = String(raw == null ? "" : raw).trim();
+  if (!s) return null;
+  const cleaned = s.replace(/[^\d+\-\s()]/g, "").slice(0, MAX_CONTACT_NUMBER_LEN);
+  return cleaned || null;
+}
+
+/** Full profile for resident portal (name, email, contact). */
+app.get("/resident/profile", async (req, res) => {
+  const auth = await requireResidentPortalUser(req, res);
+  if (!auth) return;
+  const p = auth.profile;
+  return res.json({
+    ok: true,
+    email: p.email,
+    fullName: p.full_name || "",
+    contactNumber: p.contact_number ?? null,
+    avatarUrl: p.avatar_url ?? null
+  });
+});
+
+/** Update resident email and/or contact number (profiles + auth email + users.email). */
+app.patch("/resident/profile", async (req, res) => {
+  const auth = await requireResidentPortalUser(req, res);
+  if (!auth) return;
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const hasContact = Object.prototype.hasOwnProperty.call(body, "contactNumber");
+  const hasEmail = Object.prototype.hasOwnProperty.call(body, "email");
+  if (!hasContact && !hasEmail) {
+    return res.status(400).json({
+      ok: false,
+      message: "Provide contactNumber and/or email to update."
+    });
+  }
+
+  const profileDb = createResidentProfilesDbClient(req);
+  if (!profileDb) {
+    return res.status(500).json({ ok: false, message: "Server is not configured for resident profile access." });
+  }
+
+  /** Exact `profiles.email` as stored (avoid case mismatch on update filter). */
+  const rowEmail = auth.profile.email;
+  const oldEmailNorm = normalizeEmail(rowEmail);
+  let nextEmailNorm = oldEmailNorm;
+  if (hasEmail) {
+    nextEmailNorm = normalizeEmail(body.email);
+    if (!nextEmailNorm || !isValidEmailFormat(nextEmailNorm)) {
+      return res.status(400).json({ ok: false, message: "A valid email address is required." });
+    }
+  }
+
+  let contact_number;
+  if (hasContact) {
+    contact_number = sanitizeResidentContactNumber(body.contactNumber);
+  }
+
+  const emailChanging = hasEmail && nextEmailNorm !== oldEmailNorm;
+  if (emailChanging && !hasSupabaseServiceRoleKey()) {
+    return res.status(503).json({
+      ok: false,
+      message:
+        "Updating your sign-in email requires SUPABASE_SERVICE_ROLE_KEY on the backend. You can still save your contact number."
+    });
+  }
+
+  if (emailChanging) {
+    const { data: taken, error: takenErr } = await supabaseAdmin
+      .from("profiles")
+      .select("email")
+      .eq("email", nextEmailNorm)
+      .maybeSingle();
+    if (takenErr) {
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to verify email availability.",
+        detail: takenErr.message
+      });
+    }
+    if (taken?.email) {
+      return res.status(409).json({ ok: false, message: "That email address is already in use." });
+    }
+    if (!auth.authUserId) {
+      return res.status(500).json({ ok: false, message: "Unable to resolve auth user for email update." });
+    }
+    const { error: authEmailErr } = await supabaseAdmin.auth.admin.updateUserById(auth.authUserId, {
+      email: nextEmailNorm,
+      email_confirm: true
+    });
+    if (authEmailErr) {
+      const msg = String(authEmailErr.message || "");
+      if (/already|registered|duplicate/i.test(msg)) {
+        return res.status(409).json({ ok: false, message: "That email address is already in use.", detail: msg });
+      }
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to update sign-in email.",
+        detail: authEmailErr.message
+      });
+    }
+  }
+
+  const profilePatch = {};
+  if (hasContact) profilePatch.contact_number = contact_number;
+  if (emailChanging) profilePatch.email = nextEmailNorm;
+
+  if (Object.keys(profilePatch).length === 0) {
+    const p = auth.profile;
+    return res.json({
+      ok: true,
+      email: p.email,
+      fullName: p.full_name || "",
+      contactNumber: p.contact_number ?? null,
+      avatarUrl: p.avatar_url ?? null,
+      message: "No changes to save."
+    });
+  }
+
+  const profilesWriteClient =
+    emailChanging || hasSupabaseServiceRoleKey() ? supabaseAdmin : profileDb;
+
+  const { data: updated, error } = await profilesWriteClient
+    .from("profiles")
+    .update(profilePatch)
+    .eq("email", rowEmail)
+    .select("email, full_name, contact_number, avatar_url")
+    .maybeSingle();
+
+  if (error) {
+    if (emailChanging && auth.authUserId) {
+      const { error: revErr } = await supabaseAdmin.auth.admin.updateUserById(auth.authUserId, {
+        email: rowEmail,
+        email_confirm: true
+      });
+      if (revErr) {
+        console.error("[backend] rollback auth email after profile update failure:", revErr.message);
+      }
+    }
+    const msg = String(error.message || "");
+    if (/unique|duplicate/i.test(msg)) {
+      return res.status(409).json({ ok: false, message: "That email address is already in use.", detail: msg });
+    }
+    if (/row-level security|\brls\b/i.test(msg)) {
+      return res.status(403).json({
+        ok: false,
+        message:
+          hasSupabaseServiceRoleKey()
+            ? "Profile update was blocked by database rules. Check that the contact_number column exists and migrations are applied."
+            : "Profile update was blocked (Row Level Security). Apply migration 20260514_profiles_authenticated_update.sql in Supabase, or set SUPABASE_SERVICE_ROLE_KEY on the backend.",
+        detail: msg
+      });
+    }
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to update profile.",
+      detail: error.message
+    });
+  }
+  if (!updated) {
+    return res.status(403).json({
+      ok: false,
+      message:
+        "No profile row was updated. Confirm your session, apply Supabase migrations (including contact_number and authenticated update policy), or set SUPABASE_SERVICE_ROLE_KEY on the backend."
+    });
+  }
+
+  if (emailChanging) {
+    const { error: usersUpdErr } = await supabaseAdmin
+      .from("users")
+      .update({ email: nextEmailNorm })
+      .eq("email", rowEmail);
+    if (usersUpdErr) {
+      console.error("[backend] resident profile email sync users table:", usersUpdErr.message);
+    }
+  }
+
+  return res.json({
+    ok: true,
+    email: updated.email,
+    fullName: updated.full_name || "",
+    contactNumber: updated.contact_number ?? null,
+    avatarUrl: updated.avatar_url ?? null
+  });
+});
+
+/** Upload profile photo (raw image body); stores in Storage and sets profiles.avatar_url. */
+app.post(
+  "/resident/profile/avatar",
+  residentAvatarUploadLimiter,
+  residentAvatarRawBodyParser,
+  async (req, res) => {
+    const auth = await requireResidentPortalUser(req, res);
+    if (!auth) return;
+
+    if (!hasSupabaseServiceRoleKey()) {
+      return res.status(503).json({
+        ok: false,
+        message: "Profile photo upload requires SUPABASE_SERVICE_ROLE_KEY on the backend."
+      });
+    }
+
+    const buf = req.body;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      return res.status(400).json({ ok: false, message: "Send a non-empty image body (JPEG, PNG, WebP, or GIF)." });
+    }
+    if (buf.length > MAX_AVATAR_BYTES) {
+      return res.status(400).json({ ok: false, message: "Image is too large (max 5MB)." });
+    }
+
+    const mime = sniffImageMimeFromBuffer(buf);
+    if (!mime) {
+      return res.status(400).json({ ok: false, message: "Unsupported image type. Use JPEG, PNG, WebP, or GIF." });
+    }
+
+    if (!auth.authUserId) {
+      return res.status(500).json({ ok: false, message: "Unable to resolve auth user for upload." });
+    }
+
+    const objectPath = `${auth.authUserId}/avatar`;
+    const { error: upErr } = await supabaseAdmin.storage.from(RESIDENT_AVATAR_BUCKET).upload(objectPath, buf, {
+      contentType: mime,
+      upsert: true
+    });
+    if (upErr) {
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to store profile photo. Ensure Storage bucket resident-avatars exists (see migrations).",
+        detail: upErr.message
+      });
+    }
+
+    const { data: pub } = supabaseAdmin.storage.from(RESIDENT_AVATAR_BUCKET).getPublicUrl(objectPath);
+    const publicUrl = pub?.publicUrl || null;
+    if (!publicUrl) {
+      return res.status(500).json({ ok: false, message: "Unable to resolve public URL for profile photo." });
+    }
+
+    const bust = `t=${Date.now()}`;
+    const avatarUrl = publicUrl.includes("?") ? `${publicUrl}&${bust}` : `${publicUrl}?${bust}`;
+
+    const { data: updated, error: profErr } = await supabaseAdmin
+      .from("profiles")
+      .update({ avatar_url: publicUrl })
+      .eq("email", auth.profile.email)
+      .select("avatar_url")
+      .maybeSingle();
+
+    if (profErr) {
+      return res.status(500).json({
+        ok: false,
+        message: "Photo stored but profile URL could not be saved.",
+        detail: profErr.message
+      });
+    }
+
+    return res.json({
+      ok: true,
+      avatarUrl
+    });
+  }
+);
+
+/**
+ * Change password: either verify current password, or (when currentPassword is omitted)
+ * rely on an authenticated resident session — matches single-field portal forms.
+ */
+app.post("/resident/change-password", residentChangePasswordLimiter, async (req, res) => {
+  const auth = await requireResidentPortalUser(req, res);
+  if (!auth) return;
+  const currentPassword = String(req.body?.currentPassword || "");
+  const newPassword = String(req.body?.newPassword || "");
+  const confirmPassword = String(req.body?.confirmPassword || "");
+  if (!newPassword) {
+    return res.status(400).json({ ok: false, message: "New password is required." });
+  }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ ok: false, message: "New password must be at least 8 characters." });
+  }
+  if (newPassword.length > MAX_PASSWORD_LEN) {
+    return res.status(400).json({ ok: false, message: "New password is too long." });
+  }
+  if (confirmPassword && newPassword !== confirmPassword) {
+    return res.status(400).json({ ok: false, message: "New password and confirmation do not match." });
+  }
+
+  let userId = auth.authUserId || null;
+  if (currentPassword) {
+    const email = auth.profile.email;
+    const verifyClient = createClient(process.env.SUPABASE_URL || "", process.env.SUPABASE_ANON_KEY || "");
+    const { data: signData, error: signErr } = await verifyClient.auth.signInWithPassword({
+      email,
+      password: currentPassword
+    });
+    if (signErr || !signData?.user?.id) {
+      return res.status(401).json({ ok: false, message: "Current password is incorrect." });
+    }
+    userId = signData.user.id;
+  }
+
+  if (!userId) {
+    return res.status(500).json({ ok: false, message: "Unable to resolve user for password update." });
+  }
+
+  const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(userId, { password: newPassword });
+  if (updErr) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to update password.",
+      detail: updErr.message
+    });
+  }
+  return res.json({ ok: true, message: "Password updated successfully." });
 });
 
 /** Services residents may request (matches admin catalog: Active and not archived). */
@@ -3063,15 +3513,16 @@ function pctCompleted(completed, total) {
   return Math.round((c / t) * 1000) / 10;
 }
 
-/** Inclusive office-hour window for peak-hours chart (matches admin reports UI). */
+/** Inclusive office-hour window for peak-hours chart (9 AM–5 PM bars; excludes 8 AM / 6 PM). */
 const ANALYTICS_HOURLY_CHART_START_HOUR = 9;
 const ANALYTICS_HOURLY_CHART_END_HOUR = 17;
 
-/** Parse slot label, time range, or HHMM `slot_code` to hour 0–23 (start of window). */
-function parseClockToHour24(input) {
-  const raw = String(input ?? "").trim();
-  if (!raw) return null;
-  const firstSegment = raw.split(/\s*[–-]\s*/u)[0].trim();
+/**
+ * Parse one side of a time range (e.g. "09:00 AM", "14:30", "1200") to hour 0–23 (start of window).
+ */
+function parseClockSegmentToHour24(segment) {
+  const firstSegment = String(segment ?? "").trim();
+  if (!firstSegment) return null;
   if (/\b(AM|PM)\b/i.test(firstSegment)) {
     const m = firstSegment.match(/\b(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\b/i);
     if (!m) return null;
@@ -3082,7 +3533,44 @@ function parseClockToHour24(input) {
     if (!Number.isInteger(h) || h < 0 || h > 23) return null;
     return h;
   }
+  /** Noon marker used in portal copy (e.g. "12:00 NN"). */
+  if (/\bNN\b/i.test(firstSegment)) {
+    const m = firstSegment.match(/\b(\d{1,2})(?::(\d{2}))?\s*NN\b/i);
+    if (!m) return null;
+    const h = parseInt(m[1], 10);
+    if (h === 12) return 12;
+    return null;
+  }
+  const m24 = firstSegment.match(/^(\d{1,2}):(\d{2})$/);
+  if (m24) {
+    const h = parseInt(m24[1], 10);
+    if (Number.isInteger(h) && h >= 0 && h <= 23) return h;
+  }
+  const digitRun = firstSegment.replace(/\D/g, "");
+  if (digitRun.length >= 3 && digitRun.length <= 4 && /^\d+$/.test(digitRun)) {
+    const pad = digitRun.padStart(4, "0").slice(-4);
+    const h = parseInt(pad.slice(0, 2), 10);
+    if (Number.isInteger(h) && h >= 0 && h <= 23) return h;
+  }
+  return null;
+}
+
+/** Parse slot label, time range, or HHMM `slot_code` to hour 0–23 (start of window). */
+function parseClockToHour24(input) {
+  const raw = String(input ?? "").trim();
+  if (!raw) return null;
+  const segments = raw.split(/\s*[–-]\s*/u).map((s) => s.trim()).filter(Boolean);
+  for (const seg of segments) {
+    const h = parseClockSegmentToHour24(seg);
+    if (h !== null) return h;
+  }
+  /** e.g. "0900-1000" or "09:00-10:00" → digits "09001000" — use first HHMM as start hour */
   const digitRun = raw.replace(/\D/g, "");
+  if (digitRun.length === 8 && /^\d+$/.test(digitRun)) {
+    const pad = digitRun.slice(0, 4).padStart(4, "0");
+    const h = parseInt(pad.slice(0, 2), 10);
+    if (Number.isInteger(h) && h >= 0 && h <= 23) return h;
+  }
   if (digitRun.length >= 3 && digitRun.length <= 4 && /^\d+$/.test(digitRun)) {
     const pad = digitRun.padStart(4, "0").slice(-4);
     const h = parseInt(pad.slice(0, 2), 10);
@@ -3101,6 +3589,12 @@ function formatAnalyticsHourAxisLabel(hour24) {
   if (hour24 === 12) return "12 NN";
   if (hour24 < 12) return `${hour24} AM`;
   return `${hour24 - 12} PM`;
+}
+
+/** Bar chart order: 9 AM first, then forward through the day; hours before 9 (e.g. 8 AM) trail at the end. */
+function analyticsSlotBarOrderKey(hour24) {
+  if (!Number.isInteger(hour24) || hour24 < 0 || hour24 > 23) return 1000;
+  return (hour24 + 15) % 24;
 }
 
 function appointmentPreferredStartHour24(row) {
@@ -3138,7 +3632,7 @@ app.get("/admin/analytics/hourly-demand", async (req, res) => {
 
   let apptQuery = supabaseAdmin
     .from("appointments")
-    .select("id, appointment_date, status, appointment_slots ( slot_code, label )")
+    .select("id, appointment_date, status, slot_id")
     .limit(10000);
   if (fromDate) apptQuery = apptQuery.gte("appointment_date", fromDate);
   if (toDate) apptQuery = apptQuery.lte("appointment_date", toDate);
@@ -3160,40 +3654,123 @@ app.get("/admin/analytics/hourly-demand", async (req, res) => {
     });
   }
 
+  const apptRows = apptRes.data || [];
+  const slotIdNums = [
+    ...new Set(
+      apptRows
+        .map((r) => r.slot_id)
+        .filter((id) => id != null && Number.isFinite(Number(id)) && Number(id) > 0)
+        .map((id) => Number(id))
+    )
+  ];
+  let slotById = new Map();
+  const { data: allSlotRows, error: allSlotsErr } = await supabaseAdmin
+    .from("appointment_slots")
+    .select("id, slot_code, label")
+    .order("slot_code", { ascending: true });
+
+  let catalogSlots = Array.isArray(allSlotRows) ? allSlotRows : [];
+  if (allSlotsErr || !catalogSlots.length) {
+    catalogSlots = [];
+    if (slotIdNums.length) {
+      const { data: slotRows, error: slotErr } = await supabaseAdmin
+        .from("appointment_slots")
+        .select("id, slot_code, label")
+        .in("id", slotIdNums);
+      if (!slotErr && Array.isArray(slotRows)) catalogSlots = slotRows;
+    }
+  }
+  slotById = new Map(catalogSlots.map((s) => [Number(s.id), s]));
+
+  const catalogIdSet = new Set(catalogSlots.map((s) => Number(s.id)));
+  const missingSlotIds = slotIdNums.filter((id) => id != null && Number.isFinite(id) && !catalogIdSet.has(id));
+  if (missingSlotIds.length) {
+    const { data: extraSlots, error: extraErr } = await supabaseAdmin
+      .from("appointment_slots")
+      .select("id, slot_code, label")
+      .in("id", missingSlotIds);
+    if (!extraErr && Array.isArray(extraSlots)) {
+      const merged = new Map(catalogSlots.map((s) => [Number(s.id), s]));
+      for (const s of extraSlots) merged.set(Number(s.id), s);
+      catalogSlots = [...merged.values()];
+    }
+  }
+
+  catalogSlots.sort((a, b) => {
+    const ha = appointmentPreferredStartHour24({ appointment_slots: a });
+    const hb = appointmentPreferredStartHour24({ appointment_slots: b });
+    const ka = analyticsSlotBarOrderKey(ha);
+    const kb = analyticsSlotBarOrderKey(hb);
+    return (
+      ka - kb ||
+      String(a.slot_code || "").localeCompare(String(b.slot_code || "")) ||
+      Number(a.id) - Number(b.id)
+    );
+  });
+
+  /** One bar per appointment slot in the catalog (no office-hour filter). `hour` is slot start for insight when parseable. */
   const buckets = [];
-  for (let h = ANALYTICS_HOURLY_CHART_START_HOUR; h <= ANALYTICS_HOURLY_CHART_END_HOUR; h += 1) {
-    buckets.push({
-      hour: h,
-      label: formatAnalyticsHourAxisLabel(h),
+  const bucketBySlotId = new Map();
+  const bucketByStartHour = new Map();
+  for (const slot of catalogSlots) {
+    const sid = Number(slot.id);
+    if (!Number.isFinite(sid)) continue;
+    const hourRaw = appointmentPreferredStartHour24({ appointment_slots: slot });
+    const hour24 = Number.isInteger(hourRaw) ? hourRaw : null;
+    const b = {
+      slotId: sid,
+      hour: hour24,
+      label:
+        String(slot.label || "").trim() ||
+        (hour24 !== null ? formatAnalyticsHourAxisLabel(hour24) : `Slot ${sid}`),
       requests: 0,
       appointments: 0,
       total: 0
-    });
+    };
+    buckets.push(b);
+    bucketBySlotId.set(sid, b);
+    if (hour24 !== null && !bucketByStartHour.has(hour24)) bucketByStartHour.set(hour24, b);
   }
-  const byHour = new Map(buckets.map((b) => [b.hour, b]));
 
   let unbucketedRequests = 0;
   for (const row of reqRes.data || []) {
-    const hour24 = hourFitsAnalyticsChart(parseClockToHour24(row.preferred_time_slot));
-    if (hour24 === null) {
+    const rawPref = String(row.preferred_time_slot ?? "").trim();
+    let b = null;
+    if (rawPref) {
+      for (const slot of catalogSlots) {
+        const lab = String(slot.label ?? "").trim();
+        if (lab && rawPref === lab) {
+          b = bucketBySlotId.get(Number(slot.id)) || null;
+          break;
+        }
+      }
+    }
+    if (!b) {
+      const hourParsed = parseClockToHour24(row.preferred_time_slot);
+      if (Number.isInteger(hourParsed)) b = bucketByStartHour.get(hourParsed) || null;
+    }
+    if (!b) {
       unbucketedRequests += 1;
       continue;
     }
-    const b = byHour.get(hour24);
     b.requests += 1;
     b.total += 1;
   }
 
   let unbucketedAppointments = 0;
   const skipApptStatus = new Set(["Cancelled", "Rejected"]);
-  for (const row of apptRes.data || []) {
+  for (const row of apptRows) {
     if (skipApptStatus.has(String(row.status || ""))) continue;
-    const hour24 = hourFitsAnalyticsChart(appointmentPreferredStartHour24(row));
-    if (hour24 === null) {
+    const sid = row.slot_id != null ? Number(row.slot_id) : null;
+    if (!sid || !Number.isFinite(sid) || sid <= 0) {
       unbucketedAppointments += 1;
       continue;
     }
-    const b = byHour.get(hour24);
+    const b = bucketBySlotId.get(sid);
+    if (!b) {
+      unbucketedAppointments += 1;
+      continue;
+    }
     b.appointments += 1;
     b.total += 1;
   }
@@ -3207,8 +3784,12 @@ app.get("/admin/analytics/hourly-demand", async (req, res) => {
 
   return res.json({
     ok: true,
+    bucketKind: "appointment_slot",
     chartStartHour: ANALYTICS_HOURLY_CHART_START_HOUR,
     chartEndHour: ANALYTICS_HOURLY_CHART_END_HOUR,
+    /** How bars are built: one column per configured slot; appointments by `slot_id`, requests by preferred time mapped to same slot start. */
+    demandSourceNote:
+      "Every configured appointment slot appears as its own column. Service requests attach by exact preferred-time label match, else by parsed start hour; appointments attach by booking slot.",
     dateFilter: {
       from: fromDate,
       to: toDate
@@ -3217,6 +3798,7 @@ app.get("/admin/analytics/hourly-demand", async (req, res) => {
     maxTotal,
     peakHour: peakHour
       ? {
+          slotId: peakHour.slotId,
           hour: peakHour.hour,
           label: peakHour.label,
           total: peakHour.total,
@@ -3340,6 +3922,7 @@ function sanitizeSummaryForDecisionInsight(s) {
 function sanitizeHourlyDemandForDecisionInsight(h) {
   if (!h || typeof h !== "object") {
     return {
+      bucketKind: null,
       chartStartHour: null,
       chartEndHour: null,
       maxTotal: 0,
@@ -3353,6 +3936,7 @@ function sanitizeHourlyDemandForDecisionInsight(h) {
   const buckets = Array.isArray(h.buckets)
     ? h.buckets.map((b) => ({
         hour: b.hour,
+        slotId: b.slotId,
         label: b.label,
         requests: b.requests,
         appointments: b.appointments,
@@ -3360,6 +3944,7 @@ function sanitizeHourlyDemandForDecisionInsight(h) {
       }))
     : [];
   return {
+    bucketKind: h.bucketKind,
     chartStartHour: h.chartStartHour,
     chartEndHour: h.chartEndHour,
     maxTotal: h.maxTotal,
@@ -3405,11 +3990,11 @@ function buildBarangayDecisionInsightFallback(summary, hourlyDemand) {
     const concentration = peak.total / maxT;
     if (concentration >= 0.42 && peak.total >= 5) {
       parts.push(
-        `Hourly demand is concentrated around ${peak.label} (${peak.total} requests and appointments in that hour). Adding counter staff or staggering breaks during that window usually reduces queues more than uniform staffing all day.`
+        `Demand is concentrated around ${peak.label} (${peak.total} requests and appointments in that time slot). Adding counter staff or staggering breaks during that window usually reduces queues more than uniform staffing all day.`
       );
     } else {
       parts.push(
-        `The busiest hour is ${peak.label} with ${peak.total} combined bookings; align clerk breaks so coverage stays strong in that window.`
+        `The busiest time slot is ${peak.label} with ${peak.total} combined bookings; align clerk breaks so coverage stays strong in that window.`
       );
     }
   }
@@ -3437,7 +4022,7 @@ async function groqBarangayDecisionInsight(context) {
 
 You receive JSON with:
 - summary: counts of service requests and appointments, completion rates (percent), and active portal residents.
-- hourlyDemand: per-hour totals from 9 AM to 5 PM combining residents' preferred time on service requests and booked appointment slot start times; includes peakHour and unbucketed counts.
+- hourlyDemand: per appointment time slot (barangay schedule), totals from residents' preferred time on service requests (matched by slot start or exact label) and appointments by chosen slot_id; peakHour.slotId/label refer to busiest slot; includes unbucketed counts.
 
 Write exactly ONE paragraph in clear English (100–220 words) with practical recommendations for the Barangay Captain, Secretary, or clerks: staffing at peak windows, reducing backlog when completion is low, communicating with residents, slot or queue policy, or follow-up. Use ONLY numbers and facts from the JSON; never invent statistics. If data is very sparse, say so briefly and suggest what to track next. Plain text only; no markdown, bullets, or headings.`;
 
@@ -3530,7 +4115,8 @@ function mapDirectoryProfileRow(row) {
     fullName: row.full_name,
     role: row.role,
     createdAt: row.created_at,
-    residentSelfRegistered: row.role === "resident" && Boolean(row.resident_self_registered)
+    residentSelfRegistered: row.role === "resident" && Boolean(row.resident_self_registered),
+    accountStatus: mapAccountStatusToUiLabel(row.account_status)
   };
   if (row.role === "staff") {
     profile.staffPermissions = normalizeStaffPermissionsFromDb(row.staff_permissions);
@@ -3564,7 +4150,7 @@ app.get("/admin/profiles", async (req, res) => {
   function filteredProfilesDataQuery() {
     let q = supabaseAdmin
       .from("profiles")
-      .select("email, full_name, role, created_at, staff_permissions, resident_self_registered")
+      .select("email, full_name, role, created_at, staff_permissions, resident_self_registered, account_status")
       .order("created_at", { ascending: false, nullsFirst: false })
       .order("full_name", { ascending: true });
     if (actorRole === "system-admin") {
@@ -3626,6 +4212,85 @@ app.get("/admin/profiles", async (req, res) => {
   return res.json({
     ok: true,
     profiles: (data || []).map(mapDirectoryProfileRow)
+  });
+});
+
+/** Set account status (Active / Suspended / Deactivated). Active = full resident portal access; other values block login and APIs. */
+app.patch("/admin/profiles/account-status", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+  const actorRole = auth.profile.role;
+  if (actorRole !== "admin" && actorRole !== "system-admin") {
+    return res.status(403).json({
+      ok: false,
+      message: "Barangay admin or system administrator role is required."
+    });
+  }
+
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const targetEmail = normalizeEmail(body.email ?? "");
+  const nextStatus = normalizeAccountStatusFromInput(body.accountStatus ?? body.status);
+  if (!targetEmail || !isValidEmailFormat(targetEmail)) {
+    return res.status(400).json({ ok: false, message: "A valid email is required." });
+  }
+  if (!nextStatus) {
+    return res.status(400).json({
+      ok: false,
+      message: "accountStatus must be Active, Suspended, or Deactivated."
+    });
+  }
+
+  if (normalizeEmail(auth.profile.email) === targetEmail) {
+    return res.status(400).json({ ok: false, message: "You cannot change your own account status here." });
+  }
+
+  const { data: target, error: loadErr } = await supabaseAdmin
+    .from("profiles")
+    .select("email, role")
+    .eq("email", targetEmail)
+    .maybeSingle();
+
+  if (loadErr) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load target profile.",
+      detail: loadErr.message
+    });
+  }
+  if (!target) {
+    return res.status(404).json({ ok: false, message: "No profile found for that email." });
+  }
+  if (target.role === "admin" || target.role === "system-admin") {
+    return res.status(403).json({ ok: false, message: "Administrator account status cannot be changed from this action." });
+  }
+
+  const { data: updated, error: updErr } = await supabaseAdmin
+    .from("profiles")
+    .update({ account_status: nextStatus })
+    .eq("email", targetEmail)
+    .select("email, account_status")
+    .maybeSingle();
+
+  if (updErr) {
+    const msg = String(updErr.message || "");
+    if (/check constraint|violates check/i.test(msg)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Invalid account status. Apply database migration for account_status if this persists.",
+        detail: msg
+      });
+    }
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to update account status.",
+      detail: updErr.message
+    });
+  }
+
+  return res.json({
+    ok: true,
+    email: updated?.email || targetEmail,
+    accountStatus: mapAccountStatusToUiLabel(updated?.account_status)
   });
 });
 

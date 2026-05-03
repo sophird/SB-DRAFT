@@ -1,5 +1,6 @@
 (function initResidentPortalGuard(globalScope) {
   const STORAGE_KEY = "residentAuth";
+  const BLOCKED_LOGIN_MESSAGE_KEY = "residentPortalBlockedReason";
 
   function loginHref() {
     return globalScope.APP_ROUTES?.resident?.login || "../resident-login.html";
@@ -57,6 +58,21 @@
     const opts = options && typeof options === "object" ? { ...options } : {};
     opts.headers = { ...globalScope.residentApiHeaders(), ...(opts.headers || {}) };
     const response = await globalScope.fetch(url, opts);
+    if (response.status === 403) {
+      try {
+        const payload = await response.clone().json();
+        const msg = String(payload?.message || "");
+        if (msg.includes("Your account is suspended") || msg.includes("Your account is deactivated")) {
+          globalScope.sessionStorage.removeItem(STORAGE_KEY);
+          globalScope.sessionStorage.removeItem("residentContext");
+          globalScope.sessionStorage.setItem(BLOCKED_LOGIN_MESSAGE_KEY, msg);
+          globalScope.location.href = loginHref();
+          return response;
+        }
+      } catch (_e) {
+        /* not JSON or unreadable */
+      }
+    }
     if (response.status === 401) {
       try {
         globalScope.sessionStorage.removeItem(STORAGE_KEY);

@@ -509,11 +509,11 @@
             </a>
         </nav>
         <div class="sidebar-footer">
-            <div class="user-profile">
+            <div class="user-profile" id="residentProfileBtn" style="cursor: pointer;">
                 <div class="user-avatar" id="residentSidebarAvatar" aria-hidden="true">?</div>
                 <div class="user-info">
                     <span class="user-name" id="residentSidebarName">Resident</span>
-                    <span class="user-role">Resident</span>
+                    <span class="user-role">View Profile</span>
                 </div>
             </div>
             <a href="landing.html" class="logout-btn" onclick="handleLogout(event)">
@@ -606,6 +606,7 @@
     <script src="../shared/maintenance-check.js"></script>
     <script src="../shared/resident-auth-guard.js"></script>
     <script src="../shared/resident-sidebar-profile.js"></script>
+    <script src="../shared/resident-profile-modal.js" data-api-base="http://localhost:4000"></script>
     <script>
         const API_BASE_URL = "http://localhost:4000";
         const READ_ANNOUNCEMENT_IDS_KEY = "bulletinReadAnnouncementIds";

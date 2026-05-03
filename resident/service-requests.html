@@ -485,11 +485,11 @@
             </a>
         </nav>
         <div class="sidebar-footer">
-            <div class="user-profile">
+            <div class="user-profile" id="residentProfileBtn" style="cursor: pointer;">
                 <div class="user-avatar" id="residentSidebarAvatar" aria-hidden="true">?</div>
                 <div class="user-info">
                     <span class="user-name" id="residentSidebarName">Resident</span>
-                    <span class="user-role">Resident</span>
+                    <span class="user-role">View Profile</span>
                 </div>
             </div>
             <a href="landing.html" class="logout-btn" onclick="handleLogout(event)">
@@ -740,6 +740,7 @@
     <script src="../shared/maintenance-check.js"></script>
     <script src="../shared/resident-auth-guard.js"></script>
     <script src="../shared/resident-sidebar-profile.js"></script>
+    <script src="../shared/resident-profile-modal.js" data-api-base="http://localhost:4000"></script>
     <script>
         const API_BASE_URL = "http://localhost:4000";
         const RESIDENT_CONTEXT_KEY = 'residentContext';
@@ -768,6 +769,8 @@
         let selectedSupportingFiles = [];
         const SUPPORTING_DOCS_KEY = 'residentSupportingDocsByReference';
         const SUPPORTING_DOCS_PREVIEW_KEY = 'residentSupportingDocsPreviewByReference';
+        /** Same key as `resident/request-history.html` — opens new-request modal with service prefilled. */
+        const RESIDENT_SERVICE_REQUEST_REPEAT_KEY = "sb_resident_service_request_repeat_v1";
         const uploadInput = document.getElementById('docUpload');
         const uploadArea = document.querySelector('.upload-area');
         const uploadedFilesList = document.getElementById('uploadedFilesList');
@@ -1210,6 +1213,99 @@ async function populateResidentNameField() {
             }
         }
 
+        function stripServiceQueryParamIfPresent() {
+            try {
+                const search = window.location.search || "";
+                const p = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+                if (!p.has("service")) return;
+                p.delete("service");
+                const qs = p.toString();
+                history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+            } catch (_e) {
+                /* ignore */
+            }
+        }
+
+        function selectServiceTypeByName(wantRaw) {
+            const sel = document.getElementById("reqType");
+            if (!sel || sel.disabled) return false;
+            const want = String(wantRaw || "").trim();
+            if (!want) return false;
+            const wantLower = want.toLowerCase();
+            const opts = [...sel.options].filter((o) => String(o.value || "").trim());
+            let match = opts.find((o) => String(o.value).trim() === want);
+            if (!match) match = opts.find((o) => String(o.value).trim().toLowerCase() === wantLower);
+            if (!match) match = opts.find((o) => String(o.textContent || "").trim().toLowerCase() === wantLower);
+            if (!match) {
+                match = opts.find(
+                    (o) =>
+                        String(o.value).toLowerCase().includes(wantLower) ||
+                        String(o.textContent || "").toLowerCase().includes(wantLower)
+                );
+            }
+            if (match) {
+                sel.value = match.value;
+                return true;
+            }
+            return false;
+        }
+
+        async function tryConsumeRepeatServiceRequestDraft() {
+            let want = null;
+            let hadSession = false;
+            try {
+                const raw = sessionStorage.getItem(RESIDENT_SERVICE_REQUEST_REPEAT_KEY);
+                if (raw) {
+                    const d = JSON.parse(raw);
+                    const n = d?.serviceName != null ? String(d.serviceName).trim() : "";
+                    if (n) {
+                        want = n;
+                        hadSession = true;
+                    }
+                }
+            } catch (_e) {
+                want = null;
+            }
+            if (hadSession) {
+                try {
+                    sessionStorage.removeItem(RESIDENT_SERVICE_REQUEST_REPEAT_KEY);
+                } catch (_e) {
+                    /* ignore */
+                }
+            }
+            if (!want) {
+                try {
+                    const p = new URLSearchParams(window.location.search.startsWith("?") ? window.location.search.slice(1) : "");
+                    const q = p.get("service");
+                    if (q) want = String(q).trim();
+                } catch (_e) {
+                    want = null;
+                }
+            }
+            stripServiceQueryParamIfPresent();
+            if (!want) return;
+            const selPre = document.getElementById("reqType");
+            const hasLoadedOptions =
+                selPre &&
+                !selPre.disabled &&
+                [...selPre.options].some((o) => String(o.value || "").trim());
+            if (!hasLoadedOptions) await populateResidentServiceTypeOptions();
+            const applied = selectServiceTypeByName(want);
+            await populateResidentNameField();
+            const reqDate = document.getElementById("reqDate");
+            const reqTime = document.getElementById("reqTime");
+            if (reqDate) reqDate.value = "";
+            if (reqTime) reqTime.value = "";
+            const modal = document.getElementById("requestModal");
+            if (modal) modal.style.display = "flex";
+            if (!applied) {
+                openFeedbackModal(
+                    "Service not found",
+                    "We could not match that request to a current service in the list. Pick a service from the dropdown."
+                );
+            }
+        }
+
         function buildRequestStatusCellHtml(req) {
             const statusText = String(req.status || "Pending");
             const escaped = escapeHtmlText(statusText);
@@ -1381,11 +1477,16 @@ function statusClass(status) {
             };
         }
 
-        window.onload = function () {
+        window.onload = async function () {
             loadRequests();
-            void populateResidentServiceTypeOptions();
             connectRealtimeRequests();
+            await populateResidentServiceTypeOptions();
+            await tryConsumeRepeatServiceRequestDraft();
         };
+
+        window.addEventListener("load", () => {
+            void tryConsumeRepeatServiceRequestDraft();
+        });
 
         // Close modal when clicking background
         window.onclick = function(e) {

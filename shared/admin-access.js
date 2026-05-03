@@ -1,5 +1,11 @@
 (function initAdminAccess(globalScope) {
-  const API_BASE_URL = "http://localhost:4000";
+  function resolveApiBaseUrl() {
+    const raw =
+      typeof globalScope.API_BASE_URL === "string" && globalScope.API_BASE_URL.trim()
+        ? globalScope.API_BASE_URL.trim()
+        : "http://localhost:4000";
+    return raw.replace(/\/$/, "");
+  }
   const routes = globalScope.APP_ROUTES || {};
   const fallbackLogin = "../admin-login.html";
   const loginRoute =
@@ -27,10 +33,13 @@
   }
 
   async function verifyBackendRole(requiredRole, accessToken) {
-    const response = await fetch(`${API_BASE_URL}/auth/admin/authorize/${encodeURIComponent(requiredRole)}`, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
+    const response = await fetch(
+      `${resolveApiBaseUrl()}/auth/admin/authorize/${encodeURIComponent(requiredRole)}`,
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` }
+      }
+    );
     if (!response.ok) throw new Error("Role authorization failed");
   }
 
@@ -69,7 +78,7 @@
           if (globalScope.SB_MAINTENANCE?.fetchPortalEnvironment) {
             env = await globalScope.SB_MAINTENANCE.fetchPortalEnvironment();
           } else {
-            const response = await fetch(`${API_BASE_URL}/public/system-status`);
+            const response = await fetch(`${resolveApiBaseUrl()}/public/system-status`);
             const json = await response.json().catch(() => ({}));
             if (json?.environment === "maintenance") env = "maintenance";
           }
