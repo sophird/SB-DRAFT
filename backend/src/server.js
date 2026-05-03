@@ -88,6 +88,14 @@ const faqChatLimiter = rateLimit({
   message: { ok: false, message: "Too many chat messages. Please try again later." }
 });
 
+const adminAnalyticsDecisionInsightLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 24,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, message: "Too many decision-insight requests. Please try again later." }
+});
+
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
@@ -2661,6 +2669,172 @@ function pctCompleted(completed, total) {
   return Math.round((c / t) * 1000) / 10;
 }
 
+/** Inclusive office-hour window for peak-hours chart (matches admin reports UI). */
+const ANALYTICS_HOURLY_CHART_START_HOUR = 9;
+const ANALYTICS_HOURLY_CHART_END_HOUR = 17;
+
+/** Parse slot label, time range, or HHMM `slot_code` to hour 0–23 (start of window). */
+function parseClockToHour24(input) {
+  const raw = String(input ?? "").trim();
+  if (!raw) return null;
+  const firstSegment = raw.split(/\s*[–-]\s*/u)[0].trim();
+  if (/\b(AM|PM)\b/i.test(firstSegment)) {
+    const m = firstSegment.match(/\b(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\b/i);
+    if (!m) return null;
+    let h = parseInt(m[1], 10);
+    const ap = m[3].toUpperCase();
+    if (ap === "PM" && h !== 12) h += 12;
+    if (ap === "AM" && h === 12) h = 0;
+    if (!Number.isInteger(h) || h < 0 || h > 23) return null;
+    return h;
+  }
+  const digitRun = raw.replace(/\D/g, "");
+  if (digitRun.length >= 3 && digitRun.length <= 4 && /^\d+$/.test(digitRun)) {
+    const pad = digitRun.padStart(4, "0").slice(-4);
+    const h = parseInt(pad.slice(0, 2), 10);
+    if (Number.isInteger(h) && h >= 0 && h <= 23) return h;
+  }
+  return null;
+}
+
+function hourFitsAnalyticsChart(hour24) {
+  if (!Number.isInteger(hour24)) return null;
+  if (hour24 < ANALYTICS_HOURLY_CHART_START_HOUR || hour24 > ANALYTICS_HOURLY_CHART_END_HOUR) return null;
+  return hour24;
+}
+
+function formatAnalyticsHourAxisLabel(hour24) {
+  if (hour24 === 12) return "12 NN";
+  if (hour24 < 12) return `${hour24} AM`;
+  return `${hour24 - 12} PM`;
+}
+
+function appointmentPreferredStartHour24(row) {
+  const rawSlot = row?.appointment_slots;
+  const slot = Array.isArray(rawSlot) ? rawSlot[0] : rawSlot;
+  if (slot && slot.slot_code != null && String(slot.slot_code).trim()) {
+    const fromCode = parseClockToHour24(String(slot.slot_code).trim());
+    if (fromCode !== null) return fromCode;
+  }
+  if (slot && slot.label) {
+    return parseClockToHour24(String(slot.label));
+  }
+  return null;
+}
+
+app.get("/admin/analytics/hourly-demand", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+  if (auth.profile.role !== "admin") {
+    return res.status(403).json({
+      ok: false,
+      message: "Admin role required to view hourly demand analytics."
+    });
+  }
+
+  const fromDate = parseLocalDateString(req.query?.from);
+  const toDate = parseLocalDateString(req.query?.to);
+
+  let reqQuery = supabaseAdmin
+    .from("service_requests")
+    .select("id, preferred_time_slot, preferred_date")
+    .limit(10000);
+  if (fromDate) reqQuery = reqQuery.gte("preferred_date", fromDate);
+  if (toDate) reqQuery = reqQuery.lte("preferred_date", toDate);
+
+  let apptQuery = supabaseAdmin
+    .from("appointments")
+    .select("id, appointment_date, status, appointment_slots ( slot_code, label )")
+    .limit(10000);
+  if (fromDate) apptQuery = apptQuery.gte("appointment_date", fromDate);
+  if (toDate) apptQuery = apptQuery.lte("appointment_date", toDate);
+
+  const [reqRes, apptRes] = await Promise.all([reqQuery, apptQuery]);
+
+  if (reqRes.error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load service requests for hourly demand.",
+      detail: reqRes.error.message
+    });
+  }
+  if (apptRes.error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load appointments for hourly demand.",
+      detail: apptRes.error.message
+    });
+  }
+
+  const buckets = [];
+  for (let h = ANALYTICS_HOURLY_CHART_START_HOUR; h <= ANALYTICS_HOURLY_CHART_END_HOUR; h += 1) {
+    buckets.push({
+      hour: h,
+      label: formatAnalyticsHourAxisLabel(h),
+      requests: 0,
+      appointments: 0,
+      total: 0
+    });
+  }
+  const byHour = new Map(buckets.map((b) => [b.hour, b]));
+
+  let unbucketedRequests = 0;
+  for (const row of reqRes.data || []) {
+    const hour24 = hourFitsAnalyticsChart(parseClockToHour24(row.preferred_time_slot));
+    if (hour24 === null) {
+      unbucketedRequests += 1;
+      continue;
+    }
+    const b = byHour.get(hour24);
+    b.requests += 1;
+    b.total += 1;
+  }
+
+  let unbucketedAppointments = 0;
+  const skipApptStatus = new Set(["Cancelled", "Rejected"]);
+  for (const row of apptRes.data || []) {
+    if (skipApptStatus.has(String(row.status || ""))) continue;
+    const hour24 = hourFitsAnalyticsChart(appointmentPreferredStartHour24(row));
+    if (hour24 === null) {
+      unbucketedAppointments += 1;
+      continue;
+    }
+    const b = byHour.get(hour24);
+    b.appointments += 1;
+    b.total += 1;
+  }
+
+  const maxTotal = buckets.reduce((m, b) => Math.max(m, b.total), 0);
+  let peakHour = null;
+  for (const b of buckets) {
+    if (b.total <= 0) continue;
+    if (peakHour === null || b.total > peakHour.total) peakHour = b;
+  }
+
+  return res.json({
+    ok: true,
+    chartStartHour: ANALYTICS_HOURLY_CHART_START_HOUR,
+    chartEndHour: ANALYTICS_HOURLY_CHART_END_HOUR,
+    dateFilter: {
+      from: fromDate,
+      to: toDate
+    },
+    buckets,
+    maxTotal,
+    peakHour: peakHour
+      ? {
+          hour: peakHour.hour,
+          label: peakHour.label,
+          total: peakHour.total,
+          requests: peakHour.requests,
+          appointments: peakHour.appointments
+        }
+      : null,
+    unbucketedRequests,
+    unbucketedAppointments
+  });
+});
+
 app.get("/admin/analytics/summary", async (req, res) => {
   const auth = await requireStaffPortalUser(req, res);
   if (!auth) return;
@@ -2753,6 +2927,206 @@ app.get("/admin/analytics/summary", async (req, res) => {
     activeResidents
   });
 });
+
+function sanitizeSummaryForDecisionInsight(s) {
+  if (!s || typeof s !== "object") return {};
+  return {
+    totalRequestsAndAppointments: s.totalRequestsAndAppointments,
+    requestsTotal: s.requestsTotal,
+    appointmentsTotal: s.appointmentsTotal,
+    requestsCompleted: s.requestsCompleted,
+    appointmentsCompleted: s.appointmentsCompleted,
+    overallCompletionRatePercent: s.overallCompletionRatePercent,
+    requestsCompletionRatePercent: s.requestsCompletionRatePercent,
+    appointmentsCompletionRatePercent: s.appointmentsCompletionRatePercent,
+    activeResidents: s.activeResidents
+  };
+}
+
+function sanitizeHourlyDemandForDecisionInsight(h) {
+  if (!h || typeof h !== "object") {
+    return {
+      chartStartHour: null,
+      chartEndHour: null,
+      maxTotal: 0,
+      peakHour: null,
+      buckets: [],
+      unbucketedRequests: 0,
+      unbucketedAppointments: 0,
+      dateFilter: null
+    };
+  }
+  const buckets = Array.isArray(h.buckets)
+    ? h.buckets.map((b) => ({
+        hour: b.hour,
+        label: b.label,
+        requests: b.requests,
+        appointments: b.appointments,
+        total: b.total
+      }))
+    : [];
+  return {
+    chartStartHour: h.chartStartHour,
+    chartEndHour: h.chartEndHour,
+    maxTotal: h.maxTotal,
+    peakHour: h.peakHour ?? null,
+    buckets,
+    unbucketedRequests: h.unbucketedRequests,
+    unbucketedAppointments: h.unbucketedAppointments,
+    dateFilter: h.dateFilter ?? null
+  };
+}
+
+function buildBarangayDecisionInsightFallback(summary, hourlyDemand) {
+  const parts = [];
+  const overall = Number(summary?.overallCompletionRatePercent);
+  const total = Number(summary?.totalRequestsAndAppointments) || 0;
+  const reqPct = Number(summary?.requestsCompletionRatePercent);
+  const apptPct = Number(summary?.appointmentsCompletionRatePercent);
+
+  if (Number.isFinite(overall) && total > 0 && overall < 65) {
+    parts.push(
+      `Overall completion is about ${overall}%, which is low for steady barangay operations. Prioritise clearing the oldest pending requests, verify resident contact details, and hold a brief daily triage so nothing stalls more than a few days.`
+    );
+  } else if (Number.isFinite(overall) && total > 0) {
+    parts.push(
+      `Overall completion is about ${overall}%. Keep documenting turnaround times and watch for any single service type dragging the average down.`
+    );
+  }
+
+  if (
+    Number.isFinite(reqPct) &&
+    Number.isFinite(apptPct) &&
+    total > 0 &&
+    reqPct + 8 < apptPct
+  ) {
+    parts.push(
+      `Document request completion (${reqPct}%) is noticeably weaker than appointment completion (${apptPct}%); consider dedicating more staff time to request processing or simplifying documentary requirements where policy allows.`
+    );
+  }
+
+  const peak = hourlyDemand?.peakHour;
+  const maxT = Number(hourlyDemand?.maxTotal) || 0;
+  if (peak && Number(peak.total) > 0 && maxT > 0) {
+    const concentration = peak.total / maxT;
+    if (concentration >= 0.42 && peak.total >= 5) {
+      parts.push(
+        `Hourly demand is concentrated around ${peak.label} (${peak.total} requests and appointments in that hour). Adding counter staff or staggering breaks during that window usually reduces queues more than uniform staffing all day.`
+      );
+    } else {
+      parts.push(
+        `The busiest hour is ${peak.label} with ${peak.total} combined bookings; align clerk breaks so coverage stays strong in that window.`
+      );
+    }
+  }
+
+  const ub =
+    (Number(hourlyDemand?.unbucketedRequests) || 0) + (Number(hourlyDemand?.unbucketedAppointments) || 0);
+  if (ub > 0) {
+    parts.push(
+      `${ub} booking(s) could not be placed on the hourly chart; standardising preferred time labels in the portal will improve future staffing decisions.`
+    );
+  }
+
+  if (!parts.length) {
+    return "Collect a few more weeks of bookings with consistent time slots, then revisit staffing. There is not enough structured volume yet for a strong barangay-specific recommendation.";
+  }
+  return parts.join(" ");
+}
+
+async function groqBarangayDecisionInsight(context) {
+  const apiKey = process.env.GROQ_API_KEY;
+  const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+  if (!apiKey) return null;
+
+  const system = `You are an experienced advisor helping a Philippine BARANGAY (local government unit) front office deliver citizen services: clearances, certificates, appointments for pickup, and similar desk work.
+
+You receive JSON with:
+- summary: counts of service requests and appointments, completion rates (percent), and active portal residents.
+- hourlyDemand: per-hour totals from 9 AM to 5 PM combining residents' preferred time on service requests and booked appointment slot start times; includes peakHour and unbucketed counts.
+
+Write exactly ONE paragraph in clear English (100–220 words) with practical recommendations for the Barangay Captain, Secretary, or clerks: staffing at peak windows, reducing backlog when completion is low, communicating with residents, slot or queue policy, or follow-up. Use ONLY numbers and facts from the JSON; never invent statistics. If data is very sparse, say so briefly and suggest what to track next. Plain text only; no markdown, bullets, or headings.`;
+
+  const userMsg = `Analytics JSON:\n${JSON.stringify(context, null, 2)}`;
+
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: userMsg }
+      ],
+      temperature: 0.35,
+      max_tokens: 500
+    })
+  });
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Groq HTTP ${res.status}: ${t.slice(0, 600)}`);
+  }
+
+  const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content?.trim();
+  return typeof text === "string" && text.length ? text : null;
+}
+
+/** AI-assisted barangay operations insight (Groq); falls back to heuristics if key missing or Groq fails. */
+app.post(
+  "/admin/analytics/decision-insight",
+  adminAnalyticsDecisionInsightLimiter,
+  async (req, res) => {
+    const auth = await requireStaffPortalUser(req, res);
+    if (!auth) return;
+    if (auth.profile.role !== "admin") {
+      return res.status(403).json({
+        ok: false,
+        message: "Admin role required to generate decision insights."
+      });
+    }
+
+    const { summary: rawSummary, hourlyDemand: rawHourly } = req.body || {};
+    if (!rawSummary || typeof rawSummary !== "object" || !rawHourly || typeof rawHourly !== "object") {
+      return res.status(400).json({
+        ok: false,
+        message:
+          "JSON body must include `summary` and `hourlyDemand` objects (responses from GET /admin/analytics/summary and GET /admin/analytics/hourly-demand)."
+      });
+    }
+
+    const context = {
+      summary: sanitizeSummaryForDecisionInsight(rawSummary),
+      hourlyDemand: sanitizeHourlyDemandForDecisionInsight(rawHourly)
+    };
+
+    let insight = null;
+    let source = "groq";
+    try {
+      if (process.env.GROQ_API_KEY) {
+        insight = await groqBarangayDecisionInsight(context);
+      }
+    } catch (err) {
+      console.warn("[admin/analytics/decision-insight] Groq error:", err?.message || err);
+    }
+
+    if (!insight) {
+      insight = buildBarangayDecisionInsightFallback(context.summary, context.hourlyDemand);
+      source = "fallback";
+    }
+
+    return res.json({
+      ok: true,
+      insight,
+      source,
+      groqConfigured: Boolean(process.env.GROQ_API_KEY)
+    });
+  }
+);
 
 // --- Admin user profiles (User & Role management) ---
 
