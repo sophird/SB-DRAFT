@@ -1,13 +1,10 @@
-# Profile Form Update Task - Resident Dashboard
+# Navigation Enhancement Task
 
-## Steps:
-# Profile Form Update Task - Resident Dashboard
+## Steps to Complete
 
-## Steps:
-- [x] 1. Create TODO.md with task steps 
-- [x] 2. Edit resident/dashboard.html: Add password field below email
-- [x] 3. Edit resident/dashboard.html: Add notification modal HTML
-- [x] 4. Edit resident/dashboard.html: Add JavaScript submit handler
-- [x] 5. Test changes: Open dashboard.html, profile modal, verify password field and popup
-- [x] Complete task
+- [x] Step 1: Create how-it-works.html with explanatory content matching landing page style
+- [x] Step 2: Create contact-us.html with contact form/info matching landing page style  
+- [x] Step 3: Edit landing.html to add 'How It Works' and 'Contact Us' buttons beside login buttons + CSS for btn-secondary
+- [ ] Step 4: Test navigation by opening landing.html in browser
 
+Current Progress: Steps 1-3 completed. Ready for testing.

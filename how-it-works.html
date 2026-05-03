@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How It Works | SerbisyoBurgos</title>
+    <link rel="icon" type="image/png" href="asset/SB.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Copy all CSS from landing.html for consistency */
+        :root {
+            --primary-green: #043d2e;
+            --accent-green: #c6f6d5;  
+            --hover-green: #16a34a;   
+            --text-dark: #1a202c;
+            --glass-white: rgba(255, 255, 255, 0.92);
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: auto; 
+            font-family: 'Inter', sans-serif;
+            color: var(--text-dark);
+        }
+
+        body {
+            background: linear-gradient(rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.4)), 
+                        url('https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&q=80&w=2069') no-repeat center center/cover;
+        }
+
+        .navbar {
+            padding: 1rem 4rem;
+            background: #ffffff; 
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            z-index: 100;
+        }
+
+        .logo-nav {
+            height: 45px;
+            width: auto;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn-nav {
+            text-decoration: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-residents {
+            background: var(--primary-green);
+            color: white;
+        }
+
+        .btn-admins {
+            background: white;
+            color: var(--primary-green);
+            border: 2px solid var(--primary-green);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--primary-green);
+            border: 2px solid var(--primary-green);
+            text-decoration: none;
+        }
+
+        .btn-nav:hover {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
+
+        .page-content {
+            padding: 4rem 4rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section {
+            margin-bottom: 4rem;
+        }
+
+        .section h2 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--primary-green);
+            margin-bottom: 1rem;
+        }
+
+        .step {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 2rem;
+            padding: 2rem;
+            background: var(--glass-white);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        .step-number {
+            font-size: 3rem;
+            font-weight: 800;
+            color: var(--hover-green);
+            min-width: 80px;
+        }
+
+        .step-content h3 {
+            margin: 0 0 0.5rem;
+            color: var(--primary-green);
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 2rem;
+            padding: 10px 20px;
+            background: white;
+            color: var(--primary-green);
+            text-decoration: none;
+            border-radius: 8px;
+            border: 2px solid var(--primary-green);
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            .navbar { flex-direction: column; gap: 1rem; }
+            .step { flex-direction: column; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="landing.html"><img src="asset/SB.png" alt="SB Logo" class="logo-nav"></a>
+        <div class="nav-buttons">
+            <a href="resident-login.html" class="btn-nav btn-residents">Residents</a>
+            <a href="admin-login.html" class="btn-nav btn-admins">Admins</a>
+            <a href="how-it-works.html" class="btn-nav btn-secondary">How It Works</a>
+            <a href="contact-us.html" class="btn-nav btn-secondary">Contact Us</a>
+        </div>
+    </nav>
+
+    <div class="page-content">
+        <a href="landing.html" class="back-link">← Back to Home</a>
+
+        <div class="section">
+            <h2>How It Works</h2>
+            <p>Simple 3-step process to access SerbisyoBurgos services.</p>
+        </div>
+
+        <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <h3>Sign In</h3>
+                <p>Choose Resident or Admin login from the navigation. New users can register during login.</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <h3>Access Services</h3>
+                <p>Residents: Submit service requests, book appointments, view notifications. Admins: Manage requests, announcements, reports.</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <h3>Get Updates</h3>
+                <p>Track progress in real-time. Services processed within 24 hours.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
