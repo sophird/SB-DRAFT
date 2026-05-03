@@ -57,30 +57,45 @@
         .nav-buttons {
             display: flex;
             gap: 15px;
+            align-items: center;
         }
 
         .btn-nav {
             text-decoration: none;
-            padding: 10px 24px;
-            border-radius: 8px;
+            padding: 8px 0;
+            border-radius: 0;
+            border: none;
+            background: none;
             font-weight: 600;
             font-size: 0.95rem;
-            transition: all 0.3s ease;
+            color: var(--primary-green);
+            transition: color 0.3s ease;
+            position: relative;
         }
+
+        /* No slide animation for nav buttons */
 
         .btn-residents {
             background: var(--primary-green);
             color: white;
+            padding: 10px 24px;
+            border-radius: 8px;
+            border: none;
         }
 
         .btn-admins {
             background: white;
             color: var(--primary-green);
             border: 2px solid var(--primary-green);
+            padding: 10px 24px;
+            border-radius: 8px;
         }
 
         .btn-nav:hover {
-            transform: translateY(-2px);
+            opacity: 0.8;
+        }
+
+        .btn-residents:hover, .btn-admins:hover {
             opacity: 0.9;
         }
 
@@ -233,6 +248,8 @@
         <img src="asset/SB.png" alt="SB Logo" class="logo-nav">
         
         <div class="nav-buttons">
+            <a href="how-it-works.html" class="btn-nav btn-secondary">How It Works</a>
+            <a href="contact-us.html" class="btn-nav btn-secondary">Contact Us</a>
             <a href="resident-login.html" class="btn-nav btn-residents" id="residentLoginLink">Residents</a>
             <a href="admin-login.html" class="btn-nav btn-admins" id="staffLoginLink">Admins</a>
         </div>
@@ -261,7 +278,7 @@
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <div style="background: var(--hover-green); padding: 10px; border-radius: 10px; color: white;">📄</div>
                         <div>
-                            <h3 style="margin:0">Online Permits</h3>
+                            <h3 style="margin:0">Online Services</h3>
                             <p style="margin:0; font-size: 0.85rem; color: #718096;">Processed in 24 hours</p>
                         </div>
                     </div>
@@ -280,21 +297,9 @@
                     📢 New Announcement
                 </div>
             </div>
-
         </div>
     </main>
-
-    <footer class="footer">
-        <div>
-            <strong style="color: var(--primary-green)">SerbisyoBurgos</strong> &copy; 2026. All rights reserved.
-        </div>
-        <div class="footer-links">
-            <a href="#">Privacy Policy</a>
-            <a href="#">Terms of Use</a>
-            <a href="#">Contact Us</a>
-        </div>
-    </footer>
-    </div>
+    
 
     <script src="shared/routes.js"></script>
     <script>
