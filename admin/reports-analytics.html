@@ -323,38 +323,19 @@
         </div>
 
         <div class="chart-container" style="display: block; border-style: solid; padding: 1.5rem;">
-<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
                 <h3 style="font-size: 1.1rem; color: var(--brand-dark);">Hourly Service Demand (Peak Hours)</h3>
             </div>
 
-            <div style="display: flex; align-items: flex-end; gap: 8px; height: 180px; padding-top: 20px; border-bottom: 2px solid #e2e8f0;">
-                <div style="flex: 1; background: #dcfce7; height: 30%; border-radius: 4px 4px 0 0;" title="8 AM"></div>
-                <div style="flex: 1; background: #86efac; height: 55%; border-radius: 4px 4px 0 0;" title="9 AM"></div>
-                <div style="flex: 1; background: var(--brand-green); height: 90%; border-radius: 4px 4px 0 0;" title="10 AM"></div>
-                <div style="flex: 1; background: var(--brand-green); height: 95%; border-radius: 4px 4px 0 0;" title="11 AM"></div>
-                <div style="flex: 1; background: #dcfce7; height: 20%; border-radius: 4px 4px 0 0;" title="12 PM"></div>
-                <div style="flex: 1; background: #86efac; height: 50%; border-radius: 4px 4px 0 0;" title="1 PM"></div>
-                <div style="flex: 1; background: var(--brand-green); height: 85%; border-radius: 4px 4px 0 0;" title="2 PM"></div>
-                <div style="flex: 1; background: #86efac; height: 60%; border-radius: 4px 4px 0 0;" title="3 PM"></div>
-                <div style="flex: 1; background: #dcfce7; height: 40%; border-radius: 4px 4px 0 0;" title="4 PM"></div>
-            </div>
-
-<div style="display: flex; gap: 8px; margin-top: 10px; color: var(--text-muted); font-size: 0.75rem; font-weight: 600;">
-                <span style="flex: 1; text-align: center;">9 AM</span>
-                <span style="flex: 1; text-align: center;">10 AM</span>
-                <span style="flex: 1; text-align: center;">11 AM</span>
-                <span style="flex: 1; text-align: center;">12 NN</span>
-                <span style="flex: 1; text-align: center;">1 PM</span>
-                <span style="flex: 1; text-align: center;">2 PM</span>
-                <span style="flex: 1; text-align: center;">3 PM</span>
-                <span style="flex: 1; text-align: center;">4 PM</span>
-                <span style="flex: 1; text-align: center;">5 PM</span>
+            <div id="hourlyDemandChartWrap">
+                <div id="hourlyDemandBars" style="display: flex; align-items: flex-end; gap: 8px; height: 180px; padding-top: 20px; border-bottom: 2px solid #e2e8f0; min-height: 180px;"></div>
+                <div id="hourlyDemandLabels" style="display: flex; gap: 8px; margin-top: 10px; color: var(--text-muted); font-size: 0.75rem; font-weight: 600;"></div>
             </div>
 
             <div style="margin-top: 1.5rem; padding: 1rem; background: #f0fdf4; border-radius: 8px; border-left: 4px solid var(--brand-green);">
                 <p style="font-size: 0.85rem; color: #166534; line-height: 1.4;">
-                    <strong>Decision Insight:</strong> Demand peaks between <strong>10:00 AM and 11:30 AM</strong>. 
-                    Consider assigning additional staff to window counters during this period to maintain the 94% completion rate.
+                    <strong>Decision Insight:</strong> Demand peaks between <strong id="decisionInsightPeakTime">10:00 AM and 11:30 AM</strong>.
+                    Consider assigning additional staff to window counters during this period to <span id="decisionInsightVerb">maintain</span> the 94% completion rate.
                 </p>
             </div>
         </div>
@@ -399,6 +380,133 @@
             return `${n % 1 === 0 ? String(Math.round(n)) : n.toFixed(1)}%`;
         }
 
+        function hourlyDemandBarColor(total, maxTotal) {
+            if (!Number.isFinite(maxTotal) || maxTotal <= 0 || !Number.isFinite(total) || total <= 0) return "#e2e8f0";
+            const ratio = total / maxTotal;
+            if (ratio < 0.34) return "#dcfce7";
+            if (ratio < 0.67) return "#86efac";
+            return "var(--brand-green)";
+        }
+
+        function formatInsightHourClock(hour24, minutes, useNoonNn) {
+            if (!Number.isInteger(hour24) || hour24 < 0 || hour24 > 23) return "";
+            if (hour24 === 0) return `12:${minutes} AM`;
+            if (hour24 === 12) {
+                if (useNoonNn && minutes === "00") return "12 NN";
+                if (useNoonNn) return `12:${minutes} NN`;
+                return minutes === "00" ? "12:00 PM" : `12:${minutes} PM`;
+            }
+            const h12 = hour24 % 12;
+            const suf = hour24 >= 12 ? "PM" : "AM";
+            return `${h12}:${minutes} ${suf}`;
+        }
+
+        /** Matches chart peak hour: start of that hour through half-past the next (e.g. 10 → 10:00 AM and 11:30 AM). */
+        function peakDemandTimeRangeFromHourly(hourlyJson) {
+            const peak = hourlyJson?.peakHour;
+            if (!peak || !Number.isInteger(Number(peak.hour))) return null;
+            const h = Number(peak.hour);
+            const next = h + 1;
+            const start = formatInsightHourClock(h, "00", true);
+            const end = formatInsightHourClock(next, "30", true);
+            if (!start || !end) return null;
+            return `${start} and ${end}`;
+        }
+
+        function applyFixedDecisionInsight(summaryData, hourlyData) {
+            const timeEl = document.getElementById("decisionInsightPeakTime");
+            const verbEl = document.getElementById("decisionInsightVerb");
+            if (!timeEl) return;
+
+            const hourly = hourlyData && hourlyData.ok === true ? hourlyData : null;
+            const range = hourly ? peakDemandTimeRangeFromHourly(hourly) : null;
+            timeEl.textContent = range || "10:00 AM and 11:30 AM";
+
+            if (verbEl) {
+                const pct =
+                    summaryData &&
+                    summaryData.ok === true &&
+                    Number.isFinite(Number(summaryData.overallCompletionRatePercent))
+                        ? Number(summaryData.overallCompletionRatePercent)
+                        : null;
+                verbEl.textContent = pct !== null && pct < 94 ? "achieve" : "maintain";
+            }
+        }
+
+        async function loadHourlyDemand() {
+            const barsEl = document.getElementById("hourlyDemandBars");
+            const labelsEl = document.getElementById("hourlyDemandLabels");
+            const subtitle = document.getElementById("hourlyDemandSubtitle");
+            if (!barsEl || !labelsEl) return { ok: false, data: null };
+
+            barsEl.innerHTML =
+                '<div style="flex:1;color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0;">Loading chart…</div>';
+            labelsEl.innerHTML = "";
+            if (subtitle) subtitle.textContent = "";
+
+            try {
+                const res = await adminFetch("/admin/analytics/hourly-demand");
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok || !json?.ok) {
+                    barsEl.innerHTML = "";
+                    const err = document.createElement("div");
+                    err.style.flex = "1";
+                    err.style.color = "#b91c1c";
+                    err.style.fontSize = "0.85rem";
+                    err.style.padding = "0.75rem 0";
+                    err.textContent = json?.message || "Unable to load hourly demand.";
+                    barsEl.appendChild(err);
+                    return { ok: false, data: null };
+                }
+
+                const buckets = Array.isArray(json.buckets) ? json.buckets : [];
+                const maxTotal = Number(json.maxTotal) || 0;
+                const fromD = json.dateFilter?.from;
+                const toD = json.dateFilter?.to;
+                if (subtitle) {
+                    subtitle.textContent =
+                        fromD || toD
+                            ? `Date filter: ${fromD || "start"} → ${toD || "end"} (requests by preferred date, appointments by appointment date).`
+                            : "Requests use preferred time slot; appointments use booked slot time. Cancelled and rejected appointments are excluded.";
+                }
+
+                barsEl.innerHTML = "";
+                labelsEl.innerHTML = "";
+
+                buckets.forEach((b) => {
+                    const total = Number(b.total) || 0;
+                    const heightPct = maxTotal > 0 ? Math.max(6, (total / maxTotal) * 100) : total > 0 ? 100 : 0;
+                    const reqN = Number(b.requests) || 0;
+                    const apptN = Number(b.appointments) || 0;
+                    const div = document.createElement("div");
+                    div.style.flex = "1";
+                    div.style.background = hourlyDemandBarColor(total, maxTotal);
+                    div.style.height = `${heightPct}%`;
+                    div.style.borderRadius = "4px 4px 0 0";
+                    div.style.minHeight = total > 0 ? "4px" : "0";
+                    div.title = `${b.label}: ${total} total (${reqN} requests, ${apptN} appointments)`;
+                    barsEl.appendChild(div);
+
+                    const lab = document.createElement("span");
+                    lab.style.flex = "1";
+                    lab.style.textAlign = "center";
+                    lab.textContent = b.label || "";
+                    labelsEl.appendChild(lab);
+                });
+
+                return { ok: true, data: json };
+            } catch (_err) {
+                barsEl.innerHTML = "";
+                const err = document.createElement("div");
+                err.style.flex = "1";
+                err.style.color = "#b91c1c";
+                err.style.fontSize = "0.85rem";
+                err.textContent = "Could not reach the API server.";
+                barsEl.appendChild(err);
+                return { ok: false, data: null };
+            }
+        }
+
         async function loadAnalyticsSummary() {
             const elTotal = document.getElementById("statTotalRequestsAppointments");
             const elTotalHint = document.getElementById("statTotalRequestsAppointmentsHint");
@@ -406,7 +514,7 @@
             const elRateHint = document.getElementById("statCompletionRateHint");
             const elResidents = document.getElementById("statActiveResidents");
             const elResidentsHint = document.getElementById("statActiveResidentsHint");
-            if (!elTotal || !elRate || !elResidents) return;
+            if (!elTotal || !elRate || !elResidents) return { ok: false, data: null };
 
             try {
                 const res = await adminFetch("/admin/analytics/summary");
@@ -418,7 +526,7 @@
                     if (elTotalHint) elTotalHint.textContent = json?.message || "Unable to load metrics.";
                     if (elRateHint) elRateHint.textContent = "";
                     if (elResidentsHint) elResidentsHint.textContent = "";
-                    return;
+                    return { ok: false, data: null };
                 }
 
                 const reqN = Number(json.requestsTotal) || 0;
@@ -437,18 +545,22 @@
 
                 elResidents.textContent = String(Number(json.activeResidents) || 0);
                 if (elResidentsHint) elResidentsHint.textContent = "Residents with an active portal account";
+                return { ok: true, data: json };
             } catch (_err) {
                 elTotal.textContent = "—";
                 elRate.textContent = "—";
                 elResidents.textContent = "—";
                 if (elTotalHint) elTotalHint.textContent = "Could not reach the API server.";
+                return { ok: false, data: null };
             }
         }
 
         (async function initReportsAnalytics() {
             const auth = await window.SB_ADMIN_ACCESS?.requireRole?.("admin");
             if (!auth) return;
-            await loadAnalyticsSummary();
+            const summaryResult = await loadAnalyticsSummary();
+            const hourlyResult = await loadHourlyDemand();
+            applyFixedDecisionInsight(summaryResult.data, hourlyResult.data);
         })();
 
         const logoutModal = document.getElementById("logoutModal");
