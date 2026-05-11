@@ -494,6 +494,102 @@
             </div>
         </div>
 
+        <!-- View Profile Modal -->
+        <div class="modal-overlay" id="viewProfileModal">
+            <div class="user-modal" style="max-width: 480px; max-height: 90vh; overflow-y: auto;">
+                <div class="modal-header">
+                    <h2 style="color: var(--brand-dark);">View Profile</h2>
+                    <button onclick="closeViewProfileModal()" style="background:none; border:none; font-size: 1.5rem; cursor:pointer; color:#64748b;">&times;</button>
+                </div>
+
+                <!-- Avatar -->
+                <div style="text-align: center; margin-bottom: 1.5rem;">
+                    <div id="viewProfileAvatar" style="width: 72px; height: 72px; border-radius: 50%; background: #d1fae5; color: var(--brand-dark); font-size: 1.5rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 0.5rem;">SD</div>
+                    <div style="color: var(--brand-green); font-weight: 600; font-size: 0.9rem; cursor: pointer;">Change Photo</div>
+                </div>
+
+                <!-- Fields -->
+                <div class="form-group">
+                    <label style="font-weight: 700; font-size: 0.9rem; color: var(--text-main);">Full Name</label>
+                    <input type="text" id="viewProfileName" disabled style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem; background:#f1f5f9; color:#64748b; cursor:not-allowed; opacity:1;">
+                </div>
+                <div class="form-group">
+                    <label style="font-weight: 700; font-size: 0.9rem; color: var(--text-main);">Email Address</label>
+                    <input type="email" id="viewProfileEmail" disabled style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem; background:#f1f5f9; color:#64748b; cursor:not-allowed; opacity:1;">
+                </div>
+                <div class="form-group">
+                    <label style="font-weight: 700; font-size: 0.9rem; color: var(--text-main);">New Password</label>
+                    <input type="password" id="viewProfilePassword" placeholder="Enter new password" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem; background:#fff; color:var(--text-main);">
+                </div>
+                <div class="form-group">
+                    <label style="font-weight: 700; font-size: 0.9rem; color: var(--text-main);">Confirm Password</label>
+                    <input type="password" id="viewProfileConfirmPassword" placeholder="Re-enter new password" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem; background:#fff; color:var(--text-main);">
+                    <p id="viewProfilePasswordMismatch" style="display:none; color:#dc2626; font-size:0.8rem; margin-top:4px; font-weight:600;">Passwords do not match.</p>
+                </div>
+                <div class="form-group">
+                    <label style="font-weight: 700; font-size: 0.9rem; color: var(--text-main);">Contact Number</label>
+                    <input type="text" id="viewProfileContact" placeholder="0912 345 6789" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem; background:#fff; color:var(--text-main);">
+                </div>
+
+                <!-- Identity Verification -->
+                <div style="margin-top: 1.5rem;">
+                    <p style="font-weight: 700; font-size: 0.95rem; color: var(--text-main); margin-bottom: 0.75rem;">
+                        Supporting Document
+                        <span style="font-weight: 400; color: var(--text-muted); font-size: 0.85rem;"> — Submitted by resident</span>
+                    </p>
+
+                    <!-- Loading state -->
+                    <div id="viewProfileDocLoading" style="display:none; border:1px solid #e2e8f0; border-radius:12px; padding:1.5rem; text-align:center; color:#64748b; font-size:0.9rem;">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="animation:spin 1s linear infinite; margin-bottom:0.4rem;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                        <p style="margin:0;">Loading document…</p>
+                    </div>
+
+                    <!-- No document state -->
+                    <div id="viewProfileDocEmpty" style="border:2px dashed #e2e8f0; border-radius:12px; padding:2rem 1rem; text-align:center; color:#94a3b8;">
+                        <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="margin-bottom:0.5rem; opacity:0.5;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        <p style="margin:0; font-size:0.9rem;">No supporting document uploaded by this resident.</p>
+                    </div>
+
+                    <!-- Image document viewer -->
+                    <div id="viewProfileDocImage" style="display:none; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+                        <div style="background:#f8fafc; padding:0.6rem 1rem; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:0.8rem; font-weight:600; color:#64748b;">📎 Resident-uploaded ID</span>
+                            <a id="viewProfileDocImageLink" href="#" target="_blank" style="font-size:0.8rem; font-weight:600; color:var(--brand-green); text-decoration:none;">Open full size ↗</a>
+                        </div>
+                        <img id="viewProfileDocImg" src="" alt="Resident ID" style="width:100%; max-height:320px; object-fit:contain; display:block; background:#f1f5f9; padding:0.5rem;">
+                    </div>
+
+                    <!-- PDF document viewer -->
+                    <div id="viewProfileDocPdf" style="display:none; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+                        <div style="background:#f8fafc; padding:0.6rem 1rem; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:0.8rem; font-weight:600; color:#64748b;">📄 Resident-uploaded PDF</span>
+                            <a id="viewProfileDocPdfLink" href="#" target="_blank" style="font-size:0.8rem; font-weight:600; color:var(--brand-green); text-decoration:none;">Open PDF ↗</a>
+                        </div>
+                        <div style="padding:1.25rem; display:flex; align-items:center; gap:12px;">
+                            <svg width="36" height="36" fill="none" viewBox="0 0 24 24" stroke="#dc2626" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            <div>
+                                <p id="viewProfileDocPdfName" style="margin:0; font-weight:600; font-size:0.9rem; color:var(--text-main);">document.pdf</p>
+                                <p style="margin:0.2rem 0 0; font-size:0.8rem; color:#64748b;">Click "Open PDF" to view the document</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background: #f0fdf4; border-radius: 8px; padding: 0.65rem 1rem; margin-top: 0.75rem;">
+                        <p style="margin:0; color: var(--brand-green); font-size: 0.85rem; font-weight: 600;">Ensures legitimacy of users requesting services.</p>
+                    </div>
+                </div>
+
+                <style>
+                @keyframes spin { to { transform: rotate(360deg); } }
+                </style>
+
+                <div style="display: flex; justify-content: flex-end; gap:10px; margin-top: 1.5rem;">
+                    <button onclick="closeViewProfileModal()" style="padding:10px 24px; border:none; background:#e2e8f0; border-radius:8px; cursor:pointer; font-weight:600;">Close</button>
+                    <button onclick="saveViewProfileChanges()" style="padding:10px 24px; border:none; background:var(--brand-green); color:white; border-radius:8px; cursor:pointer; font-weight:600;">Save Changes</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Create New Staff Modal -->
         <div class="modal-overlay" id="createStaffModal">
             <div class="user-modal">
@@ -757,7 +853,7 @@
                             <td data-cell="account-status">${accountStatusBadgeHtml(accLabel)}</td>
                             <td>
                                 <button type="button" class="btn-config" onclick="openUserManageFromRow('${rowId}')" style="background-color: var(--brand-green); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 5px;">Manage</button>
-                                <button type="button" class="btn-delete-user" onclick="deleteUserAccount('${rowId}')" style="background-color: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">Delete</button>
+                                <button type="button" class="btn-view-user" onclick="openViewProfileModal('${rowId}')" style="background-color: #ea580c; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">View</button>
                             </td>
                         </tr>`;
                     })
@@ -1261,6 +1357,136 @@ logoutConfirmBtn?.addEventListener("click", () => {
                     message: "Could not reach the server. Check that the API is running.",
                     confirmLabel: "OK"
                 });
+            }
+        }
+
+        function getInitials(name) {
+            const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+            if (!parts.length) return "?";
+            if (parts.length === 1) return parts[0][0].toUpperCase();
+            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        }
+
+        function showDocSection(mode, url) {
+            document.getElementById("viewProfileDocLoading").style.display = "none";
+            document.getElementById("viewProfileDocEmpty").style.display = "none";
+            document.getElementById("viewProfileDocImage").style.display = "none";
+            document.getElementById("viewProfileDocPdf").style.display = "none";
+
+            if (mode === "loading") {
+                document.getElementById("viewProfileDocLoading").style.display = "block";
+            } else if (mode === "image") {
+                const img = document.getElementById("viewProfileDocImg");
+                img.src = url;
+                document.getElementById("viewProfileDocImageLink").href = url;
+                document.getElementById("viewProfileDocImage").style.display = "block";
+            } else if (mode === "pdf") {
+                const filename = url.split("/").pop().split("?")[0] || "document.pdf";
+                document.getElementById("viewProfileDocPdfName").textContent = filename;
+                document.getElementById("viewProfileDocPdfLink").href = url;
+                document.getElementById("viewProfileDocPdf").style.display = "block";
+            } else {
+                document.getElementById("viewProfileDocEmpty").style.display = "block";
+            }
+        }
+
+        async function openViewProfileModal(rowId) {
+            const row = document.getElementById(rowId);
+            if (!row) return;
+            const name = row.querySelector("td:first-child")?.textContent?.trim() || "";
+            const email = row.querySelector("td:nth-child(2)")?.textContent?.trim() || "";
+
+            document.getElementById("viewProfileName").value = name;
+            document.getElementById("viewProfileEmail").value = email;
+            document.getElementById("viewProfileContact").value = "";
+            document.getElementById("viewProfilePassword").value = "";
+            document.getElementById("viewProfileConfirmPassword").value = "";
+            document.getElementById("viewProfilePasswordMismatch").style.display = "none";
+            document.getElementById("viewProfileAvatar").textContent = getInitials(name);
+            document.getElementById("viewProfileModal").dataset.email = email;
+            document.getElementById("viewProfileModal").style.display = "flex";
+
+            // Show loading then fetch the actual profile document
+            showDocSection("loading");
+            try {
+                const encodedEmail = encodeURIComponent(email);
+                const res = await adminFetch(`/admin/profiles/by-email?email=${encodedEmail}`);
+                const json = await res.json().catch(() => ({}));
+                const profile = json?.profile || json;
+                const docUrl = profile?.idUrl || profile?.supportingDocumentUrl || profile?.validIdUrl || null;
+
+                if (docUrl) {
+                    const lower = docUrl.toLowerCase().split("?")[0];
+                    if (lower.endsWith(".pdf")) {
+                        showDocSection("pdf", docUrl);
+                    } else {
+                        showDocSection("image", docUrl);
+                    }
+                } else {
+                    showDocSection("empty");
+                }
+
+                // Populate contact if available
+                if (profile?.contactNumber || profile?.phone) {
+                    document.getElementById("viewProfileContact").value = profile.contactNumber || profile.phone || "";
+                }
+            } catch (_err) {
+                showDocSection("empty");
+            }
+        }
+
+        function closeViewProfileModal() {
+            document.getElementById("viewProfileModal").style.display = "none";
+        }
+
+        async function saveViewProfileChanges() {
+            const email = document.getElementById("viewProfileModal").dataset.email || "";
+            const password = document.getElementById("viewProfilePassword").value.trim();
+            const confirmPassword = document.getElementById("viewProfileConfirmPassword").value.trim();
+            const contact = document.getElementById("viewProfileContact").value.trim();
+            const mismatchEl = document.getElementById("viewProfilePasswordMismatch");
+
+            // Validate passwords match if either is filled
+            if (password || confirmPassword) {
+                if (password !== confirmPassword) {
+                    mismatchEl.style.display = "block";
+                    document.getElementById("viewProfileConfirmPassword").focus();
+                    return;
+                }
+            }
+            mismatchEl.style.display = "none";
+
+            if (!email) {
+                await showDialog({ title: "Error", message: "No email found for this profile.", confirmLabel: "OK" });
+                return;
+            }
+
+            // Build payload — only include fields that have values
+            const payload = { email };
+            if (password) payload.password = password;
+            if (contact) payload.contactNumber = contact;
+
+            if (!password && !contact) {
+                await showDialog({ title: "Nothing to save", message: "Please enter a new password or update the contact number before saving.", confirmLabel: "OK" });
+                return;
+            }
+
+            try {
+                const res = await adminFetch("/admin/profiles/update", {
+                    method: "PATCH",
+                    body: JSON.stringify(payload)
+                });
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok || !json?.ok) {
+                    await showDialog({ title: "Update failed", message: json?.message || "Could not save profile changes.", confirmLabel: "OK" });
+                    return;
+                }
+                // Clear password fields after success
+                document.getElementById("viewProfilePassword").value = "";
+                document.getElementById("viewProfileConfirmPassword").value = "";
+                await showDialog({ title: "Profile updated", message: json.message || "Profile changes have been saved successfully.", confirmLabel: "OK" });
+            } catch (_err) {
+                await showDialog({ title: "Update failed", message: "Could not reach the server. Check that the API is running.", confirmLabel: "OK" });
             }
         }
 
