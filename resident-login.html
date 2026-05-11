@@ -329,6 +329,88 @@
         }
 
         .hidden { display: none; }
+
+        /* Password Strength Meter */
+        .pw-strength-wrap {
+            margin-top: 10px;
+            padding: 12px 14px;
+            background: #f8fafc;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            transition: border-color 0.25s;
+        }
+
+        .pw-strength-bar-track {
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 99px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .pw-strength-bar-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 99px;
+            transition: width 0.35s ease, background-color 0.35s ease;
+            background: #e2e8f0;
+        }
+
+        .pw-strength-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text-gray);
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+
+        .pw-checklist {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px 8px;
+        }
+
+        .pw-checklist li {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.78rem;
+            color: #94a3b8;
+            transition: color 0.2s;
+        }
+
+        .pw-checklist li.met {
+            color: #16a34a;
+        }
+
+        .pw-check-icon {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 1.5px solid #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .pw-checklist li.met .pw-check-icon {
+            background: #16a34a;
+            border-color: #16a34a;
+        }
+
+        .pw-check-icon svg {
+            display: none;
+        }
+
+        .pw-checklist li.met .pw-check-icon svg {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -394,10 +476,23 @@
 
         <div class="input-group">
             <label>Password</label>
-            <input type="password" id="resident-register-pass" placeholder="••••••••" maxlength="128" autocomplete="new-password">
+            <input type="password" id="resident-register-pass" placeholder="&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;" maxlength="128" autocomplete="new-password">
             <span class="password-toggle" onclick="togglePassword('resident-register-pass', this)">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
             </span>
+            <div class="pw-strength-wrap" id="pw-strength-wrap" style="display:none;">
+                <div class="pw-strength-label" id="pw-strength-label">Weak</div>
+                <div class="pw-strength-bar-track">
+                    <div class="pw-strength-bar-fill" id="pw-strength-bar"></div>
+                </div>
+                <ul class="pw-checklist">
+                    <li id="pwc-length"><span class="pw-check-icon"><svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"></polyline></svg></span>At least 8 characters</li>
+                    <li id="pwc-upper"><span class="pw-check-icon"><svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"></polyline></svg></span>Uppercase letter</li>
+                    <li id="pwc-lower"><span class="pw-check-icon"><svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"></polyline></svg></span>Lowercase letter</li>
+                    <li id="pwc-number"><span class="pw-check-icon"><svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"></polyline></svg></span>Number (0-9)</li>
+                    <li id="pwc-special"><span class="pw-check-icon"><svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"></polyline></svg></span>Special character</li>
+                </ul>
+            </div>
         </div>
 
         <div class="input-group">
@@ -746,7 +841,47 @@
             handleResidentRegister();
         }
     });
+    function updatePasswordStrength(password) {
+        const wrap = document.getElementById("pw-strength-wrap");
+        const bar = document.getElementById("pw-strength-bar");
+        const label = document.getElementById("pw-strength-label");
+        if (!wrap || !bar || !label) return;
+
+        if (!password) { wrap.style.display = "none"; return; }
+        wrap.style.display = "block";
+
+        const checks = {
+            length:  password.length >= 8,
+            upper:   /[A-Z]/.test(password),
+            lower:   /[a-z]/.test(password),
+            number:  /[0-9]/.test(password),
+            special: /[^A-Za-z0-9]/.test(password)
+        };
+
+        ["length","upper","lower","number","special"].forEach(key => {
+            const li = document.getElementById("pwc-" + key);
+            if (li) li.classList.toggle("met", checks[key]);
+        });
+
+        const score = Object.values(checks).filter(Boolean).length;
+        const levels = [
+            { pct: "20%",  color: "#ef4444", text: "Very Weak" },
+            { pct: "40%",  color: "#f97316", text: "Weak"      },
+            { pct: "60%",  color: "#eab308", text: "Fair"      },
+            { pct: "80%",  color: "#3b82f6", text: "Good"      },
+            { pct: "100%", color: "#16a34a", text: "Strong"    }
+        ];
+        const lvl = levels[score - 1] || levels[0];
+        bar.style.width = lvl.pct;
+        bar.style.backgroundColor = lvl.color;
+        label.textContent = lvl.text;
+        label.style.color = lvl.color;
+        wrap.style.borderColor = lvl.color + "55";
+    }
+
     document.getElementById("resident-register-pass")?.addEventListener("input", () => {
+        const passInput = document.getElementById("resident-register-pass");
+        updatePasswordStrength(passInput?.value || "");
         const confirmInput = document.getElementById("resident-register-confirm");
         if (confirmInput?.value) validateRegisterPasswordMatch();
         updateRegisterSubmitState();
