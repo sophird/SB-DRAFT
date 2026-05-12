@@ -1155,6 +1155,40 @@ app.post("/auth/admin/login", async (req, res) => {
   });
 });
 
+// Refresh an admin session using a valid refresh token.
+app.post("/auth/admin/refresh", async (req, res) => {
+  const { refreshToken } = req.body || {};
+  if (!refreshToken) {
+    return res.status(400).json({ ok: false, message: "Refresh token is required." });
+  }
+
+  const { data, error } = await supabaseAuth.auth.refreshSession({ refresh_token: refreshToken });
+  if (error || !data?.session) {
+    return res.status(401).json({ ok: false, message: "Session refresh failed. Please log in again." });
+  }
+
+  const userEmail = data.user?.email;
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .select("email, role, account_status")
+    .eq("email", userEmail)
+    .maybeSingle();
+
+  if (profileError || !profile) {
+    return res.status(403).json({ ok: false, message: "Profile not found." });
+  }
+
+  return res.json({
+    ok: true,
+    user: { email: profile.email, role: profile.role },
+    session: {
+      accessToken: data.session.access_token,
+      refreshToken: data.session.refresh_token,
+      expiresAt: data.session.expires_at
+    }
+  });
+});
+
 app.get("/auth/admin/authorize/:requiredRole", async (req, res) => {
   const role = String(req.params.requiredRole || "").trim();
   const roleMap = {
