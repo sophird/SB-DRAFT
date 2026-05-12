@@ -10,18 +10,17 @@
   var routes = globalScope.APP_ROUTES || {};
   var fallbackLogin = "../admin-login.html";
   var loginRoute =
-    routes.staff?.login ||
-    routes.admin?.login ||
-    routes.systemAdmin?.login ||
+    (routes.staff && routes.staff.login) ||
+    (routes.admin && routes.admin.login) ||
+    (routes.systemAdmin && routes.systemAdmin.login) ||
     fallbackLogin;
 
   var roleHomes = {
-    staff: routes.staff?.dashboard || "../staff/staff-dashboard.html",
-    admin: routes.admin?.dashboard || "../admin/service-req.html",
-    "system-admin": routes.systemAdmin?.dashboard || "../system-admin/sysad-dashboard.html"
+    staff: (routes.staff && routes.staff.dashboard) || "../staff/staff-dashboard.html",
+    admin: (routes.admin && routes.admin.dashboard) || "../admin/service-mngmt.html",
+    "system-admin": (routes.systemAdmin && routes.systemAdmin.dashboard) || "../system-admin/sysad-dashboard.html"
   };
 
-  // Track the background refresh timer so we only set it once
   var _refreshTimerId = null;
 
   function parseSession() {
@@ -36,15 +35,22 @@
     }
   }
 
+  /**
+   * Validate the session purely client-side using the stored expiresAt timestamp.
+   * Returns true if the token is still valid (not expired).
+   * No network call needed — expiresAt came from the signed Supabase response at login.
+   */
+  function isTokenValid(auth) {
+    var expiresAt = auth && auth.session && auth.session.expiresAt;
+    if (!expiresAt) return true; // No expiry stored — assume valid, refresh will handle it
+    var nowSec = Math.floor(Date.now() / 1000);
+    return expiresAt > nowSec;
+  }
+
   function sleep(ms) {
     return new Promise(function(resolve) { setTimeout(resolve, ms); });
   }
 
-  /**
-   * Fetch with retry + exponential backoff.
-   * Handles Render free-tier cold starts (network errors / 5xx on wake-up).
-   * Never retries 401 or 403 — those are real auth failures.
-   */
   async function fetchWithRetry(url, options, retries, baseDelayMs) {
     retries = retries !== undefined ? retries : 3;
     baseDelayMs = baseDelayMs !== undefined ? baseDelayMs : 2000;
@@ -67,10 +73,6 @@
     }
   }
 
-  /**
-   * Call the backend to exchange a refresh token for a fresh access token.
-   * Returns the updated auth object on success, or null on failure.
-   */
   async function doRefresh(auth) {
     var refreshToken = auth && auth.session && auth.session.refreshToken;
     if (!refreshToken) return null;
@@ -101,21 +103,16 @@
     }
   }
 
-  /**
-   * Refresh the token if it expires within the next 5 minutes.
-   */
   async function refreshSessionIfNeeded(auth) {
-    var expiresAt = auth && auth.session && auth.session.expiresAt;
-    if (!expiresAt) return auth; // No expiry info — proceed as-is
-    var nowSec = Math.floor(Date.now() / 1000);
-    if (expiresAt - nowSec > 5 * 60) return auth; // Still has >5 min — fine
+    if (isTokenValid(auth)) return auth; // Token still good — nothing to do
+    // Token expired or close to expiry — refresh it
     var refreshed = await doRefresh(auth);
     return refreshed; // null = refresh failed = force login
   }
 
   /**
-   * Schedule a background token refresh so the token never expires while the
-   * user is sitting on a page. Fires 2 minutes before expiry, then re-schedules.
+   * Background timer: refreshes the token 2 minutes before it expires
+   * so the user is never interrupted while sitting on a page.
    */
   function scheduleBackgroundRefresh(auth) {
     if (_refreshTimerId) {
@@ -123,34 +120,22 @@
       _refreshTimerId = null;
     }
     var expiresAt = auth && auth.session && auth.session.expiresAt;
-    if (!expiresAt || !auth.session.refreshToken) return;
+    if (!expiresAt || !(auth.session && auth.session.refreshToken)) return;
 
     var nowSec = Math.floor(Date.now() / 1000);
-    var msUntilRefresh = Math.max((expiresAt - nowSec - 120) * 1000, 30000); // at least 30s from now
+    // Fire 2 minutes before expiry, minimum 30 seconds from now
+    var msUntilRefresh = Math.max((expiresAt - nowSec - 120) * 1000, 30000);
 
     _refreshTimerId = setTimeout(async function() {
       var currentAuth = parseSession();
-      if (!currentAuth) return; // User logged out
+      if (!currentAuth) return;
       var refreshed = await doRefresh(currentAuth);
       if (!refreshed) {
-        // Refresh failed — token is gone, redirect to login
         globalScope.location.href = loginRoute;
         return;
       }
-      // Re-schedule for the new token's expiry
       scheduleBackgroundRefresh(refreshed);
     }, msUntilRefresh);
-  }
-
-  async function verifyBackendRole(requiredRole, accessToken) {
-    var response = await fetchWithRetry(
-      resolveApiBaseUrl() + "/auth/admin/authorize/" + encodeURIComponent(requiredRole),
-      {
-        method: "GET",
-        headers: { Authorization: "Bearer " + accessToken }
-      }
-    );
-    if (!response.ok) throw new Error("Role authorization failed");
   }
 
   function redirectToLogin() {
@@ -161,37 +146,39 @@
     globalScope.location.href = roleHomes[role] || loginRoute;
   }
 
+  /**
+   * Validate the current session for a required role.
+   * Does NOT call the backend on every page load — validates locally via expiresAt.
+   * Backend is only called at login (already done) and for token refresh.
+   */
   async function requireRole(requiredRole) {
     var auth = parseSession();
     if (!auth) { redirectToLogin(); return null; }
 
     var user = auth.user;
-    if (!user || user.role !== requiredRole) { redirectToHome(user && user.role); return null; }
+    if (!user || user.role !== requiredRole) {
+      redirectToHome(user && user.role);
+      return null;
+    }
 
-    // Refresh now if the token is already close to expiry
+    // Refresh if token is expired
     auth = await refreshSessionIfNeeded(auth);
     if (!auth) { redirectToLogin(); return null; }
 
     var accessToken = auth.session && auth.session.accessToken;
     if (!accessToken) { redirectToLogin(); return null; }
 
-    try {
-      await verifyBackendRole(requiredRole, accessToken);
+    // Start background refresh timer to keep the token alive
+    scheduleBackgroundRefresh(auth);
 
-      // Start background refresh timer so the token stays alive while on this page
-      scheduleBackgroundRefresh(auth);
-
-      if (requiredRole !== "system-admin") {
+    // Maintenance check (admin only, not system-admin) — fire-and-forget style,
+    // only redirect if confirmed maintenance, never redirect on network failure
+    if (requiredRole !== "system-admin") {
+      try {
         var env = "production";
-        try {
-          if (globalScope.SB_MAINTENANCE && globalScope.SB_MAINTENANCE.fetchPortalEnvironment) {
-            env = await globalScope.SB_MAINTENANCE.fetchPortalEnvironment();
-          } else {
-            var statusRes = await fetchWithRetry(resolveApiBaseUrl() + "/public/system-status", {});
-            var statusJson = await statusRes.json().catch(function() { return {}; });
-            if (statusJson && statusJson.environment === "maintenance") env = "maintenance";
-          }
-        } catch (_e) { env = "production"; }
+        if (globalScope.SB_MAINTENANCE && globalScope.SB_MAINTENANCE.fetchPortalEnvironment) {
+          env = await globalScope.SB_MAINTENANCE.fetchPortalEnvironment();
+        }
         if (env === "maintenance") {
           var target =
             (globalScope.SB_MAINTENANCE && globalScope.SB_MAINTENANCE.maintenancePageHref && globalScope.SB_MAINTENANCE.maintenancePageHref()) ||
@@ -200,12 +187,12 @@
           globalScope.location.href = target;
           return null;
         }
+      } catch (_e) {
+        // Network failure on maintenance check = assume production, never redirect to login
       }
-      return auth;
-    } catch (_error) {
-      redirectToLogin();
-      return null;
     }
+
+    return auth;
   }
 
   globalScope.SB_ADMIN_ACCESS = { loginRoute: loginRoute, roleHomes: roleHomes, requireRole: requireRole };
