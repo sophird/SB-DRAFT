@@ -195,6 +195,83 @@
         .cert-footer { margin-top: auto; display: flex; justify-content: space-between; padding-top: 50px; }
         
         .seal { position: absolute; top: 50px; left: 50px; width: 100px; opacity: 0.2; }
+
+        /* ── Barangay Clearance exact-match styles ── */
+        .bc-wrap { font-family: 'Times New Roman', Times, serif; color: #000; font-size: 13pt; }
+        .bc-title { font-size: 22pt; font-weight: 900; text-align: center; letter-spacing: 1px; margin-bottom: 10px; }
+        .bc-subtitle { font-size: 10.5pt; text-align: center; line-height: 1.5; margin-bottom: 18px; }
+        .bc-seal-bg {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 340px; height: 340px;
+            background: radial-gradient(circle, rgba(180,210,120,0.22) 0%, rgba(100,160,60,0.12) 60%, transparent 80%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .bc-seal-text {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 310px; height: 310px;
+            border-radius: 50%;
+            border: 3px solid rgba(80,140,30,0.18);
+            z-index: 0;
+            pointer-events: none;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 36pt; font-weight: 900; color: rgba(80,140,30,0.13);
+            text-align: center; line-height: 1;
+            letter-spacing: 2px;
+        }
+        .bc-body { position: relative; z-index: 1; }
+        .bc-fields { width: 100%; margin-bottom: 14px; }
+        .bc-field-row { display: flex; align-items: baseline; margin-bottom: 6px; font-size: 12pt; }
+        .bc-field-label { font-weight: 700; white-space: nowrap; min-width: 130px; }
+        .bc-field-value { border-bottom: 1px solid #000; flex: 1; min-height: 18px; padding-left: 6px; }
+        .bc-right-col {
+            position: absolute;
+            top: 120px; right: 0;
+            width: 190px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 10px;
+        }
+        .bc-photo-box {
+            width: 110px; height: 130px;
+            border: 1.5px solid #000;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 8pt; color: #666; text-align: center;
+        }
+        .bc-thumb-row { display: flex; gap: 8px; }
+        .bc-thumb-box {
+            width: 76px; height: 76px;
+            border: 1.5px solid #000;
+            display: flex; align-items: flex-end; justify-content: center;
+            padding-bottom: 4px;
+            font-size: 7pt; color: #444; text-align: center;
+        }
+        .bc-sig-area { text-align: center; width: 190px; margin-top: 6px; }
+        .bc-sig-line { border-top: 1.5px solid #000; width: 100%; margin-bottom: 3px; }
+        .bc-sig-label { font-size: 9pt; }
+        .bc-cert-text { font-size: 11pt; text-align: justify; line-height: 1.7; margin-top: 18px; position: relative; z-index: 1; }
+        .bc-issued { font-size: 11pt; text-align: justify; line-height: 1.7; margin-top: 12px; position: relative; z-index: 1; }
+        .bc-signatory { text-align: right; margin-top: 28px; position: relative; z-index: 1; }
+        .bc-signatory-name { font-weight: 900; font-size: 12.5pt; text-decoration: underline; }
+        .bc-signatory-title { font-size: 10.5pt; }
+        .bc-not-valid {
+            border: 2px solid #333;
+            display: inline-block;
+            padding: 3px 8px;
+            font-size: 8pt;
+            font-weight: 700;
+            color: #333;
+            margin-top: 18px;
+            position: relative; z-index: 1;
+        }
+        .bc-footer-info { font-size: 8.5pt; color: #000; margin-top: 10px; line-height: 1.6; position: relative; z-index: 1; }
+        .bc-footer-info span.underline { text-decoration: underline; }
         .modal-overlay {
             position: fixed;
             inset: 0;
@@ -416,46 +493,124 @@
             </div>
 
 <div class="preview-panel">
-                <div class="certificate-page" id="printableCert">
-                    <div class="cert-header">
-                        <h3>REPUBLIC OF THE PHILIPPINES</h3>
-                        <h4>PROVINCE OF SAMPLE</h4>
-                        <h4>CITY OF BURGOS</h4>
-                        <h2 style="margin-top: 10px; color: var(--brand-dark);">BARANGAY BURGOS</h2>
+                <div class="certificate-page" id="printableCert" style="padding: 44px 48px 36px 48px; position: relative; overflow: hidden;">
+
+                    <!-- ═══ BARANGAY CLEARANCE ═══ -->
+                    <div id="clearanceContent" class="bc-wrap" style="position:relative;">
+
+                        <!-- Watermark seal background -->
+                        <div class="bc-seal-bg"></div>
+                        <div class="bc-seal-text">BURGOS</div>
+
+                        <!-- Title -->
+                        <div class="bc-title" id="previewTitle">BARANGAY CLEARANCE</div>
+                        <div class="bc-subtitle">
+                            This is to certify that the person whose Name and Signature appear hereon has requested a<br>
+                            <strong>CLEARANCE</strong> from this office.
+                        </div>
+
+                        <!-- Fields + right column (photo, thumbmarks, signature) -->
+                        <div style="position:relative; min-height: 220px;">
+                            <!-- Left: fields -->
+                            <div style="margin-right: 210px;">
+                                <div class="bc-field-row">
+                                    <span class="bc-field-label">Name:</span>
+                                    <span class="bc-field-value" id="previewName"></span>
+                                </div>
+                                <div class="bc-field-row">
+                                    <span class="bc-field-label">Address:</span>
+                                    <span class="bc-field-value" id="previewAddress"></span>
+                                </div>
+                                <div class="bc-field-row">
+                                    <span class="bc-field-label">Date of Birth:</span>
+                                    <span class="bc-field-value" id="previewDateOfBirth"></span>
+                                </div>
+                                <div class="bc-field-row">
+                                    <span class="bc-field-label">Place of Birth:</span>
+                                    <span class="bc-field-value" id="previewPlaceOfBirth"></span>
+                                </div>
+                                <div class="bc-field-row">
+                                    <span class="bc-field-label">Civil Status:</span>
+                                    <span class="bc-field-value" id="previewCivilStatus"></span>
+                                </div>
+                                <div class="bc-field-row">
+                                    <span class="bc-field-label">Gender:</span>
+                                    <span class="bc-field-value" id="previewGender"></span>
+                                </div>
+                                <div class="bc-field-row">
+                                    <span class="bc-field-label">Purpose:</span>
+                                    <span class="bc-field-value" id="previewPurpose"></span>
+                                </div>
+                            </div>
+
+                            <!-- Right: photo box, thumbmarks, signature -->
+                            <div class="bc-right-col">
+                                <div class="bc-photo-box">Photo</div>
+                                <div class="bc-thumb-row">
+                                    <div class="bc-thumb-box">Left Thumb Mark</div>
+                                    <div class="bc-thumb-box">Right Thumb Mark</div>
+                                </div>
+                                <div class="bc-sig-area">
+                                    <div class="bc-sig-line"></div>
+                                    <div class="bc-sig-label">Signature</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Body text -->
+                        <div class="bc-cert-text">
+                            This is to certify that the subject person is known to me personally to be a person of good moral standing in the community and a law-abiding citizen. She/he has no Pending Case or Derogatory Record in our Office.
+                        </div>
+
+                        <!-- Issued line -->
+                        <div class="bc-issued">
+                            Issued this <span id="previewDay">__</span> day of <span id="previewMonth">________</span>, <span id="previewYear">____</span> at Barangay Burgos, San Marcelino, Zambales.
+                        </div>
+
+                        <!-- Signatory -->
+                        <div class="bc-signatory">
+                            <div class="bc-signatory-name">HON. RIZALINO F. RAGADIO</div>
+                            <div class="bc-signatory-title">Punong Barangay</div>
+                        </div>
+
+                        <!-- Not valid stamp -->
+                        <div class="bc-not-valid">Not Valid without<br>Official Seal</div>
+
+                        <!-- Footer info -->
+                        <div class="bc-footer-info">
+                            OR No.: <span id="previewOR"></span><br>
+                            CTC No.: <span id="previewCTC"></span><br>
+                            Issued at: <span class="underline">San Marcelino, Zambales</span><br>
+                            Issued on: <span id="previewIssuedOn"></span><br>
+                            <em>Note: This is valid (3) months only after date of issuance</em>
+                        </div>
                     </div>
 
-                    <h1 class="cert-title" id="previewTitle">BARANGAY CLEARANCE</h1>
-
-                    <!-- Clearance Certificate Content -->
-                    <div id="clearanceContent" class="cert-body">
-                        <p>TO WHOM IT MAY CONCERN:</p><br>
-                        <p>This is to certify that <strong id="previewName">[RESIDENT NAME]</strong>, of legal age, <span id="previewGender">Male</span>, is a bona fide resident of <span id="previewAddress">[ADDRESS]</span>.</p><br>
-                        <p>Date of Birth: <span id="previewDateOfBirth">[DATE OF BIRTH]</span></p>
-                        <p>Place of Birth: <span id="previewPlaceOfBirth">[PLACE OF BIRTH]</span></p>
-                        <p>Civil Status: <span id="previewCivilStatus">[CIVIL STATUS]</span></p><br>
-                        <p>Based on our records, the above-named person has no derogatory records or criminal cases filed against him/her in this office as of this date.</p><br>
-                        <p>This certification is being issued upon the request of the interested party for <strong><span id="previewPurpose">[PURPOSE]</span></strong>.</p><br>
-                        <p>Issued this <span id="previewDate">[DATE]</span> at Barangay Burgos.</p>
-                    </div>
-
-                    <!-- Indigency Certificate Content (hidden by default) -->
+                    <!-- ═══ CERTIFICATE OF INDIGENCY ═══ -->
                     <div id="indigencyContent" class="cert-body" style="display: none;">
+                        <div class="cert-header">
+                            <h3>REPUBLIC OF THE PHILIPPINES</h3>
+                            <h4>PROVINCE OF ZAMBALES</h4>
+                            <h4>MUNICIPALITY OF SAN MARCELINO</h4>
+                            <h2 style="margin-top: 10px; color: var(--brand-dark);">BARANGAY BURGOS</h2>
+                        </div>
+                        <h1 class="cert-title">CERTIFICATE OF INDIGENCY</h1>
                         <p>TO WHOM IT MAY CONCERN:</p><br>
                         <p>This is to certify that <strong id="previewNameIndigency">[RESIDENT NAME]</strong> of legal age and a bonafide resident of Purok, Street, Barangay Burgos, San Marcelino, Zambales is categorized that his/her family belongs to an INDIGENT sector of the community.</p><br>
-                        <p>It further certifies that based on our survey that has been conducted the family of <strong><span id="previewSurname">[SURNAME]</span></strong> does not exceed the Annual Regional Poverty Threshold Level as determined by the National Economic & Development Authority and under survival level, and found to be indigent.</p><br>
+                        <p>It further certifies that based on our survey that has been conducted the family of <strong><span id="previewSurname">[SURNAME]</span></strong> does not exceed the Annual Regional Poverty Threshold Level as determined by the National Economic &amp; Development Authority and under survival level, and found to be indigent.</p><br>
                         <p>This certification is being issued upon the request of above-named person as requirement in availing for <strong><span id="previewPurposeIndigency">[PURPOSE]</span></strong>.</p><br>
                         <p>Issued this <span id="previewDateIndigency">[DATE]</span> at Barangay Burgos, San Marcelino, Zambales.</p>
+                        <div class="cert-footer">
+                            <div style="text-align: center; border-top: 1px solid black; width: 200px;">
+                                <p>Resident Signature</p>
+                            </div>
+                            <div style="text-align: center;">
+                                <strong style="text-decoration: underline;">HON. RIZALINO F. RAGADIO</strong>
+                                <p>Punong Barangay</p>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="cert-footer">
-                        <div style="text-align: center; border-top: 1px solid black; width: 200px;">
-                            <p>Resident Signature</p>
-                        </div>
-                        <div style="text-align: center;">
-                            <strong style="text-decoration: underline;">HON. JUAN DELA CRUZ</strong>
-                            <p>Punong Barangay</p>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -611,33 +766,46 @@
         // Reflect current form values in the printable certificate preview.
         function updatePreview() {
             const docType = document.getElementById('docType').value;
-            document.getElementById('previewTitle').innerText = docType.toUpperCase();
             
             if (docType === "Barangay Clearance") {
                 // Update clearance preview fields
-                document.getElementById('previewName').innerText = document.getElementById('resName').value || "[RESIDENT NAME]";
-                document.getElementById('previewAddress').innerText = document.getElementById('resAddress').value || "[ADDRESS]";
-                document.getElementById('previewGender').innerText = document.getElementById('resGender').value || "[GENDER]";
+                document.getElementById('previewName').innerText = document.getElementById('resName').value || "";
+                document.getElementById('previewAddress').innerText = document.getElementById('resAddress').value || "";
+                document.getElementById('previewGender').innerText = document.getElementById('resGender').value || "";
                 
                 // Format date of birth
                 const dobVal = document.getElementById('resDateOfBirth').value;
                 if(dobVal) {
-                    const dobObj = new Date(dobVal);
+                    const dobObj = new Date(dobVal + 'T00:00:00');
                     document.getElementById('previewDateOfBirth').innerText = dobObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
                 } else {
-                    document.getElementById('previewDateOfBirth').innerText = "[DATE OF BIRTH]";
+                    document.getElementById('previewDateOfBirth').innerText = "";
                 }
                 
-                document.getElementById('previewPlaceOfBirth').innerText = document.getElementById('resPlaceOfBirth').value || "[PLACE OF BIRTH]";
-                document.getElementById('previewCivilStatus').innerText = document.getElementById('resCivilStatus').value || "[CIVIL STATUS]";
-                document.getElementById('previewPurpose').innerText = document.getElementById('docPurpose').value || "[PURPOSE]";
+                document.getElementById('previewPlaceOfBirth').innerText = document.getElementById('resPlaceOfBirth').value || "";
+                document.getElementById('previewCivilStatus').innerText = document.getElementById('resCivilStatus').value || "";
+                document.getElementById('previewPurpose').innerText = document.getElementById('docPurpose').value || "";
                 
+                // OR / CTC
+                document.getElementById('previewOR').innerText = document.getElementById('orNumber').value || "";
+                document.getElementById('previewCTC').innerText = document.getElementById('ctcNumber').value || "";
+
+                // Issue date → split into day / month / year for "Issued this __ day of _______, ____"
                 const dateVal = document.getElementById('issueDate').value;
                 if(dateVal) {
-                    const dateObj = new Date(dateVal);
-                    document.getElementById('previewDate').innerText = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                    const dateObj = new Date(dateVal + 'T00:00:00');
+                    const day = dateObj.getDate();
+                    const month = dateObj.toLocaleDateString('en-US', { month: 'long' });
+                    const year = dateObj.getFullYear();
+                    document.getElementById('previewDay').innerText = day;
+                    document.getElementById('previewMonth').innerText = month;
+                    document.getElementById('previewYear').innerText = year;
+                    document.getElementById('previewIssuedOn').innerText = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
                 } else {
-                    document.getElementById('previewDate').innerText = "[DATE]";
+                    document.getElementById('previewDay').innerText = '__';
+                    document.getElementById('previewMonth').innerText = '________';
+                    document.getElementById('previewYear').innerText = '____';
+                    document.getElementById('previewIssuedOn').innerText = '';
                 }
             } else if (docType === "Certificate of Indigency") {
                 // Update indigency preview fields
@@ -647,7 +815,7 @@
                 
                 const dateVal = document.getElementById('issueDateIndigency').value;
                 if(dateVal) {
-                    const dateObj = new Date(dateVal);
+                    const dateObj = new Date(dateVal + 'T00:00:00');
                     document.getElementById('previewDateIndigency').innerText = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
                 } else {
                     document.getElementById('previewDateIndigency').innerText = "[DATE]";
