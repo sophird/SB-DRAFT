@@ -159,19 +159,20 @@
         /* PREVIEW PANEL */
         .preview-panel { 
             background: #cbd5e1;
-            padding: 2.5rem;
+            padding: 2rem;
             border-radius: 16px; 
             display: flex;
             justify-content: center;
             align-items: flex-start;
-            overflow-y: auto;
-            min-height: calc(297mm + 5rem);
+            overflow: hidden;
+            /* Enough height to contain the scaled-down certificate */
+            min-height: calc(297mm * 0.6 + 4rem);
         }
 
         /* THE CERTIFICATE (Standardized Output) */
         .certificate-page {
-            width: 210mm; /* A4 Width */
-            min-height: 297mm; /* A4 Height */
+            width: 210mm;
+            min-height: 297mm;
             background: white;
             padding: 50px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.2);
@@ -181,6 +182,11 @@
             position: relative;
             color: black;
             flex-shrink: 0;
+            /* Scale down to ~60% so the full A4 fits without scrolling */
+            transform: scale(0.6);
+            transform-origin: top center;
+            /* Collapse the extra space the full-size element would have taken */
+            margin-bottom: calc(-297mm * 0.4);
         }
 
         .cert-header { border-bottom: 2px solid var(--brand-dark); padding-bottom: 20px; margin-bottom: 40px; }
@@ -227,7 +233,12 @@
             aside, .config-panel, .top-bar { display: none !important; }
             main { margin-left: 0; padding: 0; }
             .preview-panel { background: none; padding: 0; overflow: visible; min-height: unset; }
-            .certificate-page { box-shadow: none; border: none; width: 210mm; min-height: 297mm; }
+            .certificate-page { 
+                box-shadow: none; border: none; 
+                width: 210mm; min-height: 297mm;
+                transform: none;
+                margin-bottom: 0;
+            }
         }
 
         @media (max-width: 1200px) {
