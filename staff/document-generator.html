@@ -644,23 +644,84 @@
                     <h1 class="cert-title" id="previewTitle">BARANGAY CLEARANCE</h1>
 
                     <!-- Clearance Certificate Content -->
-                    <div id="clearanceContent" class="cert-body">
-                        <p>This is to certify that the person whose Name and Signature appear hereon has requested a CLEARANCE from this office.</p><br>
-                        <p><strong>Name:</strong> <span id="previewName">[RESIDENT NAME]</span> &nbsp;&nbsp;&nbsp; <strong>Address:</strong> <span id="previewAddress">[ADDRESS]</span></p>
-                        <p><strong>Date of Birth:</strong> &nbsp; <span id="previewDateOfBirth">[DATE OF BIRTH]</span></p>
-                        <p><strong>Place of Birth:</strong> &nbsp; <span id="previewPlaceOfBirth">[PLACE OF BIRTH]</span></p>
-                        <p><strong>Civil Status:</strong> &nbsp;&nbsp;&nbsp; <span id="previewCivilStatus">[CIVIL STATUS]</span></p>
-                        <p><strong>Gender:</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span id="previewGender">[GENDER]</span></p><br>
-                        <div style="display: flex; gap: 40px; margin-bottom: 16px;">
-                            <div style="border: 1px solid #000; width: 110px; height: 70px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; font-size: 9pt;"><strong>Left Thumb Mark</strong></div>
-                            <div style="border: 1px solid #000; width: 110px; height: 70px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; font-size: 9pt;"><strong>Right Thumb Mark</strong></div>
+                    <div id="clearanceContent">
+                        <div class="bc-body">
+                            <div class="bc-subtitle">This is to certify that the person whose Name and Signature appear hereon has requested a CLEARANCE from this office.</div>
+
+                            <!-- Fields + Right column -->
+                            <div class="bc-content-row">
+                                <!-- Left: form fields -->
+                                <div class="bc-fields">
+                                    <div class="bc-field-row">
+                                        <span class="bc-field-label">Name:</span>
+                                        <span class="bc-field-value" id="previewName">[RESIDENT NAME]</span>
+                                    </div>
+                                    <div class="bc-field-row">
+                                        <span class="bc-field-label">Address:</span>
+                                        <span class="bc-field-value" id="previewAddress">[ADDRESS]</span>
+                                    </div>
+                                    <div class="bc-field-row">
+                                        <span class="bc-field-label">Date of Birth:</span>
+                                        <span class="bc-field-value" id="previewDateOfBirth">[DATE OF BIRTH]</span>
+                                    </div>
+                                    <div class="bc-field-row">
+                                        <span class="bc-field-label">Place of Birth:</span>
+                                        <span class="bc-field-value" id="previewPlaceOfBirth">[PLACE OF BIRTH]</span>
+                                    </div>
+                                    <div class="bc-field-row">
+                                        <span class="bc-field-label">Civil Status:</span>
+                                        <span class="bc-field-value" id="previewCivilStatus">[CIVIL STATUS]</span>
+                                    </div>
+                                    <div class="bc-field-row">
+                                        <span class="bc-field-label">Gender:</span>
+                                        <span class="bc-field-value" id="previewGender">[GENDER]</span>
+                                    </div>
+                                </div>
+
+                                <!-- Right: photo + thumbs -->
+                                <div class="bc-right">
+                                    <div class="bc-photo-box">2x2 Photo</div>
+                                    <div class="bc-thumb-row">
+                                        <div class="bc-thumb">Left<br>Thumb Mark</div>
+                                        <div class="bc-thumb">Right<br>Thumb Mark</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Purpose + Signature -->
+                            <div class="bc-field-row" style="margin-bottom: 14px;">
+                                <span class="bc-field-label">Purpose:</span>
+                                <span class="bc-field-value" id="previewPurpose">[PURPOSE]</span>
+                            </div>
+                            <div style="margin-bottom: 18px; position: relative; z-index: 1;">
+                                <div class="bc-sig-area">
+                                    <div class="bc-sig-line"></div>
+                                    <div class="bc-sig-label">Signature</div>
+                                </div>
+                            </div>
+
+                            <!-- Body paragraphs -->
+                            <p class="bc-para">This is to certify that the subject person is known to me personally to be a person of good moral standing in the community and a law-abiding citizen. She/he has no Pending Case or Derogatory Record in our Office.</p>
+                            <p class="bc-issued-line">Issued this <span id="previewDate">[DATE]</span> at Barangay Burgos, San Marcelino, Zambales.</p>
+
+                            <!-- Signatory -->
+                            <div class="bc-signatory">
+                                <div class="bc-sig-name">HON. RIZALINO F. RAGADIO</div>
+                                <div class="bc-sig-title">Punong Barangay</div>
+                            </div>
+
+                            <!-- Bottom row: seal notice + footer info -->
+                            <div class="bc-bottom-row">
+                                <div class="bc-not-valid">Not Valid without<br>Official Seal</div>
+                                <div class="bc-footer-info">
+                                    <span>OR No.: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span id="previewOrNumber">[OR NO.]</span></span><br>
+                                    <span>CTC No.: &nbsp;&nbsp;&nbsp;<span id="previewCtcNumber">[CTC NO.]</span></span><br>
+                                    <span>Issued at: &nbsp;San Marcelino, Zambales</span><br>
+                                    <span>Issued on: &nbsp;<span id="previewIssuedOn">[DATE]</span></span>
+                                </div>
+                            </div>
+                            <p style="font-size: 9pt; font-style: italic; position: relative; z-index: 1; margin-top: 4px;">Note: This is valid (3) months only after date of issuance</p>
                         </div>
-                        <p><strong>Purpose:</strong> <span id="previewPurpose">[PURPOSE]</span></p><br>
-                        <div style="margin-bottom: 16px;">
-                            <div style="border-top: 1px solid #000; width: 200px; text-align: center; padding-top: 3px; font-size: 10pt;">Signature</div>
-                        </div>
-                        <p>This is to certify that the subject person is known to me personally to be a person of good moral standing in the community and a law-abiding citizen. She/he has no Pending Case or Derogatory Record in our Office.</p><br>
-                        <p>Issued this <span id="previewDate">[DATE]</span> at Barangay Burgos, San Marcelino, Zambales.</p>
                     </div>
 
                     <!-- Indigency Certificate Content (hidden by default) -->
@@ -670,20 +731,14 @@
                         <p>It further certifies that based on our survey that has been conducted the family of <strong><span id="previewSurname">[SURNAME]</span></strong> does not exceed the Annual Regional Poverty Threshold Level as determined by the National Economic & Development Authority and under survival level, and found to be indigent.</p><br>
                         <p>This certification is being issued upon the request of above-named person as requirement in availing for <strong><span id="previewPurposeIndigency">[PURPOSE]</span></strong>.</p><br>
                         <p>Issued this <span id="previewDateIndigency">[DATE]</span> at Barangay Burgos, San Marcelino, Zambales.</p>
-                    </div>
-
-                    <div class="cert-footer">
-                        <div style="font-size: 9pt; line-height: 1.8;">
-                            <p>Not Valid without<br>Official Seal</p>
-                            <p style="margin-top: 10px;">OR No.: &nbsp;&nbsp;&nbsp; <span id="previewOrNumber">[OR NO.]</span></p>
-                            <p>CTC No.: &nbsp; <span id="previewCtcNumber">[CTC NO.]</span></p>
-                            <p>Issued at: San Marcelino, Zambales</p>
-                            <p>Issued on: <span id="previewIssuedOn">[DATE]</span></p>
-                            <p style="margin-top: 6px; font-style: italic;">Note: This is valid (3) months only after date of issuance</p>
-                        </div>
-                        <div style="text-align: center;">
-                            <strong style="text-decoration: underline;">HON. RIZALINO F. RAGADIO</strong>
-                            <p>Punong Barangay</p>
+                        <div class="cert-footer">
+                            <div style="text-align: center; border-top: 1px solid black; width: 200px;">
+                                <p>Resident Signature</p>
+                            </div>
+                            <div style="text-align: center;">
+                                <strong style="text-decoration: underline;">HON. RIZALINO F. RAGADIO</strong>
+                                <p>Punong Barangay</p>
+                            </div>
                         </div>
                     </div>
                 </div>
