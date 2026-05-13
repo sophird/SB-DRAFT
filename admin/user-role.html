@@ -1403,14 +1403,6 @@ logoutConfirmBtn?.addEventListener("click", () => {
             document.getElementById("viewProfileName").value = name;
             document.getElementById("viewProfileEmail").value = email;
             document.getElementById("viewProfileContact").value = "";
-            document.getElementById("viewProfilePassword").value = "";
-            document.getElementById("viewProfileConfirmPassword").value = "";
-            document.getElementById("viewProfilePasswordMismatch").style.display = "none";
-            const vpl = document.getElementById("viewProfilePasswordLengthHint");
-            if (vpl) {
-                vpl.textContent = "";
-                vpl.style.color = "";
-            }
             document.getElementById("viewProfileAvatar").textContent = getInitials(name);
             document.getElementById("viewProfileModal").dataset.email = email;
             document.getElementById("viewProfileModal").style.display = "flex";
@@ -1449,64 +1441,7 @@ logoutConfirmBtn?.addEventListener("click", () => {
         }
 
         async function saveViewProfileChanges() {
-            const email = document.getElementById("viewProfileModal").dataset.email || "";
-            const password = document.getElementById("viewProfilePassword").value.trim();
-            const confirmPassword = document.getElementById("viewProfileConfirmPassword").value.trim();
-            const contact = document.getElementById("viewProfileContact").value.trim();
-            const mismatchEl = document.getElementById("viewProfilePasswordMismatch");
-
-            // Validate passwords match if either is filled
-            if (password || confirmPassword) {
-                if (password !== confirmPassword) {
-                    mismatchEl.style.display = "block";
-                    document.getElementById("viewProfileConfirmPassword").focus();
-                    return;
-                }
-            }
-            mismatchEl.style.display = "none";
-
-            if (password && password.length < 8) {
-                await showDialog({ title: "Validation Error", message: "New password must be at least 8 characters.", confirmLabel: "OK" });
-                return;
-            }
-
-            if (!email) {
-                await showDialog({ title: "Error", message: "No email found for this profile.", confirmLabel: "OK" });
-                return;
-            }
-
-            // Build payload — only include fields that have values
-            const payload = { email };
-            if (password) payload.password = password;
-            if (contact) payload.contactNumber = contact;
-
-            if (!password && !contact) {
-                await showDialog({ title: "Nothing to save", message: "Please enter a new password or update the contact number before saving.", confirmLabel: "OK" });
-                return;
-            }
-
-            try {
-                const res = await adminFetch("/admin/profiles/update", {
-                    method: "PATCH",
-                    body: JSON.stringify(payload)
-                });
-                const json = await res.json().catch(() => ({}));
-                if (!res.ok || !json?.ok) {
-                    await showDialog({ title: "Update failed", message: json?.message || "Could not save profile changes.", confirmLabel: "OK" });
-                    return;
-                }
-                // Clear password fields after success
-                document.getElementById("viewProfilePassword").value = "";
-                document.getElementById("viewProfileConfirmPassword").value = "";
-                const vpl = document.getElementById("viewProfilePasswordLengthHint");
-                if (vpl) {
-                    vpl.textContent = "";
-                    vpl.style.color = "";
-                }
-                await showDialog({ title: "Profile updated", message: json.message || "Profile changes have been saved successfully.", confirmLabel: "OK" });
-            } catch (_err) {
-                await showDialog({ title: "Update failed", message: "Could not reach the server. Check that the API is running.", confirmLabel: "OK" });
-            }
+            // Password fields removed — function kept as stub for compatibility
         }
 
         loadUsersTable();
@@ -1534,7 +1469,6 @@ logoutConfirmBtn?.addEventListener("click", () => {
                 });
             }
             bind("newStaffPassword", "newStaffPasswordHint");
-            bind("viewProfilePassword", "viewProfilePasswordLengthHint");
         })();
     </script>
 </body>
