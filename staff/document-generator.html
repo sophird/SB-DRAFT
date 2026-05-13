@@ -158,14 +158,20 @@
 
         /* PREVIEW PANEL */
         .preview-panel { 
-            background: #cbd5e1; padding: 3rem; border-radius: 16px; 
-            display: flex; justify-content: center; min-height: 800px;
+            background: #cbd5e1;
+            padding: 2.5rem;
+            border-radius: 16px; 
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            overflow-y: auto;
+            min-height: calc(297mm + 5rem);
         }
 
         /* THE CERTIFICATE (Standardized Output) */
         .certificate-page {
             width: 210mm; /* A4 Width */
-            height: 297mm; /* A4 Height */
+            min-height: 297mm; /* A4 Height */
             background: white;
             padding: 50px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.2);
@@ -174,6 +180,7 @@
             text-align: center;
             position: relative;
             color: black;
+            flex-shrink: 0;
         }
 
         .cert-header { border-bottom: 2px solid var(--brand-dark); padding-bottom: 20px; margin-bottom: 40px; }
@@ -219,8 +226,13 @@
         @media print {
             aside, .config-panel, .top-bar { display: none !important; }
             main { margin-left: 0; padding: 0; }
-            .preview-panel { background: none; padding: 0; }
-            .certificate-page { box-shadow: none; border: none; }
+            .preview-panel { background: none; padding: 0; overflow: visible; min-height: unset; }
+            .certificate-page { box-shadow: none; border: none; width: 210mm; min-height: 297mm; }
+        }
+
+        @media (max-width: 1200px) {
+            .generator-container { grid-template-columns: 1fr; }
+            .preview-panel { overflow-x: auto; }
         }
     </style>
 </head>
