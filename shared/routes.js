@@ -69,12 +69,19 @@ admin: {
       const href = globalScope.location?.href;
       if (!href || href.startsWith("file:")) return "https://sb-draft1.onrender.com";
       const u = new URL(href);
-      if ((u.protocol === "http:" || u.protocol === "https:") && u.hostname) {
+      // localhost / 127.0.0.1 / private IPs = local dev, use :4000
+      const isLocal =
+        u.hostname === "localhost" ||
+        u.hostname === "127.0.0.1" ||
+        u.hostname.startsWith("192.168.") ||
+        u.hostname.startsWith("10.");
+      if (isLocal) {
         return `${u.protocol}//${u.hostname}:4000`;
       }
     } catch (_e) {
       /* ignore */
     }
+    // Any other host (Vercel, Render, custom domain) → use the real backend
     return "https://sb-draft1.onrender.com";
   }
 

@@ -385,7 +385,12 @@
     <script src="../shared/maintenance-check.js"></script>
     <script src="../shared/admin-access.js"></script>
     <script>
-        const API_BASE_URL = window.API_BASE_URL || "https://sb-draft1.onrender.com";
+        const API_BASE_URL = (function() {
+            const inherited = window.API_BASE_URL;
+            // Reject any URL with an explicit non-standard port (e.g. :4000 injected by routes.js on Vercel)
+            if (inherited && !inherited.match(/:\d+$/)) return inherited;
+            return "https://sb-draft1.onrender.com";
+        })();
         const COMMON_ROUTES = window.APP_ROUTES?.common || { landing: "../index.html" };
 
         function getAdminAccessToken() {
