@@ -587,7 +587,7 @@
                     </div>
                     <div class="form-group">
                         <label>Preferred Date *</label>
-                        <input type="date" id="reqDate" required>
+                        <input type="date" id="reqDate" required autocomplete="off">
                     </div>
                     <div class="form-group">
                         <label>Preferred Time Slot *</label>
@@ -762,6 +762,25 @@
             });
         }
         applyResidentRouteLinks();
+
+        function localDateISO() {
+            const d = new Date();
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${y}-${m}-${day}`;
+        }
+
+        function applyServicePreferredDateMin() {
+            const reqDate = document.getElementById("reqDate");
+            if (!reqDate) return;
+            const today = localDateISO();
+            reqDate.min = today;
+            if (reqDate.value && reqDate.value < today) {
+                reqDate.value = "";
+            }
+        }
+
         let requestIdToDelete = null;
         let latestRequests = [];
         let latestFilteredRequests = [];
@@ -910,6 +929,7 @@ async function populateResidentNameField() {
         function openModal() {
             populateResidentNameField();
             void populateResidentServiceTypeOptions();
+            applyServicePreferredDateMin();
             document.getElementById("requestModal").style.display = "flex";
         }
         function closeModal() { document.getElementById('requestModal').style.display = 'none'; }
@@ -1298,6 +1318,7 @@ async function populateResidentNameField() {
             if (reqTime) reqTime.value = "";
             const modal = document.getElementById("requestModal");
             if (modal) modal.style.display = "flex";
+            applyServicePreferredDateMin();
             if (!applied) {
                 openFeedbackModal(
                     "Service not found",
@@ -1404,6 +1425,12 @@ function statusClass(status) {
             const serviceType = document.getElementById('reqType').value;
             const preferredDate = document.getElementById('reqDate').value;
             const preferredTimeSlot = document.getElementById('reqTime').value;
+            const todayISO = localDateISO();
+            if (!preferredDate || preferredDate < todayISO) {
+                openFeedbackModal("Invalid date", "Preferred date must be today or a future date.");
+                applyServicePreferredDateMin();
+                return;
+            }
             const payload = {
                 title: serviceType,
                 serviceType,
@@ -1445,6 +1472,7 @@ function statusClass(status) {
                 openFeedbackModal("Request Submitted", "Request submitted successfully.");
                 closeModal();
                 this.reset();
+                applyServicePreferredDateMin();
                 resetUploadState();
             } catch (error) {
                 openFeedbackModal("Submission Failed", error.message || "Failed to submit request. Make sure backend is running.");
@@ -1477,7 +1505,17 @@ function statusClass(status) {
             };
         }
 
+        document.getElementById("reqDate")?.addEventListener("change", (event) => {
+            const v = String(event.target?.value || "").trim();
+            const todayISO = localDateISO();
+            if (v && v < todayISO) {
+                openFeedbackModal("Invalid date", "You can only select today or a future date.");
+                event.target.value = "";
+            }
+        });
+
         window.onload = async function () {
+            applyServicePreferredDateMin();
             loadRequests();
             connectRealtimeRequests();
             await populateResidentServiceTypeOptions();

@@ -435,7 +435,7 @@
                     <div style="display:flex; gap:1.25rem;">
                         <div style="flex:1;">
                             <label class="form-label">Select Date</label>
-                            <input type="date" class="form-input" id="aptDate" name="appointmentDate" required>
+                            <input type="date" class="form-input" id="aptDate" name="appointmentDate" required autocomplete="off">
                         </div>
                         <div style="flex:1;">
                             <label class="form-label">Available Time Slots</label>
@@ -545,9 +545,28 @@
             });
         }
         applyResidentRouteLinks();
+        function localDateISO() {
+            const d = new Date();
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${y}-${m}-${day}`;
+        }
+
+        function applyAppointmentDateMin() {
+            const aptDateEl = document.getElementById("aptDate");
+            if (!aptDateEl) return;
+            const today = localDateISO();
+            aptDateEl.min = today;
+            if (aptDateEl.value && aptDateEl.value < today) {
+                aptDateEl.value = "";
+            }
+        }
+
         function openModal() {
             const modal = document.getElementById('bookingModal');
             if (modal) modal.style.display = 'flex';
+            applyAppointmentDateMin();
             const aptDateEl = document.getElementById("aptDate");
             if (aptDateEl?.value) {
                 void refreshAppointmentSlotsForDate(aptDateEl.value);
@@ -751,7 +770,14 @@ function renderAppointments(appointments) {
         }
 
         document.getElementById("aptDate")?.addEventListener("change", (event) => {
-            refreshAppointmentSlotsForDate(event.target?.value);
+            const v = String(event.target?.value || "").trim();
+            const todayISO = localDateISO();
+            if (v && v < todayISO) {
+                openFeedbackModal("Invalid date", "Appointments can only be scheduled for today or a future date.");
+                event.target.value = "";
+                return;
+            }
+            refreshAppointmentSlotsForDate(v);
         });
         document.getElementById("bookingAppointmentForm")?.addEventListener("submit", (event) => {
             void submitBooking(event);
@@ -787,6 +813,12 @@ function renderAppointments(appointments) {
 
             if (!purpose || !appointmentDate || !slotId) {
                 openFeedbackModal("Missing Information", "Please select a purpose, date, and time slot.");
+                return;
+            }
+            const todayISO = localDateISO();
+            if (appointmentDate < todayISO) {
+                openFeedbackModal("Invalid date", "Please choose today or a future date for your appointment.");
+                applyAppointmentDateMin();
                 return;
             }
 
@@ -921,6 +953,7 @@ feedbackModal?.addEventListener("click", (event) => {
             }
             window.location.href = COMMON_ROUTES.landing;
         });
+        applyAppointmentDateMin();
         (async () => {
             await loadAppointmentPurposeOptions();
             await loadAppointments();

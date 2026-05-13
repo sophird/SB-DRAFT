@@ -498,6 +498,14 @@
             display: block;
         }
 
+        .pw-length-line {
+            font-size: 0.8rem;
+            margin-top: 6px;
+            min-height: 1.2rem;
+            text-align: left;
+            font-weight: 500;
+        }
+
         /* Google Sign-In Button */
         .btn-google {
             width: 100%;
@@ -617,7 +625,7 @@
         </div>
 
         <div class="input-group">
-            <label>Identity Verification</label>
+            <label>Identity Verification <span style="color:#b91c1c;font-weight:700;" title="Required">*</span></label>
             <div class="upload-box" id="upload-box" onclick="document.getElementById('id-upload').click()">
                 <!-- Default state -->
                 <div id="upload-default-state">
@@ -654,6 +662,7 @@
             <span class="password-toggle" onclick="togglePassword('resident-register-pass', this)">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
             </span>
+            <p id="resident-register-pass-length-msg" class="pw-length-line" role="status" aria-live="polite"></p>
             <div class="pw-strength-wrap" id="pw-strength-wrap" style="display:none;">
                 <div class="pw-strength-label" id="pw-strength-label">Weak</div>
                 <div class="pw-strength-bar-track">
@@ -719,6 +728,7 @@
 <script src="shared/routes.js"></script>
 <script src="shared/maintenance-check.js"></script>
 <script>
+    /** Registration sends multipart (ID file); the API must run the matching backend revision (e.g. redeploy Render after git push). */
     const API_BASE_URL = "https://sb-draft1.onrender.com";
     const RESIDENT_CONTEXT_KEY = "residentContext";
     /** Emails self-registered via this page; admin User & Roles uses this to show status-only management. */
@@ -733,6 +743,26 @@
     const CLIENT_MAX_EMAIL_LEN = 254;
     const CLIENT_MAX_NAME_LEN = 120;
     const CLIENT_MAX_PASSWORD_LEN = 128;
+    const REGISTER_MIN_PASSWORD_LEN = 8;
+
+    function updateRegisterPasswordLengthHint() {
+        const el = document.getElementById("resident-register-pass-length-msg");
+        const passInput = document.getElementById("resident-register-pass");
+        if (!el || !passInput) return;
+        const pw = String(passInput.value || "");
+        if (!pw.length) {
+            el.textContent = "";
+            el.style.color = "";
+            return;
+        }
+        if (pw.length < REGISTER_MIN_PASSWORD_LEN) {
+            el.textContent = "Password must be at least 8 characters.";
+            el.style.color = "#b91c1c";
+            return;
+        }
+        el.textContent = "Minimum length requirement met.";
+        el.style.color = "#166534";
+    }
 
     function isClientEmailValid(value) {
         const s = String(value || "").trim();
@@ -760,6 +790,7 @@
         const { passInput: regPass, confirmInput } = getRegisterElements();
         if (regPass) regPass.value = "";
         if (confirmInput) confirmInput.value = "";
+        updateRegisterPasswordLengthHint();
         updateRegisterSubmitState();
     }
 
@@ -844,6 +875,11 @@
         return true;
     }
 
+    function hasIdentityVerificationFile() {
+        const input = document.getElementById("id-upload");
+        return Boolean(input?.files?.length);
+    }
+
     function updateRegisterSubmitState() {
         const registerBtn = document.getElementById("resident-register-submit");
         const { passInput, confirmInput } = getRegisterElements();
@@ -851,7 +887,11 @@
 
         const password = String(passInput?.value || "");
         const confirmPassword = String(confirmInput?.value || "");
-        const canSubmit = Boolean(password) && password.length >= 8 && password === confirmPassword;
+        const canSubmit =
+            hasIdentityVerificationFile() &&
+            Boolean(password) &&
+            password.length >= REGISTER_MIN_PASSWORD_LEN &&
+            password === confirmPassword;
 
         registerBtn.disabled = !canSubmit;
         registerBtn.style.opacity = canSubmit ? "1" : "0.6";
@@ -945,6 +985,10 @@
             if (errorEl) errorEl.innerText = "Please complete all required fields.";
             return;
         }
+        if (!hasIdentityVerificationFile()) {
+            if (errorEl) errorEl.innerText = "Please upload a valid ID (JPEG, PNG, or PDF). This is required.";
+            return;
+        }
         if (fullName.length > CLIENT_MAX_NAME_LEN) {
             if (errorEl) errorEl.innerText = "Full name is too long.";
             return;
@@ -956,7 +1000,7 @@
         if (!validateRegisterPasswordMatch(true)) {
             return;
         }
-        if (password.length < 8) {
+        if (password.length < REGISTER_MIN_PASSWORD_LEN) {
             if (errorEl) errorEl.innerText = "Password must be at least 8 characters.";
             return;
         }
@@ -965,16 +1009,41 @@
             return;
         }
 
+        const idInput = document.getElementById("id-upload");
+        const idFile = idInput?.files?.[0];
+        if (!idFile) {
+            if (errorEl) errorEl.innerText = "Please upload a valid ID (JPEG, PNG, or PDF). This is required.";
+            return;
+        }
+
         setRegisterSubmitLoading(true);
         try {
+            const formData = new FormData();
+            formData.append("fullName", fullName);
+            formData.append("email", email);
+            formData.append("password", password);
+            formData.append("identityVerification", idFile, idFile.name);
+
             const response = await fetch(`${API_BASE_URL}/auth/resident/register`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ fullName, email, password })
+                body: formData
             });
-            const result = await response.json();
+            const result = await response.json().catch(() => ({}));
             if (!response.ok || !result?.ok) {
-                if (errorEl) errorEl.innerText = result?.message || "Registration failed. Please try again.";
+                if (errorEl) {
+                    const raw = String(result?.message || "").trim();
+                    const legacyMultipartMismatch =
+                        raw === "fullName, email, and password are required." ||
+                        /^fullName,\s*email,\s*and\s*password\s+are\s+required\.?$/i.test(raw);
+                    if (legacyMultipartMismatch) {
+                        errorEl.innerText =
+                            "The API at " +
+                            API_BASE_URL +
+                            " is an older build: it expects JSON, but this page sends your ID as a file (multipart). Redeploy the latest backend to Render (or point API_BASE_URL in resident-login.html to a server running the current code).";
+                    } else {
+                        errorEl.innerText = raw || "Registration failed. Please try again.";
+                    }
+                }
                 return;
             }
 
@@ -989,9 +1058,31 @@
 
 
 
+    function resetIdentityVerificationUpload() {
+        const input = document.getElementById("id-upload");
+        const box = document.getElementById("upload-box");
+        const defaultState = document.getElementById("upload-default-state");
+        const successState = document.getElementById("upload-success-state");
+        if (input) input.value = "";
+        if (defaultState) defaultState.style.display = "block";
+        if (successState) successState.style.display = "none";
+        if (box) {
+            box.classList.remove("has-file");
+            box.onclick = function () {
+                document.getElementById("id-upload").click();
+            };
+        }
+        updateRegisterSubmitState();
+    }
+
     function toggleForm() {
+        const registerForm = document.getElementById("register-form");
+        const registerWasVisible = registerForm && !registerForm.classList.contains("hidden");
         document.getElementById('login-form').classList.toggle('hidden');
         document.getElementById('register-form').classList.toggle('hidden');
+        if (registerWasVisible) {
+            resetIdentityVerificationUpload();
+        }
         const loginError = document.getElementById("resident-login-error");
         const registerError = document.getElementById("resident-register-error");
         if (loginError) {
@@ -1002,6 +1093,13 @@
             registerError.style.color = "#b91c1c";
             registerError.innerText = "";
         }
+        const lenHint = document.getElementById("resident-register-pass-length-msg");
+        if (lenHint) {
+            lenHint.textContent = "";
+            lenHint.style.color = "";
+        }
+        updateRegisterPasswordLengthHint();
+        updateRegisterSubmitState();
     }
 
     function togglePassword(inputId, toggleElement) {
@@ -1032,6 +1130,27 @@
         const file = input.files[0];
         if (!file) return;
 
+        const errEl = document.getElementById("resident-register-error");
+        const maxBytes = 10 * 1024 * 1024;
+        const allowed = /\.(jpe?g|png|pdf)$/i;
+        if (!allowed.test(file.name)) {
+            if (errEl) {
+                errEl.style.color = "#b91c1c";
+                errEl.innerText = "Please choose a JPEG, PNG, or PDF file.";
+            }
+            input.value = "";
+            return;
+        }
+        if (file.size > maxBytes) {
+            if (errEl) {
+                errEl.style.color = "#b91c1c";
+                errEl.innerText = "File is too large (maximum 10MB).";
+            }
+            input.value = "";
+            return;
+        }
+        if (errEl) errEl.innerText = "";
+
         const box = document.getElementById("upload-box");
         const defaultState = document.getElementById("upload-default-state");
         const successState = document.getElementById("upload-success-state");
@@ -1049,20 +1168,12 @@
         box.classList.add("has-file");
         // Prevent click from opening file picker when file is uploaded
         box.onclick = null;
+        updateRegisterSubmitState();
     }
 
     function removeUploadedFile(event) {
         event.stopPropagation();
-        const input = document.getElementById("id-upload");
-        const box = document.getElementById("upload-box");
-        const defaultState = document.getElementById("upload-default-state");
-        const successState = document.getElementById("upload-success-state");
-
-        input.value = "";
-        defaultState.style.display = "block";
-        successState.style.display = "none";
-        box.classList.remove("has-file");
-        box.onclick = function() { document.getElementById("id-upload").click(); };
+        resetIdentityVerificationUpload();
     }
 
     function handleGoogleSignIn() {
@@ -1110,6 +1221,7 @@
 
     document.getElementById("resident-register-pass")?.addEventListener("input", () => {
         const passInput = document.getElementById("resident-register-pass");
+        updateRegisterPasswordLengthHint();
         updatePasswordStrength(passInput?.value || "");
         const confirmInput = document.getElementById("resident-register-confirm");
         if (confirmInput?.value) validateRegisterPasswordMatch();

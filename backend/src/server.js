@@ -5,6 +5,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const multer = require("multer");
 const { createClient } = require("@supabase/supabase-js");
 
 let intentionalShutdown = false;
@@ -82,6 +83,18 @@ const residentAvatarUploadLimiter = rateLimit({
 
 const RESIDENT_AVATAR_BUCKET = "resident-avatars";
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+
+const RESIDENT_ID_BUCKET = "resident-identity-documents";
+const MAX_ID_DOC_BYTES = 10 * 1024 * 1024;
+
+const residentRegisterUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_ID_DOC_BYTES, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    const ok = ["image/jpeg", "image/png", "application/pdf"].includes(String(file.mimetype || ""));
+    cb(ok ? null : new Error("INVALID_ID_MIME"), ok);
+  }
+});
 
 const residentAvatarRawBodyParser = express.raw({
   limit: "5mb",
@@ -183,6 +196,16 @@ function sniffImageMimeFromBuffer(buf) {
   const riff = buf.toString("ascii", 0, 4);
   const webp = buf.toString("ascii", 8, 12);
   if (riff === "RIFF" && webp === "WEBP") return "image/webp";
+  return null;
+}
+
+/** JPEG, PNG, or PDF (magic bytes); used for identity verification uploads. */
+function sniffIdentityDocumentMime(buf) {
+  if (!buf || buf.length < 5) return null;
+  const ascii5 = buf.toString("ascii", 0, 5);
+  if (ascii5.startsWith("%PDF")) return "application/pdf";
+  const img = sniffImageMimeFromBuffer(buf);
+  if (img === "image/jpeg" || img === "image/png") return img;
   return null;
 }
 
@@ -1500,7 +1523,7 @@ async function ensureResidentUserRow(email) {
   return fallbackByEmail?.id || null;
 }
 
-async function upsertResidentProfile({ email, fullName, residentSelfRegistered = false }) {
+async function upsertResidentProfile({ email, fullName, residentSelfRegistered = false, identityVerificationUrl = null }) {
   const normalizedEmail = normalizeEmail(email);
   const safeFullName = sanitizeFullNameForStorage(fullName);
   if (!normalizedEmail || !safeFullName) {
@@ -1513,6 +1536,9 @@ async function upsertResidentProfile({ email, fullName, residentSelfRegistered =
     role: "resident",
     resident_self_registered: Boolean(residentSelfRegistered)
   };
+  if (identityVerificationUrl) {
+    upsertPayload.identity_verification_url = identityVerificationUrl;
+  }
 
   const { error } = await supabaseAdmin.from("profiles").upsert(upsertPayload, { onConflict: "email" });
   if (error) {
@@ -1529,94 +1555,192 @@ function parseResidentUserId(rawValue) {
   return parsed;
 }
 
-app.post("/auth/resident/register", authResidentRegisterLimiter, async (req, res) => {
-  const { fullName, email, password } = req.body || {};
-  const normalizedEmail = normalizeEmail(email);
-  const safeFullName = sanitizeFullNameForStorage(fullName);
-  const safePassword = String(password || "");
-
-  if (!safeFullName || !normalizedEmail || !safePassword) {
-    return res.status(400).json({
-      ok: false,
-      message: "fullName, email, and password are required."
-    });
-  }
-
-  if (!isValidEmailFormat(normalizedEmail)) {
-    return res.status(400).json({
-      ok: false,
-      message: "Please enter a valid email address."
-    });
-  }
-
-  if (safePassword.length < 8) {
-    return res.status(400).json({
-      ok: false,
-      message: "Password must be at least 8 characters long."
-    });
-  }
-
-  if (safePassword.length > MAX_PASSWORD_LEN) {
-    return res.status(400).json({
-      ok: false,
-      message: `Password must be at most ${MAX_PASSWORD_LEN} characters.`
-    });
-  }
-
-  // Password hashing and storage are handled by Supabase Auth (auth.users). Application tables
-  // never store plaintext passwords. Database access uses parameterized Supabase APIs (SQL injection safe).
-
-  const { data: signUpData, error: signUpError } = await supabaseAuth.auth.signUp({
-    email: normalizedEmail,
-    password: safePassword,
-    options: {
-      data: {
-        full_name: safeFullName,
-        role: "resident"
+function residentRegisterUploadMiddleware(req, res, next) {
+  residentRegisterUpload.single("identityVerification")(req, res, (err) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ ok: false, message: "ID document is too large (max 10MB)." });
       }
+      return res.status(400).json({ ok: false, message: "Invalid file upload." });
     }
+    if (String(err.message || "") === "INVALID_ID_MIME") {
+      return res.status(400).json({
+        ok: false,
+        message: "Valid ID must be a JPEG, PNG, or PDF file."
+      });
+    }
+    return next(err);
   });
+}
 
-  if (signUpError) {
-    return res.status(400).json({
-      ok: false,
-      message: signUpError.message || "Unable to register resident account."
-    });
+async function uploadResidentIdentityDocToStorage(authUserId, buf, mime) {
+  const ext =
+    mime === "image/jpeg" ? "jpg" : mime === "image/png" ? "png" : mime === "application/pdf" ? "pdf" : null;
+  if (!ext) {
+    return { ok: false, message: "Unsupported document type." };
   }
-
-  const profileResult = await upsertResidentProfile({
-    email: normalizedEmail,
-    fullName: safeFullName,
-    residentSelfRegistered: true
+  const objectPath = `${authUserId}/identity-${Date.now()}.${ext}`;
+  const { error: upErr } = await supabaseAdmin.storage.from(RESIDENT_ID_BUCKET).upload(objectPath, buf, {
+    contentType: mime,
+    upsert: false
   });
-  if (!profileResult.ok) {
-    return res.status(500).json({
+  if (upErr) {
+    return {
       ok: false,
-      message: profileResult.message,
-      detail: profileResult.detail
-    });
+      message:
+        "Unable to store ID document. Ensure Storage bucket resident-identity-documents exists (see migrations).",
+      detail: upErr.message
+    };
   }
-
-  const residentUserId = await ensureResidentUserRow(normalizedEmail);
-  if (!residentUserId) {
-    return res.status(500).json({
-      ok: false,
-      message: "Unable to link resident account to internal user record."
-    });
+  const { data: pub } = supabaseAdmin.storage.from(RESIDENT_ID_BUCKET).getPublicUrl(objectPath);
+  const publicUrl = pub?.publicUrl || null;
+  if (!publicUrl) {
+    return { ok: false, message: "Unable to resolve public URL for ID document." };
   }
+  return { ok: true, publicUrl };
+}
 
-  return res.status(201).json({
-    ok: true,
-    message: "Resident account created.",
-    stored: true,
-    user: {
+app.post(
+  "/auth/resident/register",
+  authResidentRegisterLimiter,
+  residentRegisterUploadMiddleware,
+  async (req, res) => {
+    if (!hasSupabaseServiceRoleKey()) {
+      return res.status(503).json({
+        ok: false,
+        message: "Resident registration with ID upload requires SUPABASE_SERVICE_ROLE_KEY on the backend."
+      });
+    }
+
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const { fullName, email, password } = body;
+    const normalizedEmail = normalizeEmail(email);
+    const safeFullName = sanitizeFullNameForStorage(fullName);
+    const safePassword = String(password || "");
+    const idFile = req.file;
+
+    if (!safeFullName || !normalizedEmail || !safePassword) {
+      return res.status(400).json({
+        ok: false,
+        message: "fullName, email, password, and identityVerification file are required."
+      });
+    }
+
+    if (!idFile || !Buffer.isBuffer(idFile.buffer) || idFile.buffer.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        message: "A valid ID document (JPEG, PNG, or PDF) is required for registration."
+      });
+    }
+
+    if (!isValidEmailFormat(normalizedEmail)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Please enter a valid email address."
+      });
+    }
+
+    if (safePassword.length < 8) {
+      return res.status(400).json({
+        ok: false,
+        message: "Password must be at least 8 characters long."
+      });
+    }
+
+    if (safePassword.length > MAX_PASSWORD_LEN) {
+      return res.status(400).json({
+        ok: false,
+        message: `Password must be at most ${MAX_PASSWORD_LEN} characters.`
+      });
+    }
+
+    const docMime = sniffIdentityDocumentMime(idFile.buffer);
+    if (!docMime) {
+      return res.status(400).json({
+        ok: false,
+        message: "ID file content must be a valid JPEG, PNG, or PDF."
+      });
+    }
+
+    const { data: signUpData, error: signUpError } = await supabaseAuth.auth.signUp({
+      email: normalizedEmail,
+      password: safePassword,
+      options: {
+        data: {
+          full_name: safeFullName,
+          role: "resident"
+        }
+      }
+    });
+
+    if (signUpError) {
+      return res.status(400).json({
+        ok: false,
+        message: signUpError.message || "Unable to register resident account."
+      });
+    }
+
+    const authUserId = signUpData?.user?.id || null;
+    if (!authUserId) {
+      return res.status(500).json({
+        ok: false,
+        message: "Registration could not be completed. Try again or contact support if this persists."
+      });
+    }
+
+    const uploadResult = await uploadResidentIdentityDocToStorage(authUserId, idFile.buffer, docMime);
+    if (!uploadResult.ok) {
+      const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
+      if (delErr) {
+        console.error("[backend] rollback auth user after ID upload failure:", delErr.message);
+      }
+      return res.status(500).json({
+        ok: false,
+        message: uploadResult.message,
+        detail: uploadResult.detail
+      });
+    }
+
+    const profileResult = await upsertResidentProfile({
       email: normalizedEmail,
       fullName: safeFullName,
-      role: "resident",
-      residentUserId
+      residentSelfRegistered: true,
+      identityVerificationUrl: uploadResult.publicUrl
+    });
+    if (!profileResult.ok) {
+      const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
+      if (delErr) {
+        console.error("[backend] rollback auth user after profile save failure:", delErr.message);
+      }
+      return res.status(500).json({
+        ok: false,
+        message: profileResult.message,
+        detail: profileResult.detail
+      });
     }
-  });
-});
+
+    const residentUserId = await ensureResidentUserRow(normalizedEmail);
+    if (!residentUserId) {
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to link resident account to internal user record."
+      });
+    }
+
+    return res.status(201).json({
+      ok: true,
+      message: "Resident account created.",
+      stored: true,
+      user: {
+        email: normalizedEmail,
+        fullName: safeFullName,
+        role: "resident",
+        residentUserId
+      }
+    });
+  }
+);
 
 app.post("/auth/resident/login", authResidentLoginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
@@ -4246,6 +4370,167 @@ app.get("/admin/profiles", async (req, res) => {
   return res.json({
     ok: true,
     profiles: (data || []).map(mapDirectoryProfileRow)
+  });
+});
+
+app.get("/admin/profiles/by-email", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+  const actorRole = auth.profile.role;
+  if (actorRole !== "admin" && actorRole !== "system-admin") {
+    return res.status(403).json({
+      ok: false,
+      message: "Barangay admin or system administrator role is required to load profiles."
+    });
+  }
+
+  const targetEmail = normalizeEmail(req.query?.email ?? "");
+  if (!targetEmail || !isValidEmailFormat(targetEmail)) {
+    return res.status(400).json({ ok: false, message: "A valid email query parameter is required." });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select(
+      "email, full_name, role, contact_number, identity_verification_url, avatar_url, account_status, resident_self_registered"
+    )
+    .eq("email", targetEmail)
+    .maybeSingle();
+
+  if (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load profile.",
+      detail: error.message
+    });
+  }
+  if (!data) {
+    return res.status(404).json({ ok: false, message: "No profile found for that email." });
+  }
+
+  if (actorRole === "admin" && (data.role === "admin" || data.role === "system-admin")) {
+    return res.status(403).json({ ok: false, message: "You cannot load this profile." });
+  }
+
+  const profile = {
+    email: data.email,
+    fullName: data.full_name || "",
+    role: data.role,
+    contactNumber: data.contact_number ?? null,
+    phone: data.contact_number ?? null,
+    idUrl: data.identity_verification_url ?? null,
+    avatarUrl: data.avatar_url ?? null,
+    accountStatus: mapAccountStatusToUiLabel(data.account_status),
+    residentSelfRegistered: data.role === "resident" && Boolean(data.resident_self_registered)
+  };
+
+  return res.json({ ok: true, profile });
+});
+
+app.patch("/admin/profiles/update", async (req, res) => {
+  const auth = await requireStaffPortalUser(req, res);
+  if (!auth) return;
+  const actorRole = auth.profile.role;
+  if (actorRole !== "admin" && actorRole !== "system-admin") {
+    return res.status(403).json({
+      ok: false,
+      message: "Barangay admin or system administrator role is required."
+    });
+  }
+
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const targetEmail = normalizeEmail(body.email ?? "");
+  const password = body.password != null ? String(body.password) : "";
+  const hasPassword = password.length > 0;
+  const hasContact = Object.prototype.hasOwnProperty.call(body, "contactNumber");
+
+  if (!targetEmail || !isValidEmailFormat(targetEmail)) {
+    return res.status(400).json({ ok: false, message: "A valid email is required." });
+  }
+  if (!hasPassword && !hasContact) {
+    return res.status(400).json({
+      ok: false,
+      message: "Provide password and/or contactNumber to update."
+    });
+  }
+
+  const { data: target, error: loadErr } = await supabaseAdmin
+    .from("profiles")
+    .select("email, role")
+    .eq("email", targetEmail)
+    .maybeSingle();
+
+  if (loadErr) {
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to load target profile.",
+      detail: loadErr.message
+    });
+  }
+  if (!target) {
+    return res.status(404).json({ ok: false, message: "No profile found for that email." });
+  }
+  if (actorRole === "admin" && (target.role === "admin" || target.role === "system-admin")) {
+    return res.status(403).json({ ok: false, message: "You cannot update this account from here." });
+  }
+
+  if (hasPassword) {
+    if (password.length < 8) {
+      return res.status(400).json({ ok: false, message: "Password must be at least 8 characters." });
+    }
+    if (password.length > MAX_PASSWORD_LEN) {
+      return res.status(400).json({
+        ok: false,
+        message: `Password must be at most ${MAX_PASSWORD_LEN} characters.`
+      });
+    }
+    const { id: authUserId, error: authLookupErr } = await findAuthUserIdByEmail(targetEmail);
+    if (authLookupErr) {
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to look up auth user.",
+        detail: authLookupErr.message
+      });
+    }
+    if (!authUserId) {
+      return res.status(400).json({
+        ok: false,
+        message: "No sign-in account is linked to this profile; password cannot be updated here."
+      });
+    }
+    const { error: pwdErr } = await supabaseAdmin.auth.admin.updateUserById(authUserId, { password });
+    if (pwdErr) {
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to update password.",
+        detail: pwdErr.message
+      });
+    }
+  }
+
+  if (hasContact) {
+    const contact_number = sanitizeResidentContactNumber(body.contactNumber);
+    const { error: profErr } = await supabaseAdmin
+      .from("profiles")
+      .update({ contact_number })
+      .eq("email", targetEmail);
+    if (profErr) {
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to update contact number.",
+        detail: profErr.message
+      });
+    }
+  }
+
+  return res.json({
+    ok: true,
+    message:
+      hasPassword && hasContact
+        ? "Password and contact number updated."
+        : hasPassword
+          ? "Password updated."
+          : "Contact number updated."
   });
 });
 

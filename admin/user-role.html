@@ -520,6 +520,7 @@
                 <div class="form-group">
                     <label style="font-weight: 700; font-size: 0.9rem; color: var(--text-main);">New Password</label>
                     <input type="password" id="viewProfilePassword" placeholder="Enter new password" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem; background:#fff; color:var(--text-main);">
+                    <p id="viewProfilePasswordLengthHint" style="font-size:0.8rem; margin-top:4px; min-height:1.1rem;"></p>
                 </div>
                 <div class="form-group">
                     <label style="font-weight: 700; font-size: 0.9rem; color: var(--text-main);">Confirm Password</label>
@@ -608,6 +609,7 @@
                 <div class="form-group">
                     <label>Password</label>
                     <input type="password" id="newStaffPassword" placeholder="Enter password" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                    <p id="newStaffPasswordHint" style="font-size:0.8rem; margin-top:4px; min-height:1.1rem;"></p>
                 </div>
                 <div class="form-group">
                     <label>Permissions</label>
@@ -1297,6 +1299,11 @@ logoutConfirmBtn?.addEventListener("click", () => {
             document.getElementById('newStaffName').value = '';
             document.getElementById('newStaffEmail').value = '';
             document.getElementById('newStaffPassword').value = '';
+            const nsh = document.getElementById("newStaffPasswordHint");
+            if (nsh) {
+                nsh.textContent = "";
+                nsh.style.color = "";
+            }
             document.getElementById('permDashboard').checked = false;
             document.getElementById('permAppt').checked = false;
             document.getElementById('permRequest').checked = false;
@@ -1316,6 +1323,14 @@ logoutConfirmBtn?.addEventListener("click", () => {
                 await showDialog({
                     title: "Validation Error",
                     message: "Please fill in all required fields: Full Name, Email Address, and Password.",
+                    confirmLabel: "OK"
+                });
+                return;
+            }
+            if (password.length < 8) {
+                await showDialog({
+                    title: "Validation Error",
+                    message: "Password must be at least 8 characters.",
                     confirmLabel: "OK"
                 });
                 return;
@@ -1402,6 +1417,11 @@ logoutConfirmBtn?.addEventListener("click", () => {
             document.getElementById("viewProfilePassword").value = "";
             document.getElementById("viewProfileConfirmPassword").value = "";
             document.getElementById("viewProfilePasswordMismatch").style.display = "none";
+            const vpl = document.getElementById("viewProfilePasswordLengthHint");
+            if (vpl) {
+                vpl.textContent = "";
+                vpl.style.color = "";
+            }
             document.getElementById("viewProfileAvatar").textContent = getInitials(name);
             document.getElementById("viewProfileModal").dataset.email = email;
             document.getElementById("viewProfileModal").style.display = "flex";
@@ -1456,6 +1476,11 @@ logoutConfirmBtn?.addEventListener("click", () => {
             }
             mismatchEl.style.display = "none";
 
+            if (password && password.length < 8) {
+                await showDialog({ title: "Validation Error", message: "New password must be at least 8 characters.", confirmLabel: "OK" });
+                return;
+            }
+
             if (!email) {
                 await showDialog({ title: "Error", message: "No email found for this profile.", confirmLabel: "OK" });
                 return;
@@ -1484,6 +1509,11 @@ logoutConfirmBtn?.addEventListener("click", () => {
                 // Clear password fields after success
                 document.getElementById("viewProfilePassword").value = "";
                 document.getElementById("viewProfileConfirmPassword").value = "";
+                const vpl = document.getElementById("viewProfilePasswordLengthHint");
+                if (vpl) {
+                    vpl.textContent = "";
+                    vpl.style.color = "";
+                }
                 await showDialog({ title: "Profile updated", message: json.message || "Profile changes have been saved successfully.", confirmLabel: "OK" });
             } catch (_err) {
                 await showDialog({ title: "Update failed", message: "Could not reach the server. Check that the API is running.", confirmLabel: "OK" });
@@ -1491,6 +1521,32 @@ logoutConfirmBtn?.addEventListener("click", () => {
         }
 
         loadUsersTable();
+
+        (function wireAdminPasswordLengthHints() {
+            const minLen = 8;
+            function bind(inputId, hintId) {
+                const input = document.getElementById(inputId);
+                const hint = document.getElementById(hintId);
+                if (!input || !hint) return;
+                input.addEventListener("input", () => {
+                    const v = input.value;
+                    if (!v.length) {
+                        hint.textContent = "";
+                        hint.style.color = "";
+                        return;
+                    }
+                    if (v.length < minLen) {
+                        hint.textContent = "Password must be at least 8 characters.";
+                        hint.style.color = "#dc2626";
+                        return;
+                    }
+                    hint.textContent = "Minimum length requirement met.";
+                    hint.style.color = "#16a34a";
+                });
+            }
+            bind("newStaffPassword", "newStaffPasswordHint");
+            bind("viewProfilePassword", "viewProfilePasswordLengthHint");
+        })();
     </script>
 </body>
 </html>

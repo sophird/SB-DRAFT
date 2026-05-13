@@ -86,6 +86,7 @@
         <div class="form-group">
           <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Password</label>
           <input type="password" placeholder="Enter new password" style="width: 100%; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <p data-rp-password-length-hint style="font-size: 0.8rem; margin-top: 4px; min-height: 1.1rem;"></p>
         </div>
         <div class="form-group">
           <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Contact Number</label>
@@ -279,6 +280,26 @@
 
     const profileForm = globalScope.document.getElementById("profileForm");
     if (profileForm) {
+      const pwdLenHint = globalScope.document.querySelector("[data-rp-password-length-hint]");
+      const pwdInputEl = profileForm.querySelector('input[type="password"]');
+      function syncProfilePasswordLengthHint() {
+        if (!pwdLenHint || !pwdInputEl) return;
+        const pw = String(pwdInputEl.value || "");
+        if (!pw.length) {
+          pwdLenHint.textContent = "";
+          pwdLenHint.style.color = "";
+          return;
+        }
+        if (pw.length < 8) {
+          pwdLenHint.textContent = "Password must be at least 8 characters.";
+          pwdLenHint.style.color = "#b91c1c";
+          return;
+        }
+        pwdLenHint.textContent = "Minimum length requirement met.";
+        pwdLenHint.style.color = "#166534";
+      }
+      pwdInputEl?.addEventListener("input", syncProfilePasswordLengthHint);
+
       profileForm.addEventListener("submit", async function (event) {
         event.preventDefault();
         const inputs = getProfileFormInputs();
@@ -294,6 +315,10 @@
         }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
           globalScope.alert("Please enter a valid email address.");
+          return;
+        }
+        if (newPassword && newPassword.length < 8) {
+          globalScope.alert("New password must be at least 8 characters.");
           return;
         }
 
@@ -362,6 +387,11 @@
               throw new Error(parts.length ? parts.join(" — ") : "Unable to update password.");
             }
             if (inputs.passwordInput) inputs.passwordInput.value = "";
+            const hintAfter = globalScope.document.querySelector("[data-rp-password-length-hint]");
+            if (hintAfter) {
+              hintAfter.textContent = "";
+              hintAfter.style.color = "";
+            }
           }
 
           if (profileProgressText) {
