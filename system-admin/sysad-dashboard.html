@@ -552,7 +552,7 @@
                     <td style="padding: 16px 12px; color: var(--text-muted);">${escapeHtml(joined)}</td>
                     <td style="padding: 16px 12px;"><span class="badge badge-green">Active</span></td>
                     <td style="padding: 16px 12px; text-align: center;">
-                        <button type="button" class="btn-delete-user" data-delete-email="${escapeAttr(email)}" data-delete-display="${escapeAttr(name)}" title="Remove account" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 5px;">${trashSvg}</button>
+                        <button type="button" class="btn-delete-user" data-delete-email="${escapeAttr(email)}" data-delete-display="${escapeAttr(name)}" title="Suspend account" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 5px;">${trashSvg}</button>
                     </td>
                 </tr>`;
                 })
@@ -719,11 +719,11 @@
                 deleteConfirmModal.className = "modal-overlay";
                 deleteConfirmModal.innerHTML = `
                     <div class="confirm-modal">
-                        <h3 style="font-size:1.05rem; color:var(--brand-dark); margin-bottom:0.55rem;">Delete this user account?</h3>
+                        <h3 style="font-size:1.05rem; color:var(--brand-dark); margin-bottom:0.55rem;">Suspend this user account?</h3>
                         <p id="deleteConfirmMessage" style="font-size:0.9rem; color:var(--text-muted); line-height:1.5;"></p>
                         <div class="confirm-actions">
                             <button type="button" class="btn-cancel" id="deleteConfirmCancelBtn">Cancel</button>
-                            <button type="button" class="btn-confirm danger" id="deleteConfirmSubmitBtn">Delete</button>
+                            <button type="button" class="btn-confirm danger" id="deleteConfirmSubmitBtn">Suspend</button>
                         </div>
                     </div>
                 `;
@@ -737,7 +737,7 @@
 
             const messageEl = document.getElementById("deleteConfirmMessage");
             if (messageEl) {
-                messageEl.textContent = `Permanently delete "${pendingDeleteDisplay}" (${pendingDeleteEmail})? This cannot be undone.`;
+                messageEl.textContent = `Suspend "${pendingDeleteDisplay}" (${pendingDeleteEmail})? This action will suspend the account.`;
             }
             deleteConfirmModal.classList.add("show");
         }
@@ -764,7 +764,7 @@
                 const json = await res.json().catch(() => ({}));
                 if (!res.ok || !json?.ok) {
                     closeDeleteConfirmModal();
-                    alert(json?.message || "Could not delete this account.");
+                    alert(json?.message || "Could not suspend this account.");
                     return;
                 }
                 closeDeleteConfirmModal();
