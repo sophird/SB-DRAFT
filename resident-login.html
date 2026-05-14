@@ -1165,22 +1165,11 @@ function updatePasswordStrength(password) {
         }
     });
 
-    // Block cut, copy, paste and emojis from all password fields
+    // Block emojis from ALL input fields
     const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
-    ["resident-login-pass", "resident-register-pass", "resident-register-confirm"].forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
 
-        // Block cut, copy, paste entirely
-        ["cut", "copy", "paste"].forEach(evt => {
-            el.addEventListener(evt, function (e) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                return false;
-            });
-        });
-
-        // Block emojis on input
+    document.querySelectorAll("input[type='text'], input[type='email'], input[type='password']").forEach(el => {
+        // Strip emojis on input (covers typing, paste, drag-drop)
         el.addEventListener("input", function () {
             const pos = this.selectionStart;
             const cleaned = this.value.replace(emojiRegex, "");
@@ -1190,12 +1179,25 @@ function updatePasswordStrength(password) {
             }
         });
 
-        // Block emoji key presses
+        // Block emoji key presses before they land
         el.addEventListener("keydown", function (e) {
             if (emojiRegex.test(e.key)) e.preventDefault();
         });
+    });
 
-        // Block context menu (right-click) on password fields
+    // Block cut, copy, paste and right-click on password fields only
+    ["resident-login-pass", "resident-register-pass", "resident-register-confirm"].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+
+        ["cut", "copy", "paste"].forEach(evt => {
+            el.addEventListener(evt, function (e) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                return false;
+            });
+        });
+
         el.addEventListener("contextmenu", function (e) {
             e.preventDefault();
             return false;
