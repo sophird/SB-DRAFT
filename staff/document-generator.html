@@ -397,9 +397,36 @@
 
         /* Indigency uses old style */
         .cert-body { text-align: justify; line-height: 1.8; font-size: 1.1rem; padding: 40px; }
-        .cert-title { font-size: 2rem; font-weight: 700; margin-bottom: 20px; text-transform: uppercase; text-align: center; }
+        .cert-title { font-size: 2rem; font-weight: 700; margin: 22px 0 20px 0; text-transform: uppercase; text-align: center; }
         .cert-footer { display: flex; justify-content: space-between; padding-top: 40px; }
-        .cert-header { border-bottom: 3px solid #0d2e6e; padding-bottom: 16px; margin-bottom: 24px; text-align: center; }
+        .cert-header {
+            border-bottom: 3px solid #0d2e6e;
+            padding: 36px 40px 20px 40px;
+            margin-bottom: 0;
+            text-align: center;
+            background: #fff;
+        }
+        .cert-header h3 {
+            font-size: 11pt;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: #0d2e6e;
+            margin: 0 0 2px 0;
+        }
+        .cert-header h4 {
+            font-size: 10pt;
+            font-weight: 600;
+            color: #1a3a6b;
+            margin: 2px 0;
+        }
+        .cert-header h2 {
+            font-size: 18pt;
+            font-weight: 900;
+            color: var(--brand-dark);
+            margin: 10px 0 0 0;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
 
         @media print {
             aside, .config-panel, .top-bar { display: none !important; }
@@ -638,7 +665,7 @@
                         <h3>REPUBLIC OF THE PHILIPPINES</h3>
                         <h4>PROVINCE OF SAMPLE</h4>
                         <h4>CITY OF BURGOS</h4>
-                        <h2 style="margin-top: 10px; color: var(--brand-dark);">BARANGAY BURGOS</h2>
+                        <h2>BARANGAY BURGOS</h2>
                     </div>
 
                     <h1 class="cert-title" id="previewTitle">BARANGAY CLEARANCE</h1>
