@@ -250,6 +250,7 @@
             position: relative;
             display: flex;
             flex-direction: column;
+            min-height: 100%;
         }
 
         /* Watermark */
@@ -729,26 +730,31 @@
 
                             <!-- Body paragraphs -->
                             <p class="bc-para" style="margin-top: 14px;">This is to certify that the subject person is known to me personally to be a person of good moral standing in the community and a law-abiding citizen. She/he has no Pending Case or Derogatory Record in our Office.</p>
-                            <p class="bc-issued-line">Issued this <span id="previewDate">[DATE]</span> at Barangay Burgos, San Marcelino, Zambales.</p>
+                            <p class="bc-issued-line">Issued this ___ day of __________, ______ at Barangay Burgos, San Marcelino, Zambales.</p>
 
-                            <!-- Signatory — centered -->
-                            <div style="text-align: center; margin-top: 10px; margin-bottom: 16px; position: relative; z-index: 1;">
-                                <div class="bc-sig-name">HON. RIZALINO F. RAGADIO</div>
-                                <div class="bc-sig-title">Punong Barangay</div>
+                            <!-- Signatory + bottom seal row -->
+                            <div style="display: flex; align-items: flex-end; justify-content: space-between; margin-top: 14px; position: relative; z-index: 1;">
+
+                                <!-- Left: signatory centered on its column -->
+                                <div style="text-align: center; min-width: 220px;">
+                                    <div class="bc-sig-name">HON. RIZALINO F. RAGADIO</div>
+                                    <div class="bc-sig-title">Punong Barangay</div>
+                                </div>
+
+                                <!-- Right: OR/CTC info -->
+                                <div class="bc-footer-info" style="text-align: left;">
+                                    <span>OR No.: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span id="previewOrNumber">[OR NO.]</span></span><br>
+                                    <span>CTC No.: &nbsp;&nbsp;&nbsp;<span id="previewCtcNumber">[CTC NO.]</span></span><br>
+                                    <span>Issued at: &nbsp;San Marcelino, Zambales</span><br>
+                                    <span>Issued on: &nbsp;<span id="previewIssuedOn">[DATE]</span></span>
+                                </div>
                             </div>
 
-                            <!-- Bottom: seal + OR/CTC info stacked on bottom-left, note below -->
-                            <div style="position: relative; z-index: 1; margin-top: 6px;">
-                                <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
-                                    <div class="bc-not-valid">Not Valid without<br>Official Seal</div>
-                                    <div class="bc-footer-info" style="margin-top: 4px;">
-                                        <span>OR No.: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span id="previewOrNumber">[OR NO.]</span></span><br>
-                                        <span>CTC No.: &nbsp;&nbsp;&nbsp;<span id="previewCtcNumber">[CTC NO.]</span></span><br>
-                                        <span>Issued at: &nbsp;San Marcelino, Zambales</span><br>
-                                        <span>Issued on: &nbsp;<span id="previewIssuedOn">[DATE]</span></span>
-                                    </div>
-                                </div>
-                                <p style="font-size: 9pt; font-style: italic; margin-top: 8px;">Note: This is valid (3) months only after date of issuance</p>
+                            <p style="font-size: 9pt; font-style: italic; margin-top: 10px; position: relative; z-index: 1;">Note: This is valid (3) months only after date of issuance</p>
+
+                            <!-- Not Valid — absolute bottom-left corner -->
+                            <div style="position: absolute; bottom: 18px; left: 38px; z-index: 1;">
+                                <div class="bc-not-valid">Not Valid without<br>Official Seal</div>
                             </div>
                         </div>
                     </div>
