@@ -147,6 +147,34 @@
             handleLogin();
         }
     });
+
+    // Block emojis from ALL input fields
+    const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+    document.querySelectorAll("input[type='text'], input[type='email'], input[type='password']").forEach(el => {
+        el.addEventListener("input", function () {
+            const pos = this.selectionStart;
+            const cleaned = this.value.replace(emojiRegex, "");
+            if (cleaned !== this.value) {
+                this.value = cleaned;
+                this.setSelectionRange(Math.max(0, pos - 1), Math.max(0, pos - 1));
+            }
+        });
+        el.addEventListener("keydown", function (e) {
+            if (emojiRegex.test(e.key)) e.preventDefault();
+        });
+    });
+
+    // Block cut, copy, paste and right-click on password field
+    const adminPass = document.getElementById("admin-pass");
+    ["cut", "copy", "paste"].forEach(evt => {
+        adminPass.addEventListener(evt, function (e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+        });
+    });
+    adminPass.addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+    });
 </script>
 </body>
 </html>
