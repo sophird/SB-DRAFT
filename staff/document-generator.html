@@ -626,6 +626,24 @@
                         <label>Date of Issue</label>
                         <input type="date" id="issueDate" onchange="updatePreview()">
                     </div>
+                    <div class="form-group">
+                        <label>Issued This (Day)</label>
+                        <input type="number" id="issueDay" placeholder="e.g. 14" min="1" max="31" onkeyup="updatePreview()" onchange="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>Issued This (Month)</label>
+                        <select id="issueMonth" onchange="updatePreview()">
+                            <option value="">Select month...</option>
+                            <option>January</option><option>February</option><option>March</option>
+                            <option>April</option><option>May</option><option>June</option>
+                            <option>July</option><option>August</option><option>September</option>
+                            <option>October</option><option>November</option><option>December</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Issued This (Year)</label>
+                        <input type="number" id="issueYear" placeholder="e.g. 2026" min="2000" max="2100" onkeyup="updatePreview()" onchange="updatePreview()">
+                    </div>
                 </div>
 
                 <!-- Certificate of Indigency Fields -->
@@ -730,7 +748,7 @@
 
                             <!-- Body paragraphs -->
                             <p class="bc-para" style="margin-top: 14px;">This is to certify that the subject person is known to me personally to be a person of good moral standing in the community and a law-abiding citizen. She/he has no Pending Case or Derogatory Record in our Office.</p>
-                            <p class="bc-issued-line">Issued this ___ day of __________, ______ at Barangay Burgos, San Marcelino, Zambales.</p>
+                            <p class="bc-issued-line">Issued this <span id="previewIssuedDay">___</span> day of <span id="previewIssuedMonth">__________</span>, <span id="previewIssuedYear">______</span> at Barangay Burgos, San Marcelino, Zambales.</p>
 
                             <!-- Signatory: right-aligned block, text centered within it -->
                             <div style="text-align: center; margin-top: 16px; margin-bottom: 20px; position: relative; z-index: 1; width: 260px; margin-left: auto;">
@@ -950,14 +968,24 @@
                 
                 const dateVal = document.getElementById('issueDate').value;
                 if(dateVal) {
-                    const dateObj = new Date(dateVal);
+                    const dateObj = new Date(dateVal + 'T00:00:00');
                     const formatted = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-                    document.getElementById('previewDate').innerText = formatted;
+                    document.getElementById('previewDate') && (document.getElementById('previewDate').innerText = formatted);
                     document.getElementById('previewIssuedOn').innerText = formatted;
+                    // Auto-fill day/month/year fields if empty
+                    const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+                    if (!document.getElementById('issueDay').value) document.getElementById('issueDay').value = dateObj.getDate();
+                    if (!document.getElementById('issueMonth').value) document.getElementById('issueMonth').value = months[dateObj.getMonth()];
+                    if (!document.getElementById('issueYear').value) document.getElementById('issueYear').value = dateObj.getFullYear();
                 } else {
-                    document.getElementById('previewDate').innerText = "[DATE]";
+                    document.getElementById('previewDate') && (document.getElementById('previewDate').innerText = "[DATE]");
                     document.getElementById('previewIssuedOn').innerText = "[DATE]";
                 }
+
+                // Issued this ___ day of __________, ______
+                document.getElementById('previewIssuedDay').innerText = document.getElementById('issueDay').value || "___";
+                document.getElementById('previewIssuedMonth').innerText = document.getElementById('issueMonth').value || "__________";
+                document.getElementById('previewIssuedYear').innerText = document.getElementById('issueYear').value || "______";
             } else if (docType === "Certificate of Indigency") {
                 // Update indigency preview fields
                 document.getElementById('previewNameIndigency').innerText = document.getElementById('resNameIndigency').value || "[RESIDENT NAME]";
