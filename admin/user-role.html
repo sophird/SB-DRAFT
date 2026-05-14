@@ -504,8 +504,11 @@
 
                 <!-- Avatar -->
                 <div style="text-align: center; margin-bottom: 1.5rem;">
-                    <div id="viewProfileAvatar" style="width: 72px; height: 72px; border-radius: 50%; background: #d1fae5; color: var(--brand-dark); font-size: 1.5rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 0.5rem;">SD</div>
-                    <div style="color: var(--brand-green); font-weight: 600; font-size: 0.9rem; cursor: pointer;">Change Photo</div>
+                    <div style="position: relative; display: inline-block; margin-bottom: 0.5rem;">
+                        <div id="viewProfileAvatar" style="width: 72px; height: 72px; border-radius: 50%; background: #d1fae5; color: var(--brand-dark); font-size: 1.5rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid #e2e8f0;">SD</div>
+                        <img id="viewProfilePhoto" src="" alt="Profile Photo" style="display:none; width: 72px; height: 72px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0; position: absolute; top: 0; left: 0;">
+                    </div>
+                    <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem;">Profile Photo</div>
                 </div>
 
                 <!-- Fields -->
@@ -1404,6 +1407,9 @@ logoutConfirmBtn?.addEventListener("click", () => {
             document.getElementById("viewProfileEmail").value = email;
             document.getElementById("viewProfileContact").value = "";
             document.getElementById("viewProfileAvatar").textContent = getInitials(name);
+            document.getElementById("viewProfileAvatar").style.display = "inline-flex";
+            document.getElementById("viewProfilePhoto").style.display = "none";
+            document.getElementById("viewProfilePhoto").src = "";
             document.getElementById("viewProfileModal").dataset.email = email;
             document.getElementById("viewProfileModal").style.display = "flex";
 
@@ -1414,6 +1420,23 @@ logoutConfirmBtn?.addEventListener("click", () => {
                 const res = await adminFetch(`/admin/profiles/by-email?email=${encodedEmail}`);
                 const json = await res.json().catch(() => ({}));
                 const profile = json?.profile || json;
+
+                // Show resident's profile photo if available
+                const photoUrl = profile?.avatarUrl || profile?.photoUrl || profile?.profilePhoto || profile?.profilePicture || profile?.photo || null;
+                if (photoUrl) {
+                    const photoEl = document.getElementById("viewProfilePhoto");
+                    const avatarEl = document.getElementById("viewProfileAvatar");
+                    photoEl.onload = () => {
+                        avatarEl.style.display = "none";
+                        photoEl.style.display = "block";
+                    };
+                    photoEl.onerror = () => {
+                        avatarEl.style.display = "inline-flex";
+                        photoEl.style.display = "none";
+                    };
+                    photoEl.src = photoUrl;
+                }
+
                 const docUrl = profile?.idUrl || profile?.supportingDocumentUrl || profile?.validIdUrl || null;
 
                 if (docUrl) {
