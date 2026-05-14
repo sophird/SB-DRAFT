@@ -701,9 +701,19 @@
                                         <span class="bc-field-label">Civil Status:</span>
                                         <span class="bc-field-value" id="previewCivilStatus">[CIVIL STATUS]</span>
                                     </div>
-                                    <div class="bc-field-row">
+                                    <div class="bc-field-row" style="margin-bottom: 4px;">
                                         <span class="bc-field-label">Gender:</span>
                                         <span class="bc-field-value" id="previewGender">[GENDER]</span>
+                                    </div>
+                                    <!-- Purpose directly below Gender, tight -->
+                                    <div class="bc-field-row" style="margin-top: 4px; margin-bottom: 6px;">
+                                        <span class="bc-field-label">Purpose:</span>
+                                        <span class="bc-field-value" id="previewPurpose">[PURPOSE]</span>
+                                    </div>
+                                    <!-- Signature below Purpose, left-aligned -->
+                                    <div style="margin-top: 6px; position: relative; z-index: 1; width: 180px;">
+                                        <div class="bc-sig-line"></div>
+                                        <div class="bc-sig-label" style="text-align: center;">Signature</div>
                                     </div>
                                 </div>
 
@@ -717,39 +727,29 @@
                                 </div>
                             </div>
 
-                            <!-- Purpose + Signature -->
-                            <div class="bc-field-row" style="margin-bottom: 14px;">
-                                <span class="bc-field-label">Purpose:</span>
-                                <span class="bc-field-value" id="previewPurpose">[PURPOSE]</span>
-                            </div>
-                            <div style="margin-bottom: 18px; position: relative; z-index: 1;">
-                                <div class="bc-sig-area">
-                                    <div class="bc-sig-line"></div>
-                                    <div class="bc-sig-label">Signature</div>
-                                </div>
-                            </div>
-
                             <!-- Body paragraphs -->
-                            <p class="bc-para">This is to certify that the subject person is known to me personally to be a person of good moral standing in the community and a law-abiding citizen. She/he has no Pending Case or Derogatory Record in our Office.</p>
+                            <p class="bc-para" style="margin-top: 14px;">This is to certify that the subject person is known to me personally to be a person of good moral standing in the community and a law-abiding citizen. She/he has no Pending Case or Derogatory Record in our Office.</p>
                             <p class="bc-issued-line">Issued this <span id="previewDate">[DATE]</span> at Barangay Burgos, San Marcelino, Zambales.</p>
 
-                            <!-- Signatory -->
-                            <div class="bc-signatory">
+                            <!-- Signatory — centered -->
+                            <div style="text-align: center; margin-top: 10px; margin-bottom: 16px; position: relative; z-index: 1;">
                                 <div class="bc-sig-name">HON. RIZALINO F. RAGADIO</div>
                                 <div class="bc-sig-title">Punong Barangay</div>
                             </div>
 
-                            <!-- Bottom row: seal notice + footer info -->
-                            <div class="bc-bottom-row">
-                                <div class="bc-not-valid">Not Valid without<br>Official Seal</div>
-                                <div class="bc-footer-info">
-                                    <span>OR No.: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span id="previewOrNumber">[OR NO.]</span></span><br>
-                                    <span>CTC No.: &nbsp;&nbsp;&nbsp;<span id="previewCtcNumber">[CTC NO.]</span></span><br>
-                                    <span>Issued at: &nbsp;San Marcelino, Zambales</span><br>
-                                    <span>Issued on: &nbsp;<span id="previewIssuedOn">[DATE]</span></span>
+                            <!-- Bottom: seal + OR/CTC info stacked on bottom-left, note below -->
+                            <div style="position: relative; z-index: 1; margin-top: 6px;">
+                                <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
+                                    <div class="bc-not-valid">Not Valid without<br>Official Seal</div>
+                                    <div class="bc-footer-info" style="margin-top: 4px;">
+                                        <span>OR No.: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span id="previewOrNumber">[OR NO.]</span></span><br>
+                                        <span>CTC No.: &nbsp;&nbsp;&nbsp;<span id="previewCtcNumber">[CTC NO.]</span></span><br>
+                                        <span>Issued at: &nbsp;San Marcelino, Zambales</span><br>
+                                        <span>Issued on: &nbsp;<span id="previewIssuedOn">[DATE]</span></span>
+                                    </div>
                                 </div>
+                                <p style="font-size: 9pt; font-style: italic; margin-top: 8px;">Note: This is valid (3) months only after date of issuance</p>
                             </div>
-                            <p style="font-size: 9pt; font-style: italic; position: relative; z-index: 1; margin-top: 4px;">Note: This is valid (3) months only after date of issuance</p>
                         </div>
                     </div>
 
