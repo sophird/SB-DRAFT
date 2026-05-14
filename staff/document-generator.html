@@ -672,6 +672,24 @@
                         <label>Date of Issue</label>
                         <input type="date" id="issueDateIndigency" onchange="updatePreview()">
                     </div>
+                    <div class="form-group">
+                        <label>Issued This (Day)</label>
+                        <input type="number" id="issueDayIndigency" placeholder="e.g. 14" min="1" max="31" onkeyup="updatePreview()" onchange="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>Issued This (Month)</label>
+                        <select id="issueMonthIndigency" onchange="updatePreview()">
+                            <option value="">Select month...</option>
+                            <option>January</option><option>February</option><option>March</option>
+                            <option>April</option><option>May</option><option>June</option>
+                            <option>July</option><option>August</option><option>September</option>
+                            <option>October</option><option>November</option><option>December</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Issued This (Year)</label>
+                        <input type="number" id="issueYearIndigency" placeholder="e.g. 2026" min="2000" max="2100" onkeyup="updatePreview()" onchange="updatePreview()">
+                    </div>
                 </div>
 
                 <button class="btn-generate" onclick="window.print()">
@@ -772,20 +790,15 @@
                     </div>
 
                     <!-- Indigency Certificate Content (hidden by default) -->
-                    <div id="indigencyContent" class="cert-body" style="display: none;">
+                    <div id="indigencyContent" class="cert-body" style="display: none; position: relative;">
                         <p>TO WHOM IT MAY CONCERN:</p><br>
                         <p>This is to certify that <strong id="previewNameIndigency">[RESIDENT NAME]</strong> of legal age and a bonafide resident of Purok, Street, Barangay Burgos, San Marcelino, Zambales is categorized that his/her family belongs to an INDIGENT sector of the community.</p><br>
                         <p>It further certifies that based on our survey that has been conducted the family of <strong><span id="previewSurname">[SURNAME]</span></strong> does not exceed the Annual Regional Poverty Threshold Level as determined by the National Economic & Development Authority and under survival level, and found to be indigent.</p><br>
                         <p>This certification is being issued upon the request of above-named person as requirement in availing for <strong><span id="previewPurposeIndigency">[PURPOSE]</span></strong>.</p><br>
-                        <p>Issued this <span id="previewDateIndigency">[DATE]</span> at Barangay Burgos, San Marcelino, Zambales.</p>
-                        <div class="cert-footer">
-                            <div style="text-align: center; border-top: 1px solid black; width: 200px;">
-                                <p>Resident Signature</p>
-                            </div>
-                            <div style="text-align: center;">
-                                <strong style="text-decoration: underline;">HON. RIZALINO F. RAGADIO</strong>
-                                <p>Punong Barangay</p>
-                            </div>
+                        <p>Issued this <span id="previewIssuedDayIndigency">___</span> day of <span id="previewIssuedMonthIndigency">__________</span>, <span id="previewIssuedYearIndigency">______</span> at Barangay Burgos, San Marcelino, Zambales.</p>
+                        <!-- Not Valid without Official Seal — bottom left -->
+                        <div style="margin-top: 2rem;">
+                            <div class="bc-not-valid" style="display: inline-block;">Not Valid without<br>Official Seal</div>
                         </div>
                     </div>
                 </div>
@@ -991,14 +1004,19 @@
                 document.getElementById('previewNameIndigency').innerText = document.getElementById('resNameIndigency').value || "[RESIDENT NAME]";
                 document.getElementById('previewSurname').innerText = document.getElementById('resSurname').value || "[SURNAME]";
                 document.getElementById('previewPurposeIndigency').innerText = document.getElementById('docPurposeIndigency').value || "[PURPOSE]";
-                
-                const dateVal = document.getElementById('issueDateIndigency').value;
-                if(dateVal) {
-                    const dateObj = new Date(dateVal);
-                    document.getElementById('previewDateIndigency').innerText = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-                } else {
-                    document.getElementById('previewDateIndigency').innerText = "[DATE]";
+
+                const dateValInd = document.getElementById('issueDateIndigency').value;
+                if(dateValInd) {
+                    const dateObjInd = new Date(dateValInd + 'T00:00:00');
+                    const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+                    if (!document.getElementById('issueDayIndigency').value) document.getElementById('issueDayIndigency').value = dateObjInd.getDate();
+                    if (!document.getElementById('issueMonthIndigency').value) document.getElementById('issueMonthIndigency').value = months[dateObjInd.getMonth()];
+                    if (!document.getElementById('issueYearIndigency').value) document.getElementById('issueYearIndigency').value = dateObjInd.getFullYear();
                 }
+
+                document.getElementById('previewIssuedDayIndigency').innerText = document.getElementById('issueDayIndigency').value || "___";
+                document.getElementById('previewIssuedMonthIndigency').innerText = document.getElementById('issueMonthIndigency').value || "__________";
+                document.getElementById('previewIssuedYearIndigency').innerText = document.getElementById('issueYearIndigency').value || "______";
             }
         }
 
