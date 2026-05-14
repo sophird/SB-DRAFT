@@ -678,7 +678,7 @@
                         <div class="bc-body">
                             <div class="bc-subtitle">This is to certify that the person whose Name and Signature appear hereon has requested a CLEARANCE from this office.</div>
 
-                            <!-- Fields + Right column -->
+                            <!-- Fields + Right column (photo, thumbs, signature) -->
                             <div class="bc-content-row">
                                 <!-- Left: form fields -->
                                 <div class="bc-fields">
@@ -706,24 +706,23 @@
                                         <span class="bc-field-label">Gender:</span>
                                         <span class="bc-field-value" id="previewGender">[GENDER]</span>
                                     </div>
-                                    <!-- Purpose directly below Gender, tight -->
-                                    <div class="bc-field-row" style="margin-top: 4px; margin-bottom: 6px;">
+                                    <div class="bc-field-row" style="margin-top: 4px;">
                                         <span class="bc-field-label">Purpose:</span>
                                         <span class="bc-field-value" id="previewPurpose">[PURPOSE]</span>
                                     </div>
-                                    <!-- Signature below Purpose, left-aligned -->
-                                    <div style="margin-top: 6px; position: relative; z-index: 1; width: 180px;">
-                                        <div class="bc-sig-line"></div>
-                                        <div class="bc-sig-label" style="text-align: center;">Signature</div>
-                                    </div>
                                 </div>
 
-                                <!-- Right: photo + thumbs -->
+                                <!-- Right: photo + thumbs + signature below -->
                                 <div class="bc-right">
                                     <div class="bc-photo-box">2x2 Photo</div>
                                     <div class="bc-thumb-row">
                                         <div class="bc-thumb">Left<br>Thumb Mark</div>
                                         <div class="bc-thumb">Right<br>Thumb Mark</div>
+                                    </div>
+                                    <!-- Signature line below the 3 boxes -->
+                                    <div style="width: 100%; margin-top: 8px; text-align: center;">
+                                        <div style="border-top: 1.5px solid #000; margin-bottom: 3px;"></div>
+                                        <div style="font-size: 10pt;">Signature</div>
                                     </div>
                                 </div>
                             </div>
@@ -732,30 +731,24 @@
                             <p class="bc-para" style="margin-top: 14px;">This is to certify that the subject person is known to me personally to be a person of good moral standing in the community and a law-abiding citizen. She/he has no Pending Case or Derogatory Record in our Office.</p>
                             <p class="bc-issued-line">Issued this ___ day of __________, ______ at Barangay Burgos, San Marcelino, Zambales.</p>
 
-                            <!-- Signatory + bottom seal row -->
-                            <div style="display: flex; align-items: flex-end; justify-content: space-between; margin-top: 14px; position: relative; z-index: 1;">
+                            <!-- Signatory: centered, right after "Issued this" -->
+                            <div style="text-align: center; margin-top: 16px; margin-bottom: 20px; position: relative; z-index: 1;">
+                                <div class="bc-sig-name">HON. RIZALINO F. RAGADIO</div>
+                                <div class="bc-sig-title">Punong Barangay</div>
+                            </div>
 
-                                <!-- Left: signatory centered on its column -->
-                                <div style="text-align: center; min-width: 220px;">
-                                    <div class="bc-sig-name">HON. RIZALINO F. RAGADIO</div>
-                                    <div class="bc-sig-title">Punong Barangay</div>
-                                </div>
-
-                                <!-- Right: OR/CTC info -->
-                                <div class="bc-footer-info" style="text-align: left;">
+                            <!-- Bottom-left: Not Valid box stacked above OR/CTC/Note -->
+                            <div style="position: relative; z-index: 1; display: inline-flex; flex-direction: column; align-items: flex-start; gap: 6px;">
+                                <div class="bc-not-valid">Not Valid without<br>Official Seal</div>
+                                <div class="bc-footer-info">
                                     <span>OR No.: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span id="previewOrNumber">[OR NO.]</span></span><br>
                                     <span>CTC No.: &nbsp;&nbsp;&nbsp;<span id="previewCtcNumber">[CTC NO.]</span></span><br>
                                     <span>Issued at: &nbsp;San Marcelino, Zambales</span><br>
                                     <span>Issued on: &nbsp;<span id="previewIssuedOn">[DATE]</span></span>
                                 </div>
+                                <p style="font-size: 9pt; font-style: italic; margin: 0;">Note: This is valid (3) months only after date of issuance</p>
                             </div>
 
-                            <p style="font-size: 9pt; font-style: italic; margin-top: 10px; position: relative; z-index: 1;">Note: This is valid (3) months only after date of issuance</p>
-
-                            <!-- Not Valid — absolute bottom-left corner -->
-                            <div style="position: absolute; bottom: 18px; left: 38px; z-index: 1;">
-                                <div class="bc-not-valid">Not Valid without<br>Official Seal</div>
-                            </div>
                         </div>
                     </div>
 
